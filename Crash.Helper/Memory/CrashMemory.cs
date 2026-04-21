@@ -15,7 +15,7 @@ namespace Crash.Helper.Memory
 			Lives = new GamePointer<int>(0x1A08548, 0x38, 0x70, 0x90, 0xA0, 0x748);
 			Masks = new GamePointer<int>(0x1A08548, 0xC0, 0X90, 0X738, 0X58, 0X450);
 			LoadMap = new GamePointer(StringEncodingMode.Utf8, 0x01A5C6D8, 0x20);
-			Restart = new GamePointer<byte>(0x01A69A98, 0x78, 0xA0, 0xB18);
+			Restart = new GamePointer<byte>(0x01A69A98, 0x18, 0x60, 0xE0, 0x730);
         }
 
 		public GamePointer<int> Lives { get; }

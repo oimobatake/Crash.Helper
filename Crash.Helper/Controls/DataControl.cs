@@ -22,6 +22,8 @@ namespace Crash.Helper.Controls
         // suppress restart checkbox programmatic event
         private bool suppressRestartCheckboxEvent = false;
         private System.Threading.Timer restartTimer;
+        // when true, always keep Restart flag true in memory
+        private bool restartForceEnabled = false;
         private CrashMemory memory;
 
         private int storedLives = 1;
@@ -228,8 +230,42 @@ namespace Crash.Helper.Controls
 
         private void displayRestartCheckBox_CheckedChanged(object sender, EventArgs e)
         {
-            bool restart = displayRestartCheckBox.Checked;
-            DisplayRestart(restart);
+            if (suppressRestartCheckboxEvent) return;
+
+            // user toggled the checkbox: if checked, force Restart=true continuously; if unchecked, follow game state
+            restartForceEnabled = displayRestartCheckBox.Checked;
+            if (restartForceEnabled)
+            {
+                // immediately write true and start timer to maintain it
+                try { memory.Restart.Write((byte)1); } catch { }
+                StartRestart();
+            }
+            else
+            {
+                // stop forcing; stop timer and reflect current memory state in UI
+                StopRestart();
+                try
+                {
+                    suppressRestartCheckboxEvent = true;
+                    displayRestartCheckBox.Checked = memory.Restart.Read() != 0;
+                }
+                catch { }
+                finally { suppressRestartCheckboxEvent = false; }
+            }
+        }
+
+        private void StartRestart()
+        {
+            StopRestart();
+            restartTimer = new System.Threading.Timer(_ => {
+                try { memory.Restart.Write((byte)1); } catch { }
+            }, null, 0, 50);
+        }
+
+        private void StopRestart()
+        {
+            restartTimer?.Dispose();
+            restartTimer = null;
         }
 
         private void FreezeLives()

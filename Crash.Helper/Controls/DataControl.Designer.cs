@@ -193,7 +193,7 @@
             this.displayRestartCheckBox.UseVisualStyleBackColor = true;
             this.displayRestartCheckBox.CheckedChanged += new System.EventHandler(this.displayRestartCheckBox_CheckedChanged);
             // hide restart control for now (feature incomplete)
-            this.displayRestartCheckBox.Visible = false;
+            this.displayRestartCheckBox.Visible = true;
             // 
             // restrartLavel
             // 
@@ -203,7 +203,7 @@
             this.restrartLavel.Size = new System.Drawing.Size(55, 12);
             this.restrartLavel.TabIndex = 24;
             this.restrartLavel.Text = "Restart: -";
-            this.restrartLavel.Visible = false;
+            this.restrartLavel.Visible = true;
             // 
             // DataControl
             // 
