@@ -19,6 +19,7 @@ namespace Crash.Helper
 
 		private CrashMemory memory;
 		private DataControl dataControl;
+        private LevelSelectorControl levelSelector;
         private HotkeyControl hotkeyControl;
 		private ProcessControl processControl;
 		private Timer refreshTimer;
@@ -28,11 +29,13 @@ namespace Crash.Helper
 			InitializeComponent();
 			memory = new CrashMemory();
 			dataControl = new DataControl(memory);
+			levelSelector = new LevelSelectorControl(memory, dataControl);
 			hotkeyControl = new HotkeyControl(memory, dataControl);
 			processControl = new ProcessControl(memory, dataControl, hotkeyControl, this);
 
 			flowLayoutPanel.Controls.Add(processControl);
 			flowLayoutPanel.Controls.Add(dataControl);
+			flowLayoutPanel.Controls.Add(levelSelector);
 			flowLayoutPanel.Controls.Add(hotkeyControl);
 			flowLayoutPanel.Height--;
 

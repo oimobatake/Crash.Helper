@@ -95,7 +95,12 @@ namespace Crash.Helper.Memory
 			if (targetProcess == null || address == IntPtr.Zero) { return buffer; }
 
 			int bytesRead;
-			WinAPI.ReadProcessMemory(targetProcess.Handle, address, buffer, numBytes, out bytesRead);
+			bool ok = WinAPI.ReadProcessMemory(targetProcess.Handle, address, buffer, numBytes, out bytesRead);
+			if (!ok || bytesRead != numBytes)
+			{
+				// return zeroed buffer on failure
+				return buffer;
+			}
 			return buffer;
 		}
 		public static byte[] Read(this Process targetProcess, IntPtr address, int numBytes, params int[] offsets)
@@ -107,7 +112,11 @@ namespace Crash.Helper.Memory
 			if (address == IntPtr.Zero) { return buffer; }
 
 			int bytesRead;
-			WinAPI.ReadProcessMemory(targetProcess.Handle, address + last, buffer, numBytes, out bytesRead);
+			bool ok = WinAPI.ReadProcessMemory(targetProcess.Handle, address + last, buffer, numBytes, out bytesRead);
+			if (!ok || bytesRead != numBytes)
+			{
+				return buffer;
+			}
 			return buffer;
 		}
 		public static string Read(this Process targetProcess, IntPtr address)
@@ -140,7 +149,11 @@ namespace Crash.Helper.Memory
 			bool invalid = false;
 			do
 			{
-				WinAPI.ReadProcessMemory(targetProcess.Handle, address + offset, data, 128, out bytesRead);
+				bool ok = WinAPI.ReadProcessMemory(targetProcess.Handle, address + offset, data, 128, out bytesRead);
+				if (!ok || bytesRead <= 0)
+				{
+					break;
+				}
 				int i = 0;
 				while (i < bytesRead)
 				{
@@ -169,6 +182,47 @@ namespace Crash.Helper.Memory
 
 			return invalid ? string.Empty : sb.ToString();
 		}
+
+		// 0終端 ASCII（オフセット対応）
+		public static string ReadAscii(this Process targetProcess, IntPtr address, params int[] offsets)
+		{
+			if (targetProcess == null || address == IntPtr.Zero) { return string.Empty; }
+
+			int last = OffsetAddress(targetProcess, ref address, offsets);
+			if (address == IntPtr.Zero) { return string.Empty; }
+
+			return ReadAscii(targetProcess, address + last);
+		}
+
+		// 0終端 UTF-16（オフセットなし）
+		public static string ReadUtf16Z(this Process targetProcess, IntPtr address, int maxChars = 2048)
+		{
+			if (targetProcess == null || address == IntPtr.Zero) { return string.Empty; }
+
+			// 2バイトずつ読み、0x00 0x00 に到達したら終了
+			List<byte> bytes = new List<byte>(Math.Min(maxChars, 2048) * 2);
+			for (int i = 0; i < maxChars; i++)
+			{
+				byte[] ch = Read(targetProcess, address + (i * 2), 2);
+				if (ch == null || ch.Length < 2) { break; }
+				if (ch[0] == 0 && ch[1] == 0) { break; }
+				bytes.Add(ch[0]);
+				bytes.Add(ch[1]);
+			}
+			return bytes.Count == 0 ? string.Empty : Encoding.Unicode.GetString(bytes.ToArray());
+		}
+
+		// 0終端 UTF-16（オフセット対応）
+		public static string ReadUtf16Z(this Process targetProcess, IntPtr address, params int[] offsets)
+		{
+			if (targetProcess == null || address == IntPtr.Zero) { return string.Empty; }
+
+			int last = OffsetAddress(targetProcess, ref address, offsets);
+			if (address == IntPtr.Zero) { return string.Empty; }
+
+			return ReadUtf16Z(targetProcess, address + last);
+		}
+
 		public static void Write<T>(this Process targetProcess, IntPtr address, T value, params int[] offsets) where T : struct
 		{
 			if (targetProcess == null) { return; }
@@ -222,8 +276,15 @@ namespace Crash.Helper.Memory
 				buffer = BitConverter.GetBytes(Convert.ToDouble(value));
 			}
 
+			if (buffer == null || buffer.Length == 0) { return; }
+
 			int bytesWritten;
-			WinAPI.WriteProcessMemory(targetProcess.Handle, address + last, buffer, buffer.Length, out bytesWritten);
+			bool ok = WinAPI.WriteProcessMemory(targetProcess.Handle, address + last, buffer, buffer.Length, out bytesWritten);
+			if (!ok || bytesWritten != buffer.Length)
+			{
+				// write failed - nothing to do (caller may retry)
+				return;
+			}
 		}
 		public static void Write(this Process targetProcess, IntPtr address, byte[] value, params int[] offsets)
 		{
@@ -232,8 +293,14 @@ namespace Crash.Helper.Memory
 			int last = OffsetAddress(targetProcess, ref address, offsets);
 			if (address == IntPtr.Zero) { return; }
 
+			if (value == null || value.Length == 0) { return; }
+
 			int bytesWritten;
-			WinAPI.WriteProcessMemory(targetProcess.Handle, address + last, value, value.Length, out bytesWritten);
+			bool ok = WinAPI.WriteProcessMemory(targetProcess.Handle, address + last, value, value.Length, out bytesWritten);
+			if (!ok || bytesWritten != value.Length)
+			{
+				return;
+			}
 		}
 
 		private static int OffsetAddress(this Process targetProcess, ref IntPtr address, params int[] offsets)
@@ -242,7 +309,12 @@ namespace Crash.Helper.Memory
 			int bytesRead;
 			for (int i = 0; i < offsets.Length - 1; i++)
 			{
-				WinAPI.ReadProcessMemory(targetProcess.Handle, address + offsets[i], buffer, buffer.Length, out bytesRead);
+				bool ok = WinAPI.ReadProcessMemory(targetProcess.Handle, address + offsets[i], buffer, buffer.Length, out bytesRead);
+				if (!ok || bytesRead != buffer.Length)
+				{
+					address = IntPtr.Zero;
+					break;
+				}
 				if (is64Bit)
 				{
 					address = (IntPtr)BitConverter.ToUInt64(buffer, 0);

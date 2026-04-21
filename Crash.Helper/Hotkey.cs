@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Crash.Helper.Controls;
 using Crash.Helper.Memory;
+using Crash.Helper.Input;
 
 namespace Crash.Helper
 {
@@ -31,6 +32,9 @@ namespace Crash.Helper
 		public KeyModifiers Modifier { get; set; }
 
 		public uint Key { get; set; }
+
+        // bitmask of GamepadButton values (wButtons). Use null when no binding.
+        public ushort? GamepadMask { get; set; }
 
 		public int ID { get; set; }
 		
@@ -70,12 +74,32 @@ namespace Crash.Helper
 			{
 				AppendFunction("Shift");
 			}
+
 			if (Key == (uint)System.Windows.Forms.Keys.Add)
 			{
 				AppendFunction('+');
-			} else
+			}
+			else
 			{
-                AppendFunction((char)Key);
+				AppendFunction((char)Key);
+			}
+
+            if (GamepadMask.HasValue && GamepadMask.Value != 0)
+            {
+                // expand mask into names
+                var names = new List<string>();
+                foreach (GamepadButton b in Enum.GetValues(typeof(GamepadButton)))
+                {
+                    ushort mask = (ushort)b;
+                    if ((GamepadMask.Value & mask) != 0)
+                    {
+                        names.Add(b.ToString());
+                    }
+                }
+                if (names.Count > 0)
+                {
+                    AppendFunction(string.Join("+", names));
+                }
             }
 			
 

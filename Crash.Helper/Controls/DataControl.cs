@@ -8,219 +8,490 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using Crash.Helper.Memory;
+using System.Threading;
 
 namespace Crash.Helper.Controls
 {
-	public partial class DataControl : UserControl
-	{
-		private CrashMemory memory;
+    public partial class DataControl : UserControl
+    {
+        // Event fired when map lock state changes. Parameter is storedMap or null when unlocked.
+        public event EventHandler<string> MapLockChanged;
 
-		private int storedLives = 1;
+        // suppress checkbox event when setting Checked programmatically
+        private bool suppressFreezeCheckboxEvent = false;
+        // suppress restart checkbox programmatic event
+        private bool suppressRestartCheckboxEvent = false;
+        private System.Threading.Timer restartTimer;
+        private CrashMemory memory;
 
-		private bool isMaskFormOnDamage = false;
+        private int storedLives = 1;
+        private string storedMap = null;
 
-		public DataControl(CrashMemory memory)
-		{
-			this.memory = memory;
+        private System.Threading.Timer livesFreezeTimer;
+        private System.Threading.Timer masksFreezeTimer;
+        private System.Threading.Timer mapFreezeTimer;
+        private int mapFreezeFailCount = 0;
+        private const int MapFreezeFailThreshold = 5;
+        // Internal flag for map freeze (UI checkbox is kept hidden)
+        private bool freezeMapEnabled = false;
 
-			memory.Lives.OnValueChange += OnLivesChange;
-			memory.Masks.OnValueChange += OnMasksChange;
+        public DataControl(CrashMemory memory)
+        {
+            this.memory = memory;
 
-			InitializeComponent();
+            memory.Lives.OnValueChange += OnLivesChange;
+            memory.Masks.OnValueChange += OnMasksChange;
+            memory.LoadMap.OnValueChange += (o, n) => {
+                SafeAction(() =>
+                {
+                    try
+                    {
+                        if (freezeMapEnabled)
+                        {
+                            // if we have a storedMap enforced, reapply that; otherwise fall back to old value
+                            if (!string.IsNullOrEmpty(storedMap))
+                            {
+                                memory.LoadMap.Write(storedMap);
+                                System.Diagnostics.Trace.WriteLine($"[DataControl] OnValueChange: reapplying storedMap='{storedMap}' (old='{o}', new='{n}')");
+                            }
+                            else
+                            {
+                                memory.LoadMap.Write(o);
+                                System.Diagnostics.Trace.WriteLine($"[DataControl] OnValueChange: freeze enabled, restored old='{o}' (new='{n}')");
+                            }
+                        }
+                        else
+                        {
+                            memory.LoadMap.Write(n);
+                            System.Diagnostics.Trace.WriteLine($"[DataControl] OnValueChange: freeze disabled, wrote new='{n}' (old='{o}')");
+                        }
+                    }
+                    catch { }
+
+                    //oldMapLabels.Text = o;
+                    nowMapLabels.Text = n;
+                });
+            };
+            memory.Restart.OnValueChange += OnRestartChange;
+
+            InitializeComponent();
+            // wire freeze level checkbox handler
+            try { freezeLevelCheckbox.CheckedChanged += freezeLevelCheckbox_CheckedChanged; } catch { }
         }
 
         public DataControl()
         {
             InitializeComponent();
+            try { freezeLevelCheckbox.CheckedChanged += freezeLevelCheckbox_CheckedChanged; } catch { }
         }
 
-		public int Lives
-		{
-			set => RefreshLives(value);
-		}
-
-		public int Masks
-		{
-			set => RefreshMasks(value);
-		}
-
-		private void OnLivesChange(int oldLives, int newLives)
-		{
-			if (freezeLivesCheckbox.Checked)
-			{
-				memory.Lives.Write(storedLives);
-			}
-			else
-			{
-				RefreshLives(memory.Lives.Read());
-			}
-		}
-
-		private void OnMasksChange(int oldMasks, int newMasks)
-		{
-			if (infiniteMasksCheckbox.Checked)
-			{
-				FreezeMasks();
-            } 
-			else
-			{
-				RefreshMasks(memory.Masks.Read());
-			}
-		}
-
-		private void livesUpButton_Click(object sender, EventArgs e)
-		{
-			int newLives = memory.Lives.Read() + 1;
-
-            memory.Lives.Write(newLives);
-			RefreshLives(newLives);
-		}
-
-		private void livesDownButton_Click(object sender, EventArgs e)
-		{
-			int newLives = memory.Lives.Read() - 1;
-
-            memory.Lives.Write(newLives);
-			RefreshLives(newLives);
-		}
-
-		private void freezeLivesCheckbox_CheckedChanged(object sender, EventArgs e)
-		{
-			if (freezeLivesCheckbox.Checked)
-			{
-				FreezeLives();
-			}
-			else
-			{
-				storedLives = -1;
-				livesLabel.ForeColor = Color.Black;
-			}
-		}
-
-        private void infiniteMasksCheckbox_CheckedChanged(object sender, EventArgs e)
+        private void freezeLevelCheckbox_CheckedChanged(object sender, EventArgs e)
         {
-            if (infiniteMasksCheckbox.Checked)
+            if (suppressFreezeCheckboxEvent) return;
+
+            try
+            {
+                if (freezeLevelCheckbox.Checked)
+                {
+                    // freeze to current map value
+                    try
+                    {
+                        var mapVal = memory.LoadMap.Read();
+                        if (!string.IsNullOrEmpty(mapVal)) SetMapLock(mapVal, true);
+                    }
+                    catch { }
+                }
+                else
+                {
+                    StopMapLock();
+                }
+            }
+            catch { }
+        }
+
+        // Public accessor for whether map freeze is active
+        public bool IsMapFrozen => freezeMapEnabled;
+
+        public int Lives
+        {
+            set => RefreshLives(value);
+        }
+
+        public int Masks
+        {
+            set => RefreshMasks(value);
+        }
+
+        private void OnLivesChange(int oldLives, int newLives)
+        {
+            SafeAction(() => {
+                if (freezeLivesCheckbox.Checked)
+                {
+                    memory.Lives.Write(storedLives);
+                }
+                else
+                {
+                    RefreshLives();
+                    RefreshMasks(2);
+
+                }
+            });
+        }
+
+        private void OnMasksChange(int oldMasks, int newMasks)
+        {
+            SafeAction(() => {
+                if (freezeMasksCheckbox.Checked)
+                {
+                    FreezeMasks();
+                }
+                else
+                {
+                    RefreshMasks();
+                }
+            });
+        }
+
+        private void OnRestartChange(byte oldValue, byte newValue)
+        {
+            // Update UI to reflect actual memory value (do not write back here)
+            SafeAction(() => {
+                try
+                {
+                    suppressRestartCheckboxEvent = true;
+                    displayRestartCheckBox.Checked = newValue != 0;
+                }
+                finally { suppressRestartCheckboxEvent = false; }
+            });
+        }
+
+        private void livesUpButton_Click(object sender, EventArgs e)
+        {
+            int newLives = memory.Lives.Read() + 1;
+
+            memory.Lives.Write(newLives);
+            RefreshLives(newLives);
+        }
+
+        private void livesDownButton_Click(object sender, EventArgs e)
+        {
+            int newLives = memory.Lives.Read() - 1;
+
+            memory.Lives.Write(newLives);
+            RefreshLives(newLives);
+        }
+
+        private void freezeLivesCheckbox_CheckedChanged(object sender, EventArgs e)
+        {
+            if (freezeLivesCheckbox.Checked)
+            {
+                FreezeLives();
+                StartLivesFreeze();
+            }
+            else
+            {
+                StopLivesFreeze();
+                storedLives = -1;
+                livesLabel.ForeColor = Color.Black;
+            }
+        }
+
+        private void freezeMasksCheckbox_CheckedChanged(object sender, EventArgs e)
+        {
+            if (freezeMasksCheckbox.Checked)
             {
                 FreezeMasks();
-				DamageMaskformCheckbox.Enabled = true;
+                StartMasksFreeze();
             }
             else
             {
+                StopMasksFreeze();
                 masksLabel.ForeColor = Color.Black;
-				DamageMaskformCheckbox.Enabled = false;
-            }
-        }
-
-		private void damageMaskformCheckbox_CheckedChanged(object sender, EventArgs e)
-		{
-			if (DamageMaskformCheckbox.Checked)
-            {
-				isMaskFormOnDamage = true;
-                memory.Masks.Write(4);
-                RefreshMasks(4);
-            }
-            else
-            {
-				isMaskFormOnDamage = false;
-                memory.Masks.Write(2);
-                RefreshMasks(2);
             }
         }
 
         private void masksUpButton_Click(object sender, EventArgs e)
-		{
-			int newMasks = memory.Masks.Read() + 1;
+        {
+            int newMasks = memory.Masks.Read() + 1;
 
             memory.Masks.Write(newMasks);
-			RefreshMasks(newMasks);
-		}
+            RefreshMasks(newMasks);
+        }
 
-		private void masksDownButton_Click(object sender, EventArgs e)
-		{
-			int newMasks = memory.Masks.Read() - 1;
+        private void masksDownButton_Click(object sender, EventArgs e)
+        {
+            int newMasks = memory.Masks.Read() - 1;
 
-			memory.Masks.Write(newMasks);
-			RefreshMasks(newMasks);
-		}
+            memory.Masks.Write(newMasks);
+            RefreshMasks(newMasks);
+        }
 
-		private void FreezeLives()
-		{
-			storedLives = memory.Lives.Read();
-			livesLabel.ForeColor = Color.DodgerBlue;
-		}
+        private void displayRestartCheckBox_CheckedChanged(object sender, EventArgs e)
+        {
+            bool restart = displayRestartCheckBox.Checked;
+            DisplayRestart(restart);
+        }
 
-		private void FreezeMasks()
-		{
-			if (memory.Masks.Read() != 0)
-			{
-                if (isMaskFormOnDamage && memory.Masks.Read() != 3)
+        private void FreezeLives()
+        {
+            storedLives = memory.Lives.Read();
+            livesLabel.ForeColor = Color.DodgerBlue;
+        }
+
+        private void FreezeMasks()
+        {
+            if (memory.Masks.Read() != 0)
+            {
+                memory.Masks.Write(2);
+                RefreshMasks(2);
+                masksLabel.ForeColor = Color.DodgerBlue;
+            }
+        }
+
+        private void DisplayRestart(bool restart)
+        {
+            memory.Restart.Write(restart ? (byte)1 : (byte)0);
+        }
+
+        private void FreezeMap()
+        {
+            // mark internal flag
+            freezeMapEnabled = true;
+            // store current map value and write it immediately so it becomes the enforced value
+            storedMap = memory.LoadMap.Read();
+            System.Diagnostics.Trace.WriteLine($"[DataControl] FreezeMap: storing map='{storedMap}'");
+            try
+            {
+                if (!string.IsNullOrEmpty(storedMap))
                 {
-                    memory.Masks.Write(4);
-                    RefreshMasks(4);
-                    masksLabel.ForeColor = Color.DodgerBlue;
-                }
-				else
-				{
-                    memory.Masks.Write(2);
-                    RefreshMasks(2);
-                    masksLabel.ForeColor = Color.DodgerBlue;
+                    memory.LoadMap.Write(storedMap);
                 }
             }
-			else
-			{
-				memory.Masks.Write(0);
-				RefreshMasks(0);
-			}
-		}
+            catch { }
 
-		private void RefreshLives(int newLives = -1)
-		{
+            SafeAction(() =>
+            {
+                nowMapLabels.ForeColor = Color.DodgerBlue;
+            });
+        }
+
+        private void StartLivesFreeze()
+        {
+            StopLivesFreeze();
+            livesFreezeTimer = new System.Threading.Timer(_ =>
+            {
+                try
+                {
+                    if (storedLives >= 0) memory.Lives.Write(storedLives);
+                } catch { }
+            }, null, 0, 10);
+        }
+
+        private void StopLivesFreeze()
+        {
+            livesFreezeTimer?.Dispose();
+            livesFreezeTimer = null;
+        }
+
+        private void StartMasksFreeze()
+        {
+            StopMasksFreeze();
+            masksFreezeTimer = new System.Threading.Timer(_ =>
+            {
+                try
+                {
+                    memory.Masks.Write(2);
+                } catch { }
+            }, null, 0, 10);
+        }
+
+        private void StopMasksFreeze()
+        {
+            masksFreezeTimer?.Dispose();
+            masksFreezeTimer = null;
+        }
+
+        private void StartMapFreeze()
+        {
+            StopMapFreeze();
+            // use a moderate interval and track failures. Timer interval set to 50ms.
+            mapFreezeTimer = new System.Threading.Timer(_ =>
+            {
+                try
+                {
+                    if (!string.IsNullOrEmpty(storedMap))
+                    {
+                        memory.LoadMap.Write(storedMap);
+                        // reset failure counter on success
+                        mapFreezeFailCount = 0;
+                    }
+                }
+                catch
+                {
+                    // increment failure count; if too many consecutive failures, stop freeze
+                    mapFreezeFailCount++;
+                    if (mapFreezeFailCount >= MapFreezeFailThreshold)
+                    {
+                        StopMapFreeze();
+                        SafeAction(() =>
+                        {
+                            nowMapLabels.ForeColor = Color.Black;
+                        });
+                    }
+                }
+            }, null, 0, 1);
+        }
+
+        private void StopMapFreeze()
+        {
+            mapFreezeTimer?.Dispose();
+            mapFreezeTimer = null;
+        }
+
+        private void RefreshLives(int newLives = -1)
+        {
             int lives = newLives != -1 ? newLives : memory.Lives.Read();
 
-			livesDownButton.Enabled = lives > 0;
-			livesUpButton.Enabled = lives < 999;
-			livesLabel.Text = "Lives: " + lives;
+            SafeAction(() =>
+            {
+                livesDownButton.Enabled = lives > 0;
+                livesUpButton.Enabled = lives < 999;
+                livesLabel.Text = "Lives: " + lives;
 
-			if (storedLives != -1)
-			{
-				storedLives = lives;
-			}
-		}
+                if (storedLives != -1)
+                {
+                    storedLives = lives;
+                }
+            });
+        }
 
-		private void RefreshMasks(int newMasks = -1)
+        private void RefreshMasks(int newMasks = -1)
         {
             int masks = newMasks != -1 ? newMasks : memory.Masks.Read();
 
-            masksLabel.Text = "Masks: " + masks;
-			masksDownButton.Enabled = masks > 0;
-			masksUpButton.Enabled = masks < 2;
-		}
+            SafeAction(() =>
+            {
+                masksLabel.Text = "Masks: " + masks;
+                masksDownButton.Enabled = masks > 0;
+                masksUpButton.Enabled = masks < 2;
+            });
 
-		private void dataBox_EnabledChanged(object sender, EventArgs e)
-		{
-			if (Enabled)
-			{
-				RefreshLives(memory.Lives.Read());
-				RefreshMasks(memory.Masks.Read());
+            // only write when an explicit newMasks value was provided
+            if (newMasks != -1)
+            {
+                memory.Masks.Write(newMasks);
+            }
+        }
 
-				if (freezeLivesCheckbox.Checked)
-				{
-					FreezeLives();
-				}
-				if (infiniteMasksCheckbox.Checked)
-				{
-					FreezeMasks();
-				}
-			}
-		}
-
-        private void damageMaskformCheckbox_EnabledChanged(object sender, EventArgs e)
+        private void SafeAction(Action action)
         {
-			if (!DamageMaskformCheckbox.Enabled)
-			{
-				DamageMaskformCheckbox.Checked = false;
-				isMaskFormOnDamage = false;
-			}
+            if (action == null) return;
+            if (this.InvokeRequired)
+            {
+                try
+                {
+                    this.Invoke(action);
+                }
+                catch { }
+            }
+            else
+            {
+                action();
+            }
+        }
+
+        private void dataBox_EnabledChanged(object sender, EventArgs e)
+        {
+            if (Enabled)
+            {
+                RefreshLives();
+                RefreshMasks();
+
+                if (freezeLivesCheckbox.Checked)
+                {
+                    FreezeLives();
+                    StartLivesFreeze();
+                }
+                if (freezeMasksCheckbox.Checked)
+                {
+                    FreezeMasks();
+                    StartMasksFreeze();
+                }
+                if (freezeMapEnabled)
+                {
+                    FreezeMap();
+                    StartMapFreeze();
+                }
+            }
+            else
+            {
+                StopLivesFreeze();
+                StopMasksFreeze();
+                StopMapFreeze();
+            }
+        }
+
+        // Public API to set or stop map lock from external UI
+        public void SetMapLock(string mapValue, bool startFreeze = true)
+        {
+            if (string.IsNullOrEmpty(mapValue)) return;
+
+            try
+            {
+                System.Diagnostics.Trace.WriteLine($"[DataControl] SetMapLock: map='{mapValue}' startFreeze={startFreeze}");
+                // write the value to memory first
+                memory.LoadMap.Write(mapValue);
+                // store and update UI
+                storedMap = mapValue;
+                SafeAction(() =>
+                {
+                    nowMapLabels.Text = "nowMap: " + mapValue;
+                    nowMapLabels.ForeColor = Color.DodgerBlue;
+                    // internal flag controls freeze behavior
+                    freezeMapEnabled = startFreeze;
+                    // reflect in UI checkbox without triggering handler
+                    try
+                    {
+                        suppressFreezeCheckboxEvent = true;
+                        freezeLevelCheckbox.Checked = startFreeze;
+                    }
+                    finally { suppressFreezeCheckboxEvent = false; }
+                });
+
+                if (startFreeze)
+                {
+                    StartMapFreeze();
+                }
+
+                // notify listeners
+                try { MapLockChanged?.Invoke(this, storedMap); } catch { }
+            }
+            catch (Exception ex) { System.Diagnostics.Trace.WriteLine($"[DataControl] SetMapLock: exception: {ex}"); }
+        }
+
+        public void StopMapLock()
+        {
+            try
+            {
+                // disable internal flag and stop enforcing
+                freezeMapEnabled = false;
+                StopMapFreeze();
+                storedMap = null;
+                SafeAction(() =>
+                {
+                    // keep UI checkbox hidden/unused
+                    nowMapLabels.ForeColor = Color.Black;
+                    try
+                    {
+                        suppressFreezeCheckboxEvent = true;
+                        freezeLevelCheckbox.Checked = false;
+                    }
+                    finally { suppressFreezeCheckboxEvent = false; }
+                });
+                System.Diagnostics.Trace.WriteLine("[DataControl] StopMapLock: stopped and cleared storedMap");
+                try { MapLockChanged?.Invoke(this, null); } catch { }
+            }
+            catch (Exception ex) { System.Diagnostics.Trace.WriteLine($"[DataControl] StopMapLock: exception: {ex}"); }
         }
     }
 }
