@@ -134,8 +134,6 @@ namespace Crash.Helper.Controls
                 else
                 {
                     RefreshLives();
-                    RefreshMasks(2);
-
                 }
             });
         }
