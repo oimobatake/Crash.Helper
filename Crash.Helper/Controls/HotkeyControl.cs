@@ -45,8 +45,8 @@ namespace Crash.Helper.Controls
             hotkeys = new[]
             {
                 new Hotkey("Set Max lives: ", KeyModifiers.Shift, (uint)Keys.O, () => { memory.Lives.Write(99); data.Lives = 99; }),
-                new Hotkey("Give one mask (+): ", KeyModifiers.Shift, (uint)Keys.F, () => { int masks = memory.Masks.Read() + 1; if (masks > 2) return; memory.Masks.Write(masks); data.Masks = masks; }),
-                new Hotkey("Give one mask (-): ", KeyModifiers.Shift, (uint)Keys.D, () => { int masks = memory.Masks.Read() - 1; if (masks < 0) return; memory.Masks.Write(masks); data.Masks = masks; }),
+                new Hotkey("Give one mask (+): ", KeyModifiers.Shift, (uint)Keys.F, () => { data.StoredMasks = memory.Masks.Read() + 1; data.Masks = data.StoredMasks; }),
+                new Hotkey("Give one mask (-): ", KeyModifiers.Shift, (uint)Keys.D, () => { data.StoredMasks = memory.Masks.Read() - 1; data.Masks = data.StoredMasks; }),
                 new Hotkey("Freeze level: ", KeyModifiers.Shift, (uint)Keys.L, () => {
                     try
                     {
@@ -67,7 +67,7 @@ namespace Crash.Helper.Controls
             };
 
             // Keep these ordered and in sync with designer controls
-            labels = new[] { zeroLivesLabel, giveMaskLabel, label1 };
+            labels = new[] { zeroLivesLabel, giveMaskLabel, label2, label1 };
             hotkeyLabels = new[] { zeroLivesHotkeyLabel, addMaskHotkeyLabel, subMaskHotkeyLabel, freezeLevelHotkeyLabel };
             textboxes = new[] { zeroLivesHotkeyTextbox, addMaskHotkeyTextbox, subMaskHotkeyTextbox, freezeLevelHotkeyTextbox };
 

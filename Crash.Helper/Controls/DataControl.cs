@@ -27,6 +27,17 @@ namespace Crash.Helper.Controls
         private CrashMemory memory;
 
         private int storedLives = 1;
+        private int storedMasks = 0;
+        public int StoredMasks
+        {
+            get{ return storedMasks; }
+            set
+            {
+                if (value < 0) value = 0;
+                if (value > 2) value = 2;
+                storedMasks = value;
+            }
+        }
         private string storedMap = null;
 
         private System.Threading.Timer livesFreezeTimer;
@@ -64,8 +75,12 @@ namespace Crash.Helper.Controls
                         }
                         else
                         {
-                            memory.LoadMap.Write(n);
-                            System.Diagnostics.Trace.WriteLine($"[DataControl] OnValueChange: freeze disabled, wrote new='{n}' (old='{o}')");
+                            // Freezeしていない場合は、変更されたMapをSetMapLock(startFreeze:false)経由で保持値へ反映する
+                            if (!string.IsNullOrEmpty(n))
+                            {
+                                SetMapLock(n, false);
+                                System.Diagnostics.Trace.WriteLine($"[DataControl] OnValueChange: freeze disabled, updated storedMap via SetMapLock new='{n}' (old='{o}')");
+                            }
                         }
                     }
                     catch { }
@@ -214,16 +229,20 @@ namespace Crash.Helper.Controls
         {
             int newMasks = memory.Masks.Read() + 1;
 
-            memory.Masks.Write(newMasks);
-            RefreshMasks(newMasks);
+            StoredMasks = newMasks;
+
+            memory.Masks.Write(storedMasks);
+            RefreshMasks(storedMasks);
         }
 
         private void masksDownButton_Click(object sender, EventArgs e)
         {
             int newMasks = memory.Masks.Read() - 1;
 
-            memory.Masks.Write(newMasks);
-            RefreshMasks(newMasks);
+            StoredMasks = newMasks;
+
+            memory.Masks.Write(storedMasks);
+            RefreshMasks(storedMasks);
         }
 
         private void displayRestartCheckBox_CheckedChanged(object sender, EventArgs e)
@@ -274,12 +293,9 @@ namespace Crash.Helper.Controls
 
         private void FreezeMasks()
         {
-            if (memory.Masks.Read() != 0)
-            {
-                memory.Masks.Write(2);
-                RefreshMasks(2);
-                masksLabel.ForeColor = Color.DodgerBlue;
-            }
+            memory.Masks.Write(storedMasks);
+            RefreshMasks(storedMasks);
+            masksLabel.ForeColor = Color.DodgerBlue;
         }
 
         private void DisplayRestart(bool restart)
@@ -334,7 +350,7 @@ namespace Crash.Helper.Controls
             {
                 try
                 {
-                    memory.Masks.Write(2);
+                    memory.Masks.Write(storedMasks);
                 } catch { }
             }, null, 0, 10);
         }
@@ -443,18 +459,44 @@ namespace Crash.Helper.Controls
 
                 if (freezeLivesCheckbox.Checked)
                 {
-                    FreezeLives();
+                    // 再フック時は直前の保持値を優先して再適用する
+                    if (storedLives < 0)
+                    {
+                        storedLives = memory.Lives.Read();
+                    }
+                    try { memory.Lives.Write(storedLives); } catch { }
+                    livesLabel.ForeColor = Color.DodgerBlue;
                     StartLivesFreeze();
                 }
                 if (freezeMasksCheckbox.Checked)
                 {
-                    FreezeMasks();
+                    // 再フック時は直前の保持値を再適用する
+                    try { memory.Masks.Write(storedMasks); } catch { }
+                    RefreshMasks(storedMasks);
+                    masksLabel.ForeColor = Color.DodgerBlue;
                     StartMasksFreeze();
                 }
                 if (freezeMapEnabled)
                 {
-                    FreezeMap();
-                    StartMapFreeze();
+                    // 再フック時は直前のstoredMapを優先して再適用する
+                    if (!string.IsNullOrEmpty(storedMap))
+                    {
+                        SetMapLock(storedMap, true);
+                    }
+                    else
+                    {
+                        // 保持値がない場合のみ現在Mapを保持してfreeze開始
+                        FreezeMap();
+                        StartMapFreeze();
+                    }
+                }
+
+                if (restartForceEnabled || displayRestartCheckBox.Checked)
+                {
+                    // 再フック時にRestart強制状態を復元
+                    restartForceEnabled = true;
+                    try { memory.Restart.Write((byte)1); } catch { }
+                    StartRestart();
                 }
             }
             else
@@ -462,6 +504,7 @@ namespace Crash.Helper.Controls
                 StopLivesFreeze();
                 StopMasksFreeze();
                 StopMapFreeze();
+                StopRestart();
             }
         }
 
@@ -480,9 +523,10 @@ namespace Crash.Helper.Controls
                 SafeAction(() =>
                 {
                     nowMapLabels.Text = "nowMap: " + mapValue;
-                    nowMapLabels.ForeColor = Color.DodgerBlue;
-                    // internal flag controls freeze behavior
-                    freezeMapEnabled = startFreeze;
+                    if (startFreeze) nowMapLabels.ForeColor = Color.DodgerBlue;
+                    else nowMapLabels.ForeColor = Color.Black;
+                        // internal flag controls freeze behavior
+                        freezeMapEnabled = startFreeze;
                     // reflect in UI checkbox without triggering handler
                     try
                     {
