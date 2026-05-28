@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Linq;
 using System.Windows.Forms;
 using Crash.Helper.Memory;
 
@@ -126,7 +127,7 @@ namespace Crash.Helper.Controls
             "Crash 3 - Future Tense"
         };
 
-        private static readonly Dictionary<string, string> Levels = new Dictionary<string, string>
+        public static readonly Dictionary<string, string> Levels = new Dictionary<string, string>
         {
             ["Crash 1 - The Wumpa Islands"]    = "crash1/l100_hub/l100_hub",
             ["Crash 1 - N. Sanity Beach"]      = "crash1/l101_nsanitybeach/l101_nsanitybeach",
@@ -280,12 +281,13 @@ namespace Crash.Helper.Controls
             var display = combo.SelectedItem.ToString();
             if (!Levels.ContainsKey(display)) return;
             var map = Levels[display];
+            var mapKey = Levels.Keys.FirstOrDefault(k => Levels[k] == map);
             try
             {
                 // ensure any existing lock is cleared first to avoid re-applying the previous storedMap
                 try { dataControl.StopMapLock(); } catch { }
 
-                dataControl.SetMapLock(map, lockIt);
+                dataControl.SetMapLock(map, mapKey, lockIt);
                 // log action
                 System.Diagnostics.Trace.WriteLine($"[LevelSelector] Set level '{display}' -> '{map}' (lock={lockIt})");
             }

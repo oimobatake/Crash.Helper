@@ -78,7 +78,8 @@ namespace Crash.Helper.Controls
                             // Freezeしていない場合は、変更されたMapをSetMapLock(startFreeze:false)経由で保持値へ反映する
                             if (!string.IsNullOrEmpty(n))
                             {
-                                SetMapLock(n, false);
+                                var mapKey = LevelSelectorControl.Levels.Keys.FirstOrDefault(k => LevelSelectorControl.Levels[k] == n);
+                                SetMapLock(n, mapKey, false);
                                 System.Diagnostics.Trace.WriteLine($"[DataControl] OnValueChange: freeze disabled, updated storedMap via SetMapLock new='{n}' (old='{o}')");
                             }
                         }
@@ -86,10 +87,11 @@ namespace Crash.Helper.Controls
                     catch { }
 
                     //oldMapLabels.Text = o;
-                    nowMapLabels.Text = n;
+                    var dispValue = LevelSelectorControl.Levels.Keys.FirstOrDefault(k => LevelSelectorControl.Levels[k] == n);
+                    nowMapLabels.Text = dispValue;
                 });
             };
-            memory.Restart.OnValueChange += OnRestartChange;
+            //memory.Restart.OnValueChange += OnRestartChange;
 
             InitializeComponent();
             // wire freeze level checkbox handler
@@ -114,7 +116,8 @@ namespace Crash.Helper.Controls
                     try
                     {
                         var mapVal = memory.LoadMap.Read();
-                        if (!string.IsNullOrEmpty(mapVal)) SetMapLock(mapVal, true);
+                        var mapKey = LevelSelectorControl.Levels.Keys.FirstOrDefault(k => LevelSelectorControl.Levels[k] == mapVal);
+                        if (!string.IsNullOrEmpty(mapVal)) SetMapLock(mapVal, mapKey, true);
                     }
                     catch { }
                 }
@@ -167,6 +170,7 @@ namespace Crash.Helper.Controls
             });
         }
 
+        /*
         private void OnRestartChange(byte oldValue, byte newValue)
         {
             // Update UI to reflect actual memory value (do not write back here)
@@ -179,6 +183,7 @@ namespace Crash.Helper.Controls
                 finally { suppressRestartCheckboxEvent = false; }
             });
         }
+        */
 
         private void livesUpButton_Click(object sender, EventArgs e)
         {
@@ -245,6 +250,7 @@ namespace Crash.Helper.Controls
             RefreshMasks(storedMasks);
         }
 
+        /*
         private void displayRestartCheckBox_CheckedChanged(object sender, EventArgs e)
         {
             if (suppressRestartCheckboxEvent) return;
@@ -278,6 +284,7 @@ namespace Crash.Helper.Controls
                 try { memory.Restart.Write((byte)1); } catch { }
             }, null, 0, 50);
         }
+        */
 
         private void StopRestart()
         {
@@ -298,10 +305,12 @@ namespace Crash.Helper.Controls
             masksLabel.ForeColor = Color.DodgerBlue;
         }
 
+        /*
         private void DisplayRestart(bool restart)
         {
             memory.Restart.Write(restart ? (byte)1 : (byte)0);
         }
+        */
 
         private void FreezeMap()
         {
@@ -481,7 +490,8 @@ namespace Crash.Helper.Controls
                     // 再フック時は直前のstoredMapを優先して再適用する
                     if (!string.IsNullOrEmpty(storedMap))
                     {
-                        SetMapLock(storedMap, true);
+                        var mapKey = LevelSelectorControl.Levels.Keys.FirstOrDefault(k => LevelSelectorControl.Levels[k] == storedMap);
+                        SetMapLock(storedMap, mapKey, true);
                     }
                     else
                     {
@@ -491,6 +501,7 @@ namespace Crash.Helper.Controls
                     }
                 }
 
+                /*
                 if (restartForceEnabled || displayRestartCheckBox.Checked)
                 {
                     // 再フック時にRestart強制状態を復元
@@ -498,6 +509,7 @@ namespace Crash.Helper.Controls
                     try { memory.Restart.Write((byte)1); } catch { }
                     StartRestart();
                 }
+                */
             }
             else
             {
@@ -509,7 +521,7 @@ namespace Crash.Helper.Controls
         }
 
         // Public API to set or stop map lock from external UI
-        public void SetMapLock(string mapValue, bool startFreeze = true)
+        public void SetMapLock(string mapValue, string mapKey, bool startFreeze = true)
         {
             if (string.IsNullOrEmpty(mapValue)) return;
 
@@ -522,7 +534,7 @@ namespace Crash.Helper.Controls
                 storedMap = mapValue;
                 SafeAction(() =>
                 {
-                    nowMapLabels.Text = "nowMap: " + mapValue;
+                    nowMapLabels.Text = mapKey;
                     if (startFreeze) nowMapLabels.ForeColor = Color.DodgerBlue;
                     else nowMapLabels.ForeColor = Color.Black;
                         // internal flag controls freeze behavior
@@ -570,6 +582,11 @@ namespace Crash.Helper.Controls
                 try { MapLockChanged?.Invoke(this, null); } catch { }
             }
             catch (Exception ex) { System.Diagnostics.Trace.WriteLine($"[DataControl] StopMapLock: exception: {ex}"); }
+        }
+
+        private void displayRestartCheckBox_CheckedChanged_1(object sender, EventArgs e)
+        {
+
         }
     }
 }

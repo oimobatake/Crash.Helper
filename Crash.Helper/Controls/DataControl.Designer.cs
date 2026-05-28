@@ -40,8 +40,6 @@
             this.levelLabel = new System.Windows.Forms.Label();
             this.nowMapLabels = new System.Windows.Forms.Label();
             this.freezeMasksCheckbox = new System.Windows.Forms.CheckBox();
-            this.displayRestartCheckBox = new System.Windows.Forms.CheckBox();
-            this.restrartLavel = new System.Windows.Forms.Label();
             this.dataBox.SuspendLayout();
             this.SuspendLayout();
             // 
@@ -120,8 +118,6 @@
             | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
             this.dataBox.AutoSizeMode = System.Windows.Forms.AutoSizeMode.GrowAndShrink;
-            this.dataBox.Controls.Add(this.displayRestartCheckBox);
-            this.dataBox.Controls.Add(this.restrartLavel);
             this.dataBox.Controls.Add(this.freezeLevelCheckbox);
             this.dataBox.Controls.Add(this.levelLabel);
             this.dataBox.Controls.Add(this.nowMapLabels);
@@ -137,7 +133,7 @@
             this.dataBox.Margin = new System.Windows.Forms.Padding(0);
             this.dataBox.MinimumSize = new System.Drawing.Size(250, 0);
             this.dataBox.Name = "dataBox";
-            this.dataBox.Size = new System.Drawing.Size(285, 152);
+            this.dataBox.Size = new System.Drawing.Size(285, 117);
             this.dataBox.TabIndex = 0;
             this.dataBox.TabStop = false;
             this.dataBox.Text = "Data";
@@ -182,29 +178,6 @@
             this.freezeMasksCheckbox.UseVisualStyleBackColor = true;
             this.freezeMasksCheckbox.CheckedChanged += new System.EventHandler(this.freezeMasksCheckbox_CheckedChanged);
             // 
-            // displayRestartCheckBox
-            // 
-            this.displayRestartCheckBox.AutoSize = true;
-            this.displayRestartCheckBox.Location = new System.Drawing.Point(125, 116);
-            this.displayRestartCheckBox.Name = "displayRestartCheckBox";
-            this.displayRestartCheckBox.Size = new System.Drawing.Size(100, 16);
-            this.displayRestartCheckBox.TabIndex = 25;
-            this.displayRestartCheckBox.Text = "DisplayRestart";
-            this.displayRestartCheckBox.UseVisualStyleBackColor = true;
-            this.displayRestartCheckBox.CheckedChanged += new System.EventHandler(this.displayRestartCheckBox_CheckedChanged);
-            // hide restart control for now (feature incomplete)
-            this.displayRestartCheckBox.Visible = true;
-            // 
-            // restrartLavel
-            // 
-            this.restrartLavel.AutoSize = true;
-            this.restrartLavel.Location = new System.Drawing.Point(6, 117);
-            this.restrartLavel.Name = "restrartLavel";
-            this.restrartLavel.Size = new System.Drawing.Size(55, 12);
-            this.restrartLavel.TabIndex = 24;
-            this.restrartLavel.Text = "Restart: -";
-            this.restrartLavel.Visible = true;
-            // 
             // DataControl
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 12F);
@@ -214,7 +187,7 @@
             this.Enabled = false;
             this.Margin = new System.Windows.Forms.Padding(0, 5, 0, 0);
             this.Name = "DataControl";
-            this.Size = new System.Drawing.Size(285, 152);
+            this.Size = new System.Drawing.Size(285, 117);
             this.dataBox.ResumeLayout(false);
             this.dataBox.PerformLayout();
             this.ResumeLayout(false);
@@ -235,7 +208,5 @@
         private System.Windows.Forms.Label nowMapLabels;
         private System.Windows.Forms.CheckBox freezeLevelCheckbox;
         private System.Windows.Forms.Label levelLabel;
-        private System.Windows.Forms.CheckBox displayRestartCheckBox;
-        private System.Windows.Forms.Label restrartLavel;
     }
 }

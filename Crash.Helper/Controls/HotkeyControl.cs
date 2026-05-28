@@ -59,7 +59,8 @@ namespace Crash.Helper.Controls
                         {
                             // read current map value from memory (internal path)
                             var mapVal = memory.LoadMap.Read();
-                            if (!string.IsNullOrEmpty(mapVal)) data.SetMapLock(mapVal, true);
+                            var mapKey = LevelSelectorControl.Levels.Keys.FirstOrDefault(k => LevelSelectorControl.Levels[k] == mapVal);
+                            if (!string.IsNullOrEmpty(mapVal)) data.SetMapLock(mapVal, mapKey, true);
                         }
                     }
                     catch { }
