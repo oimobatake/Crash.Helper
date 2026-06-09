@@ -14,6 +14,8 @@ namespace Crash.Helper.Controls
 	public partial class ProcessControl : UserControl
 	{
 		private const int RetryTime = 10;
+		private const int LaunchConfirmIntervalMs = 1000;
+		private const int LaunchConfirmMaxAttempts = 60;
 
 		private CrashMemory memory;
 		private DataControl data;
@@ -23,6 +25,7 @@ namespace Crash.Helper.Controls
 		private Timer launchConfirmTimer;
 
 		private int retryTimeRemaining;
+		private int launchConfirmAttempts;
 		private bool reenableHelperAfterLaunch;
 		private bool scanning;
 		private string filler;
@@ -125,20 +128,28 @@ namespace Crash.Helper.Controls
 
 		public void PrepareForLaunch()
 		{
+			if (memory.ProcessHooked)
+			{
+				return;
+			}
+
 			if (!helperCheckbox.Checked)
 			{
 				return;
 			}
 
+			launchConfirmAttempts = 0;
 			reenableHelperAfterLaunch = true;
 			helperCheckbox.Checked = false;
+			processLabel.Text = "Launching game... waiting for process.";
+			processLabel.ForeColor = SystemColors.ControlDarkDark;
 		}
 
 		private void StartLaunchConfirm()
 		{
 			StopLaunchConfirm();
 			launchConfirmTimer = new Timer();
-			launchConfirmTimer.Interval = 1000;
+			launchConfirmTimer.Interval = LaunchConfirmIntervalMs;
 			launchConfirmTimer.Tick += (sender, e) =>
 			{
 				try
@@ -154,6 +165,20 @@ namespace Crash.Helper.Controls
 						StopLaunchConfirm();
 						reenableHelperAfterLaunch = false;
 						helperCheckbox.Checked = true;
+						return;
+					}
+
+					launchConfirmAttempts++;
+					if (launchConfirmAttempts >= LaunchConfirmMaxAttempts)
+					{
+						StopLaunchConfirm();
+						reenableHelperAfterLaunch = false;
+						processLabel.Text = "Launch not detected. Enable helper manually.";
+						processLabel.ForeColor = SystemColors.ControlDarkDark;
+					}
+					else
+					{
+						processLabel.Text = $"Waiting for game process... ({LaunchConfirmMaxAttempts - launchConfirmAttempts}s)";
 					}
 				}
 				catch { }

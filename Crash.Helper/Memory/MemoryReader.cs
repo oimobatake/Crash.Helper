@@ -338,7 +338,24 @@ namespace Crash.Helper.Memory
 		public static Module64 MainModule64(this Process p)
 		{
 			Module64[] modules = p.Modules64();
-			return modules == null || modules.Length == 0 ? null : modules[0];
+			if (modules == null || modules.Length == 0) { return null; }
+
+			try
+			{
+				string exeName = p.ProcessName + ".exe";
+				for (int i = 0; i < modules.Length; i++)
+				{
+					var m = modules[i];
+					if (m == null || string.IsNullOrEmpty(m.Name)) { continue; }
+					if (string.Equals(m.Name, exeName, StringComparison.OrdinalIgnoreCase))
+					{
+						return m;
+					}
+				}
+			}
+			catch { }
+
+			return modules[0];
 		}
 
 		public static Module64[] Modules64(this Process p)

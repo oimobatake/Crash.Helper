@@ -19,6 +19,8 @@ namespace Crash.Helper.Memory
 	{
 		private int[] offsets;
 		private T currentValue;
+        private IntPtr cachedBaseAddress;
+        private int cachedProcessId = -1;
 
 		private bool justWritten;
 
@@ -30,43 +32,62 @@ namespace Crash.Helper.Memory
 		public Process Process { get; set; }
 		public event Action<T, T> OnValueChange;
 
+        private bool TryGetBaseAddress(out IntPtr baseAddress)
+        {
+            baseAddress = IntPtr.Zero;
+            if (Process == null || Process.HasExited) return false;
+
+            if (cachedProcessId != Process.Id)
+            {
+                cachedProcessId = Process.Id;
+                cachedBaseAddress = IntPtr.Zero;
+            }
+
+            try
+            {
+                var mm64 = Process.MainModule64();
+                if (mm64 != null && mm64.BaseAddress != IntPtr.Zero)
+                {
+                    baseAddress = mm64.BaseAddress;
+                    cachedBaseAddress = baseAddress;
+                    return true;
+                }
+            }
+            catch { }
+
+            try
+            {
+                var mainModule = Process.MainModule;
+                if (mainModule != null && mainModule.BaseAddress != IntPtr.Zero)
+                {
+                    baseAddress = mainModule.BaseAddress;
+                    cachedBaseAddress = baseAddress;
+                    return true;
+                }
+            }
+            catch { }
+
+            if (cachedBaseAddress != IntPtr.Zero)
+            {
+                baseAddress = cachedBaseAddress;
+                return true;
+            }
+
+            return false;
+        }
+
 		public T Read()
 		{
-			// Prefer MainModule64 when available for correct base address on 64-bit processes
-			var baseAddress = IntPtr.Zero;
-			try
-			{
-				var mm64 = Process.MainModule64();
-				if (mm64 != null)
-				{
-					baseAddress = mm64.BaseAddress;
-				}
-			}
-			catch { }
-			if (baseAddress == IntPtr.Zero)
-			{
-				baseAddress = Process.MainModule.BaseAddress;
-			}
-			return Process.Read<T>(baseAddress, offsets);
+            if (!TryGetBaseAddress(out var baseAddress)) return default(T);
+            try { return Process.Read<T>(baseAddress, offsets); }
+            catch { return default(T); }
 		}
 
 		public void Write(T value)
 		{
-			var baseAddress = IntPtr.Zero;
-			try
-			{
-				var mm64 = Process.MainModule64();
-				if (mm64 != null)
-				{
-					baseAddress = mm64.BaseAddress;
-				}
-			}
-			catch { }
-			if (baseAddress == IntPtr.Zero)
-			{
-				baseAddress = Process.MainModule.BaseAddress;
-			}
-			Process.Write(baseAddress, value, offsets);
+            if (!TryGetBaseAddress(out var baseAddress)) return;
+            try { Process.Write(baseAddress, value, offsets); }
+            catch { return; }
 			currentValue = value;
 			justWritten = true;
 		}
@@ -93,6 +114,8 @@ namespace Crash.Helper.Memory
     {
         private int[] offsets;
         private string currentValue;
+        private IntPtr cachedBaseAddress;
+        private int cachedProcessId = -1;
 
         private bool justWritten;
         private StringEncodingMode encodingMode = StringEncodingMode.Auto;
@@ -112,47 +135,77 @@ namespace Crash.Helper.Memory
         public Process Process { get; set; }
         public event Action<string, string> OnValueChange;
 
-        public string Read()
+        private bool TryGetBaseAddress(out IntPtr baseAddress)
         {
-            var baseAddress = IntPtr.Zero;
+            baseAddress = IntPtr.Zero;
+            if (Process == null || Process.HasExited) return false;
+
+            if (cachedProcessId != Process.Id)
+            {
+                cachedProcessId = Process.Id;
+                cachedBaseAddress = IntPtr.Zero;
+            }
+
             try
             {
                 var mm64 = Process.MainModule64();
-                if (mm64 != null)
+                if (mm64 != null && mm64.BaseAddress != IntPtr.Zero)
                 {
                     baseAddress = mm64.BaseAddress;
+                    cachedBaseAddress = baseAddress;
+                    return true;
                 }
             }
             catch { }
-            if (baseAddress == IntPtr.Zero)
+
+            try
             {
-                baseAddress = Process.MainModule.BaseAddress;
+                var mainModule = Process.MainModule;
+                if (mainModule != null && mainModule.BaseAddress != IntPtr.Zero)
+                {
+                    baseAddress = mainModule.BaseAddress;
+                    cachedBaseAddress = baseAddress;
+                    return true;
+                }
             }
-            // support multiple string formats
-            if (encodingMode == StringEncodingMode.Ascii)
+            catch { }
+
+            if (cachedBaseAddress != IntPtr.Zero)
             {
-                return Process.ReadAscii(baseAddress, offsets);
-            }
-            else if (encodingMode == StringEncodingMode.Utf16)
-            {
-                return Process.ReadUtf16Z(baseAddress, offsets);
-            }
-            else if (encodingMode == StringEncodingMode.Utf8)
-            {
-                // fallback to reading raw bytes and decode as UTF8 until null
-                // We'll reuse ReadAscii by reading bytes and decoding here
-                // ReadAscii returns ASCII only; for UTF8 we need to read raw bytes.
-                // We'll read a reasonable chunk and trim at null.
-                var buf = Process.Read(baseAddress, 256, offsets);
-                int len = 0;
-                while (len < buf.Length && buf[len] != 0) len++;
-                try { return Encoding.UTF8.GetString(buf, 0, len); } catch { return string.Empty; }
+                baseAddress = cachedBaseAddress;
+                return true;
             }
 
-            // Auto: try UTF-16 first (common on Windows), then fallback to ASCII
-            string s = Process.ReadUtf16Z(baseAddress, offsets);
-            if (!string.IsNullOrEmpty(s)) return s;
-            return Process.ReadAscii(baseAddress, offsets);
+            return false;
+        }
+
+        public string Read()
+        {
+            if (!TryGetBaseAddress(out var baseAddress)) return string.Empty;
+            // support multiple string formats
+            try
+            {
+                if (encodingMode == StringEncodingMode.Ascii)
+                {
+                    return Process.ReadAscii(baseAddress, offsets);
+                }
+                else if (encodingMode == StringEncodingMode.Utf16)
+                {
+                    return Process.ReadUtf16Z(baseAddress, offsets);
+                }
+                else if (encodingMode == StringEncodingMode.Utf8)
+                {
+                    var buf = Process.Read(baseAddress, 256, offsets);
+                    int len = 0;
+                    while (len < buf.Length && buf[len] != 0) len++;
+                    try { return Encoding.UTF8.GetString(buf, 0, len); } catch { return string.Empty; }
+                }
+
+                string s = Process.ReadUtf16Z(baseAddress, offsets);
+                if (!string.IsNullOrEmpty(s)) return s;
+                return Process.ReadAscii(baseAddress, offsets);
+            }
+            catch { return string.Empty; }
         }
 
         public void Write(string value)
@@ -182,21 +235,9 @@ namespace Crash.Helper.Memory
                 }
                 bytes = allAscii ? Encoding.ASCII.GetBytes(value + "\0") : Encoding.UTF8.GetBytes(value + "\0");
             }
-            var baseAddress = IntPtr.Zero;
-            try
-            {
-                var mm64 = Process.MainModule64();
-                if (mm64 != null)
-                {
-                    baseAddress = mm64.BaseAddress;
-                }
-            }
-            catch { }
-            if (baseAddress == IntPtr.Zero)
-            {
-                baseAddress = Process.MainModule.BaseAddress;
-            }
-            Process.Write(baseAddress, bytes, offsets);
+            if (!TryGetBaseAddress(out var baseAddress)) return;
+            try { Process.Write(baseAddress, bytes, offsets); }
+            catch { return; }
 
             currentValue = value;
             justWritten = true;
