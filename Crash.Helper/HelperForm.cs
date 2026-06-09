@@ -63,6 +63,11 @@ namespace Crash.Helper
 			}
 		}
 
+		public void PrepareHelperForLaunch()
+		{
+			try { processControl?.PrepareForLaunch(); } catch { }
+		}
+
 		private void RefreshHelper()
 		{
 			if (!memory.HookProcess())
