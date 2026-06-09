@@ -4,6 +4,7 @@ using System.Drawing;
 using System.Linq;
 using System.Windows.Forms;
 using Crash.Helper.Memory;
+using System.Diagnostics;
 
 namespace Crash.Helper.Controls
 {
@@ -13,7 +14,9 @@ namespace Crash.Helper.Controls
         private Button setButton;
         private Button lockButton;
         private Button stopButton;
+        private Button launchButton;
         private DataControl dataControl;
+        private CrashMemory memory;
 
         private static readonly List<string> LevelOrder = new List<string>
         {
@@ -240,6 +243,7 @@ namespace Crash.Helper.Controls
 
         public LevelSelectorControl(CrashMemory memory, DataControl dataControl)
         {
+            this.memory = memory;
             this.dataControl = dataControl;
 
             this.AutoSize = true;
@@ -263,16 +267,44 @@ namespace Crash.Helper.Controls
             lockButton = new Button { Left = 0, Top = 45, Width = 80, Text = "Level Lock" };
             lockButton.Click += (s, e) => { SetSelectedLevel(true); };
 
-            stopButton = new Button { Left = 90, Top = 45, Width = 80, Text = "Stop Lock" };
+            stopButton = new Button { Left = 85, Top = 45, Width = 80, Text = "Stop Lock" };
             stopButton.Click += (s, e) => { StopLock(); };
+
+            launchButton = new Button { Left = 170, Top = 45, Width = 100, Text = "Launch Game" };
+            launchButton.Click += (s, e) => { LaunchSelectedLevel(); };
 
             this.Controls.Add(combo);
             this.Controls.Add(setButton);
             this.Controls.Add(lockButton);
             this.Controls.Add(stopButton);
+            this.Controls.Add(launchButton);
 
-            this.Enabled = false;
-            dataControl.EnabledChanged += (s, e) => { this.Enabled = dataControl.Enabled; };
+            // combo should remain usable whether hooked or not so user can pick the map.
+            combo.Enabled = true;
+
+            // lock/stop only when dataControl (memory) is available (hooked). launch button only when NOT hooked.
+            bool initiallyHooked = false;
+            try { initiallyHooked = dataControl != null && dataControl.Enabled; } catch { initiallyHooked = false; }
+
+            lockButton.Enabled = initiallyHooked;
+            stopButton.Enabled = initiallyHooked;
+            launchButton.Enabled = !initiallyHooked;
+
+            if (dataControl != null)
+            {
+                dataControl.EnabledChanged += (s, e) =>
+                {
+                    bool hooked = false;
+                    try { hooked = dataControl.Enabled; } catch { hooked = false; }
+
+                    // keep lock/stop enabled only when hooked
+                    lockButton.Enabled = hooked;
+                    stopButton.Enabled = hooked;
+
+                    // launch button enabled only when NOT hooked
+                    launchButton.Enabled = !hooked;
+                };
+            }
         }
 
         private void SetSelectedLevel(bool lockIt)
@@ -300,6 +332,65 @@ namespace Crash.Helper.Controls
                 dataControl.StopMapLock();
                 System.Diagnostics.Trace.WriteLine("[LevelSelector] StopLock called");
             } catch { }
+        }
+
+        private void LaunchSelectedLevel()
+        {
+            if (combo.SelectedItem == null) return;
+            var display = combo.SelectedItem.ToString();
+            if (!Levels.ContainsKey(display)) return;
+            var map = Levels[display];
+
+            try
+            {
+                var form = this.FindForm() as HelperForm;
+                form?.PrepareHelperForLaunch();
+            }
+            catch { }
+
+            // Build Steam path and arguments
+            string steamPath;
+            try
+            {
+                // prefer Program Files (x86) default
+                var pf86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
+                steamPath = System.IO.Path.Combine(pf86, "Steam", "steam.exe");
+            }
+            catch
+            {
+                steamPath = @"C:\Program Files (x86)\Steam\steam.exe";
+            }
+
+            string args = $"-applaunch 731490 --overridemap {map}";
+
+            try
+            {
+                var psi = new ProcessStartInfo
+                {
+                    FileName = steamPath,
+                    Arguments = args,
+                    UseShellExecute = true
+                };
+                Process.Start(psi);
+            }
+            catch (Exception ex)
+            {
+                try
+                {
+                    // fallback: try to start via shell with just "steam" if full path fails
+                    var psi2 = new ProcessStartInfo
+                    {
+                        FileName = "steam",
+                        Arguments = args,
+                        UseShellExecute = true
+                    };
+                    Process.Start(psi2);
+                }
+                catch
+                {
+                    MessageBox.Show($"Failed to launch Steam. Tried: {steamPath}\nError: {ex.Message}", "Launch failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            }
         }
     }
 }

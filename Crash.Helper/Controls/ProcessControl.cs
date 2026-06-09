@@ -20,8 +20,10 @@ namespace Crash.Helper.Controls
         private HotkeyControl hotkeys;
 		private HelperForm parent;
 		private Timer processTimer;
+		private Timer launchConfirmTimer;
 
 		private int retryTimeRemaining;
+		private bool reenableHelperAfterLaunch;
 		private bool scanning;
 		private string filler;
 
@@ -91,6 +93,9 @@ namespace Crash.Helper.Controls
 		{
 			if (helperCheckbox.Checked)
 			{
+				StopLaunchConfirm();
+				reenableHelperAfterLaunch = false;
+
 				filler = "not found";
 				Rescan();
 			}
@@ -104,6 +109,11 @@ namespace Crash.Helper.Controls
 					processTimer.Stop();
 					scanning = false;
 				}
+
+				if (reenableHelperAfterLaunch)
+				{
+					StartLaunchConfirm();
+				}
 			}
 
 			bool isReady = helperCheckbox.Checked && memory.ProcessHooked;
@@ -111,6 +121,52 @@ namespace Crash.Helper.Controls
 			data.Enabled = isReady;
             hotkeys.Enabled = isReady;
 			parent.RefreshEnabled = isReady;
+		}
+
+		public void PrepareForLaunch()
+		{
+			if (!helperCheckbox.Checked)
+			{
+				return;
+			}
+
+			reenableHelperAfterLaunch = true;
+			helperCheckbox.Checked = false;
+		}
+
+		private void StartLaunchConfirm()
+		{
+			StopLaunchConfirm();
+			launchConfirmTimer = new Timer();
+			launchConfirmTimer.Interval = 1000;
+			launchConfirmTimer.Tick += (sender, e) =>
+			{
+				try
+				{
+					if (!reenableHelperAfterLaunch)
+					{
+						StopLaunchConfirm();
+						return;
+					}
+
+					if (memory.HookProcess())
+					{
+						StopLaunchConfirm();
+						reenableHelperAfterLaunch = false;
+						helperCheckbox.Checked = true;
+					}
+				}
+				catch { }
+			};
+
+			launchConfirmTimer.Start();
+		}
+
+		private void StopLaunchConfirm()
+		{
+			launchConfirmTimer?.Stop();
+			launchConfirmTimer?.Dispose();
+			launchConfirmTimer = null;
 		}
 	}
 }
