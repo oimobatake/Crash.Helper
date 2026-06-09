@@ -27,16 +27,58 @@ namespace Crash.Helper.Controls
         private CrashMemory memory;
 
         private int storedLives = 1;
-        private int storedMasks = 0;
-        public int StoredMasks
+        private sealed class MaskFreezeState
         {
-            get{ return storedMasks; }
-            set
+            public int StoredMasks { get; private set; } = 0;
+            public int RuntimeMasks { get; private set; } = 0;
+            public bool IsMaskFormOnDamage { get; set; } = false;
+
+            public void SetStoredMasks(int value)
             {
                 if (value < 0) value = 0;
                 if (value > 2) value = 2;
-                storedMasks = value;
+                StoredMasks = value;
             }
+
+            public int ResolveTargetMasks(int currentMasks)
+            {
+                if (IsMaskFormOnDamage)
+                {
+                    if (currentMasks == 0)
+                    {
+                        RuntimeMasks = 0;
+                        return 0;
+                    }
+
+                    // Keep in-game transition for hit animation/invincibility:
+                    // 4 -> 3 -> 2 is allowed, and when it reaches 2 we restore to 4.
+                    if (currentMasks == 3 || currentMasks == 4)
+                    {
+                        RuntimeMasks = currentMasks;
+                        return currentMasks;
+                    }
+
+                    RuntimeMasks = 4;
+                    return 4;
+                }
+
+                RuntimeMasks = StoredMasks;
+                return StoredMasks;
+            }
+
+            public void SyncRuntimeMasks(int currentMasks)
+            {
+                RuntimeMasks = currentMasks;
+            }
+        }
+
+        private readonly MaskFreezeState maskFreezeState = new MaskFreezeState();
+        private bool suppressDamageMaskFormCheckboxEvent = false;
+
+        public int StoredMasks
+        {
+            get { return maskFreezeState.StoredMasks; }
+            set { maskFreezeState.SetStoredMasks(value); }
         }
         private string storedMap = null;
 
@@ -50,41 +92,39 @@ namespace Crash.Helper.Controls
 
         public DataControl(CrashMemory memory)
         {
-            this.memory = memory;
+            this.memory = memory ?? throw new ArgumentNullException(nameof(memory));
 
             memory.Lives.OnValueChange += OnLivesChange;
             memory.Masks.OnValueChange += OnMasksChange;
             memory.LoadMap.OnValueChange += (o, n) => {
                 SafeAction(() =>
                 {
-                    try
+                    if (this.memory == null) return;
+
+                    if (freezeMapEnabled)
                     {
-                        if (freezeMapEnabled)
+                        // if we have a storedMap enforced, reapply that; otherwise fall back to old value
+                        if (!string.IsNullOrEmpty(storedMap))
                         {
-                            // if we have a storedMap enforced, reapply that; otherwise fall back to old value
-                            if (!string.IsNullOrEmpty(storedMap))
-                            {
-                                memory.LoadMap.Write(storedMap);
-                                System.Diagnostics.Trace.WriteLine($"[DataControl] OnValueChange: reapplying storedMap='{storedMap}' (old='{o}', new='{n}')");
-                            }
-                            else
-                            {
-                                memory.LoadMap.Write(o);
-                                System.Diagnostics.Trace.WriteLine($"[DataControl] OnValueChange: freeze enabled, restored old='{o}' (new='{n}')");
-                            }
+                            memory.LoadMap.Write(storedMap);
+                            System.Diagnostics.Trace.WriteLine($"[DataControl] OnValueChange: reapplying storedMap='{storedMap}' (old='{o}', new='{n}')");
                         }
                         else
                         {
-                            // Freezeしていない場合は、変更されたMapをSetMapLock(startFreeze:false)経由で保持値へ反映する
-                            if (!string.IsNullOrEmpty(n))
-                            {
-                                var mapKey = LevelSelectorControl.Levels.Keys.FirstOrDefault(k => LevelSelectorControl.Levels[k] == n);
-                                SetMapLock(n, mapKey, false);
-                                System.Diagnostics.Trace.WriteLine($"[DataControl] OnValueChange: freeze disabled, updated storedMap via SetMapLock new='{n}' (old='{o}')");
-                            }
+                            memory.LoadMap.Write(o);
+                            System.Diagnostics.Trace.WriteLine($"[DataControl] OnValueChange: freeze enabled, restored old='{o}' (new='{n}')");
                         }
                     }
-                    catch { }
+                    else
+                    {
+                        // Freezeしていない場合は、変更されたMapをSetMapLock(startFreeze:false)経由で保持値へ反映する
+                        if (!string.IsNullOrEmpty(n))
+                        {
+                            var mapKey = LevelSelectorControl.Levels.Keys.FirstOrDefault(k => LevelSelectorControl.Levels[k] == n);
+                            SetMapLock(n, mapKey, false);
+                            System.Diagnostics.Trace.WriteLine($"[DataControl] OnValueChange: freeze disabled, updated storedMap via SetMapLock new='{n}' (old='{o}')");
+                        }
+                    }
 
                     //oldMapLabels.Text = o;
                     var dispValue = LevelSelectorControl.Levels.Keys.FirstOrDefault(k => LevelSelectorControl.Levels[k] == n);
@@ -95,38 +135,33 @@ namespace Crash.Helper.Controls
 
             InitializeComponent();
             // wire freeze level checkbox handler
-            try { freezeLevelCheckbox.CheckedChanged += freezeLevelCheckbox_CheckedChanged; } catch { }
+            freezeLevelCheckbox.CheckedChanged += freezeLevelCheckbox_CheckedChanged;
+            damageMaskformCheckbox.Enabled = false;
         }
 
         public DataControl()
         {
             InitializeComponent();
-            try { freezeLevelCheckbox.CheckedChanged += freezeLevelCheckbox_CheckedChanged; } catch { }
+            freezeLevelCheckbox.CheckedChanged += freezeLevelCheckbox_CheckedChanged;
+            damageMaskformCheckbox.Enabled = false;
         }
 
         private void freezeLevelCheckbox_CheckedChanged(object sender, EventArgs e)
         {
             if (suppressFreezeCheckboxEvent) return;
+            if (memory == null) return;
 
-            try
+            if (freezeLevelCheckbox.Checked)
             {
-                if (freezeLevelCheckbox.Checked)
-                {
-                    // freeze to current map value
-                    try
-                    {
-                        var mapVal = memory.LoadMap.Read();
-                        var mapKey = LevelSelectorControl.Levels.Keys.FirstOrDefault(k => LevelSelectorControl.Levels[k] == mapVal);
-                        if (!string.IsNullOrEmpty(mapVal)) SetMapLock(mapVal, mapKey, true);
-                    }
-                    catch { }
-                }
-                else
-                {
-                    StopMapLock();
-                }
+                // freeze to current map value
+                var mapVal = memory.LoadMap.Read();
+                var mapKey = LevelSelectorControl.Levels.Keys.FirstOrDefault(k => LevelSelectorControl.Levels[k] == mapVal);
+                if (!string.IsNullOrEmpty(mapVal)) SetMapLock(mapVal, mapKey, true);
             }
-            catch { }
+            else
+            {
+                StopMapLock();
+            }
         }
 
         // Public accessor for whether map freeze is active
@@ -159,6 +194,7 @@ namespace Crash.Helper.Controls
         private void OnMasksChange(int oldMasks, int newMasks)
         {
             SafeAction(() => {
+                System.Diagnostics.Trace.WriteLine($"[DataControl] OnMasksChange: old={oldMasks}, new={newMasks}, stored={StoredMasks}, runtime={maskFreezeState.RuntimeMasks}, maskform={maskFreezeState.IsMaskFormOnDamage}");
                 if (freezeMasksCheckbox.Checked)
                 {
                     FreezeMasks();
@@ -220,13 +256,46 @@ namespace Crash.Helper.Controls
         {
             if (freezeMasksCheckbox.Checked)
             {
+                SyncStoredMasksWithCurrent();
                 FreezeMasks();
                 StartMasksFreeze();
+                SafeAction(() => { damageMaskformCheckbox.Enabled = true; });
             }
             else
             {
                 StopMasksFreeze();
                 masksLabel.ForeColor = Color.Black;
+                SafeAction(() =>
+                {
+                    damageMaskformCheckbox.Enabled = false;
+                    try
+                    {
+                        suppressDamageMaskFormCheckboxEvent = true;
+                        damageMaskformCheckbox.Checked = false;
+                    }
+                    finally { suppressDamageMaskFormCheckboxEvent = false; }
+                });
+                maskFreezeState.IsMaskFormOnDamage = false;
+            }
+        }
+
+        private void SyncStoredMasksWithCurrent()
+        {
+            if (memory == null || !memory.ProcessHooked) return;
+
+            StoredMasks = memory.Masks.Read();
+        }
+
+        private void damageMaskformCheckbox_CheckedChanged(object sender, EventArgs e)
+        {
+            if (suppressDamageMaskFormCheckboxEvent) return;
+
+            maskFreezeState.IsMaskFormOnDamage = damageMaskformCheckbox.Checked;
+
+            if (freezeMasksCheckbox.Checked)
+            {
+                FreezeMasks();
+                StartMasksFreeze();
             }
         }
 
@@ -236,8 +305,8 @@ namespace Crash.Helper.Controls
 
             StoredMasks = newMasks;
 
-            memory.Masks.Write(storedMasks);
-            RefreshMasks(storedMasks);
+            memory.Masks.Write(StoredMasks);
+            RefreshMasks(StoredMasks);
         }
 
         private void masksDownButton_Click(object sender, EventArgs e)
@@ -246,8 +315,8 @@ namespace Crash.Helper.Controls
 
             StoredMasks = newMasks;
 
-            memory.Masks.Write(storedMasks);
-            RefreshMasks(storedMasks);
+            memory.Masks.Write(StoredMasks);
+            RefreshMasks(StoredMasks);
         }
 
         /*
@@ -300,8 +369,19 @@ namespace Crash.Helper.Controls
 
         private void FreezeMasks()
         {
-            memory.Masks.Write(storedMasks);
-            RefreshMasks(storedMasks);
+            if (memory == null) return;
+
+            int currentMasks = memory.Masks.Read();
+            int targetMasks = maskFreezeState.ResolveTargetMasks(currentMasks);
+
+            if (currentMasks != targetMasks)
+            {
+                memory.Masks.Write(targetMasks);
+                currentMasks = targetMasks;
+            }
+
+            maskFreezeState.SyncRuntimeMasks(currentMasks);
+            UpdateMasksUi(currentMasks);
             masksLabel.ForeColor = Color.DodgerBlue;
         }
 
@@ -314,19 +394,17 @@ namespace Crash.Helper.Controls
 
         private void FreezeMap()
         {
+            if (memory == null) return;
+
             // mark internal flag
             freezeMapEnabled = true;
             // store current map value and write it immediately so it becomes the enforced value
             storedMap = memory.LoadMap.Read();
             System.Diagnostics.Trace.WriteLine($"[DataControl] FreezeMap: storing map='{storedMap}'");
-            try
+            if (!string.IsNullOrEmpty(storedMap))
             {
-                if (!string.IsNullOrEmpty(storedMap))
-                {
-                    memory.LoadMap.Write(storedMap);
-                }
+                memory.LoadMap.Write(storedMap);
             }
-            catch { }
 
             SafeAction(() =>
             {
@@ -339,10 +417,12 @@ namespace Crash.Helper.Controls
             StopLivesFreeze();
             livesFreezeTimer = new System.Threading.Timer(_ =>
             {
-                try
+                if (memory == null) return;
+
+                if (storedLives >= 0)
                 {
-                    if (storedLives >= 0) memory.Lives.Write(storedLives);
-                } catch { }
+                    memory.Lives.Write(storedLives);
+                }
             }, null, 0, 10);
         }
 
@@ -357,10 +437,7 @@ namespace Crash.Helper.Controls
             StopMasksFreeze();
             masksFreezeTimer = new System.Threading.Timer(_ =>
             {
-                try
-                {
-                    memory.Masks.Write(storedMasks);
-                } catch { }
+                FreezeMasks();
             }, null, 0, 10);
         }
 
@@ -428,18 +505,25 @@ namespace Crash.Helper.Controls
         {
             int masks = newMasks != -1 ? newMasks : memory.Masks.Read();
 
-            SafeAction(() =>
-            {
-                masksLabel.Text = "Masks: " + masks;
-                masksDownButton.Enabled = masks > 0;
-                masksUpButton.Enabled = masks < 2;
-            });
+            maskFreezeState.SyncRuntimeMasks(masks);
+
+            UpdateMasksUi(masks);
 
             // only write when an explicit newMasks value was provided
             if (newMasks != -1)
             {
                 memory.Masks.Write(newMasks);
             }
+        }
+
+        private void UpdateMasksUi(int masks)
+        {
+            SafeAction(() =>
+            {
+                masksLabel.Text = "Masks: " + masks;
+                masksDownButton.Enabled = masks > 0;
+                masksUpButton.Enabled = masks < 2;
+            });
         }
 
         private void SafeAction(Action action)
@@ -451,7 +535,14 @@ namespace Crash.Helper.Controls
                 {
                     this.Invoke(action);
                 }
-                catch { }
+                catch (ObjectDisposedException)
+                {
+                    System.Diagnostics.Trace.WriteLine("[DataControl] SafeAction skipped: control disposed.");
+                }
+                catch (InvalidOperationException)
+                {
+                    System.Diagnostics.Trace.WriteLine("[DataControl] SafeAction skipped: invalid invoke state.");
+                }
             }
             else
             {
@@ -461,8 +552,15 @@ namespace Crash.Helper.Controls
 
         private void dataBox_EnabledChanged(object sender, EventArgs e)
         {
+            if (memory == null) return;
+
             if (Enabled)
             {
+                if (!freezeMasksCheckbox.Checked)
+                {
+                    SyncStoredMasksWithCurrent();
+                }
+
                 RefreshLives();
                 RefreshMasks();
 
@@ -473,17 +571,21 @@ namespace Crash.Helper.Controls
                     {
                         storedLives = memory.Lives.Read();
                     }
-                    try { memory.Lives.Write(storedLives); } catch { }
+                    memory.Lives.Write(storedLives);
                     livesLabel.ForeColor = Color.DodgerBlue;
                     StartLivesFreeze();
                 }
                 if (freezeMasksCheckbox.Checked)
                 {
                     // 再フック時は直前の保持値を再適用する
-                    try { memory.Masks.Write(storedMasks); } catch { }
-                    RefreshMasks(storedMasks);
+                    FreezeMasks();
                     masksLabel.ForeColor = Color.DodgerBlue;
+                    damageMaskformCheckbox.Enabled = true;
                     StartMasksFreeze();
+                }
+                else
+                {
+                    damageMaskformCheckbox.Enabled = false;
                 }
                 if (freezeMapEnabled)
                 {
@@ -554,7 +656,7 @@ namespace Crash.Helper.Controls
                 }
 
                 // notify listeners
-                try { MapLockChanged?.Invoke(this, storedMap); } catch { }
+                MapLockChanged?.Invoke(this, storedMap);
             }
             catch (Exception ex) { System.Diagnostics.Trace.WriteLine($"[DataControl] SetMapLock: exception: {ex}"); }
         }
@@ -579,14 +681,9 @@ namespace Crash.Helper.Controls
                     finally { suppressFreezeCheckboxEvent = false; }
                 });
                 System.Diagnostics.Trace.WriteLine("[DataControl] StopMapLock: stopped and cleared storedMap");
-                try { MapLockChanged?.Invoke(this, null); } catch { }
+                MapLockChanged?.Invoke(this, null);
             }
             catch (Exception ex) { System.Diagnostics.Trace.WriteLine($"[DataControl] StopMapLock: exception: {ex}"); }
-        }
-
-        private void displayRestartCheckBox_CheckedChanged_1(object sender, EventArgs e)
-        {
-
         }
     }
 }

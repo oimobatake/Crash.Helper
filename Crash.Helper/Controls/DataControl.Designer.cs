@@ -40,6 +40,7 @@
             this.levelLabel = new System.Windows.Forms.Label();
             this.nowMapLabels = new System.Windows.Forms.Label();
             this.freezeMasksCheckbox = new System.Windows.Forms.CheckBox();
+            this.damageMaskformCheckbox = new System.Windows.Forms.CheckBox();
             this.dataBox.SuspendLayout();
             this.SuspendLayout();
             // 
@@ -121,6 +122,7 @@
             this.dataBox.Controls.Add(this.freezeLevelCheckbox);
             this.dataBox.Controls.Add(this.levelLabel);
             this.dataBox.Controls.Add(this.nowMapLabels);
+            this.dataBox.Controls.Add(this.damageMaskformCheckbox);
             this.dataBox.Controls.Add(this.freezeMasksCheckbox);
             this.dataBox.Controls.Add(this.masksLabel);
             this.dataBox.Controls.Add(this.livesLabel);
@@ -133,7 +135,7 @@
             this.dataBox.Margin = new System.Windows.Forms.Padding(0);
             this.dataBox.MinimumSize = new System.Drawing.Size(250, 0);
             this.dataBox.Name = "dataBox";
-            this.dataBox.Size = new System.Drawing.Size(285, 117);
+            this.dataBox.Size = new System.Drawing.Size(285, 136);
             this.dataBox.TabIndex = 0;
             this.dataBox.TabStop = false;
             this.dataBox.Text = "Data";
@@ -142,7 +144,7 @@
             // freezeLevelCheckbox
             // 
             this.freezeLevelCheckbox.AutoSize = true;
-            this.freezeLevelCheckbox.Location = new System.Drawing.Point(125, 76);
+            this.freezeLevelCheckbox.Location = new System.Drawing.Point(125, 96);
             this.freezeLevelCheckbox.Name = "freezeLevelCheckbox";
             this.freezeLevelCheckbox.Size = new System.Drawing.Size(86, 16);
             this.freezeLevelCheckbox.TabIndex = 23;
@@ -152,7 +154,7 @@
             // levelLabel
             // 
             this.levelLabel.AutoSize = true;
-            this.levelLabel.Location = new System.Drawing.Point(6, 77);
+            this.levelLabel.Location = new System.Drawing.Point(6, 97);
             this.levelLabel.Name = "levelLabel";
             this.levelLabel.Size = new System.Drawing.Size(44, 12);
             this.levelLabel.TabIndex = 22;
@@ -161,7 +163,7 @@
             // nowMapLabels
             // 
             this.nowMapLabels.AutoSize = true;
-            this.nowMapLabels.Location = new System.Drawing.Point(7, 95);
+            this.nowMapLabels.Location = new System.Drawing.Point(7, 115);
             this.nowMapLabels.Name = "nowMapLabels";
             this.nowMapLabels.Size = new System.Drawing.Size(58, 12);
             this.nowMapLabels.TabIndex = 19;
@@ -178,6 +180,17 @@
             this.freezeMasksCheckbox.UseVisualStyleBackColor = true;
             this.freezeMasksCheckbox.CheckedChanged += new System.EventHandler(this.freezeMasksCheckbox_CheckedChanged);
             // 
+            // damageMaskformCheckbox
+            // 
+            this.damageMaskformCheckbox.AutoSize = true;
+            this.damageMaskformCheckbox.Location = new System.Drawing.Point(125, 69);
+            this.damageMaskformCheckbox.Name = "damageMaskformCheckbox";
+            this.damageMaskformCheckbox.Size = new System.Drawing.Size(125, 16);
+            this.damageMaskformCheckbox.TabIndex = 24;
+            this.damageMaskformCheckbox.Text = "Maskform when hit";
+            this.damageMaskformCheckbox.UseVisualStyleBackColor = true;
+            this.damageMaskformCheckbox.CheckedChanged += new System.EventHandler(this.damageMaskformCheckbox_CheckedChanged);
+            // 
             // DataControl
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 12F);
@@ -187,7 +200,7 @@
             this.Enabled = false;
             this.Margin = new System.Windows.Forms.Padding(0, 5, 0, 0);
             this.Name = "DataControl";
-            this.Size = new System.Drawing.Size(285, 117);
+            this.Size = new System.Drawing.Size(285, 136);
             this.dataBox.ResumeLayout(false);
             this.dataBox.PerformLayout();
             this.ResumeLayout(false);
@@ -208,5 +221,6 @@
         private System.Windows.Forms.Label nowMapLabels;
         private System.Windows.Forms.CheckBox freezeLevelCheckbox;
         private System.Windows.Forms.Label levelLabel;
+        private System.Windows.Forms.CheckBox damageMaskformCheckbox;
     }
 }
