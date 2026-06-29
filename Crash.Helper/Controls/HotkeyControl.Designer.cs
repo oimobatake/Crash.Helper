@@ -182,6 +182,7 @@
             this.subMaskHotkeyLabel.Size = new System.Drawing.Size(43, 15);
             this.subMaskHotkeyLabel.TabIndex = 8;
             this.subMaskHotkeyLabel.Text = "Hotkey";
+            this.subMaskHotkeyLabel.Click += new System.EventHandler(this.hotkeyLabelClicked);
             // 
             // label2
             // 
@@ -199,7 +200,7 @@
             this.label1.Name = "label1";
             this.label1.Size = new System.Drawing.Size(78, 12);
             this.label1.TabIndex = 13;
-            this.label1.Text = "• Freeze Level:";
+            this.label1.Text = "• Toggle Level Lock:";
             // 
             // freezeLevelHotkeyTextbox
             // 
@@ -223,6 +224,7 @@
             this.freezeLevelHotkeyLabel.Size = new System.Drawing.Size(43, 15);
             this.freezeLevelHotkeyLabel.TabIndex = 11;
             this.freezeLevelHotkeyLabel.Text = "Hotkey";
+            this.freezeLevelHotkeyLabel.Click += new System.EventHandler(this.hotkeyLabelClicked);
             // 
             // HotkeyControl
             // 

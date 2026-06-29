@@ -114,6 +114,12 @@
     <Compile Include="Controls\HotkeyControl.Designer.cs">
       <DependentUpon>HotkeyControl.cs</DependentUpon>
     </Compile>
+    <Compile Include="Controls\InputDisplayControl.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Controls\InputDisplayControl.Designer.cs">
+      <DependentUpon>InputDisplayControl.cs</DependentUpon>
+    </Compile>
     <Compile Include="Controls\LevelSelectorControl.cs">
       <SubType>UserControl</SubType>
     </Compile>
@@ -122,6 +128,12 @@
     </Compile>
     <Compile Include="Controls\ProcessControl.Designer.cs">
       <DependentUpon>ProcessControl.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Controls\TraceLogControl.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Controls\TraceLogControl.Designer.cs">
+      <DependentUpon>TraceLogControl.cs</DependentUpon>
     </Compile>
     <Compile Include="HelperForm.cs">
       <SubType>Form</SubType>
@@ -136,6 +148,7 @@
     <Compile Include="Input\XInputListener.cs" />
     <Compile Include="Memory\CrashMemory.cs" />
     <Compile Include="Memory\GameMemory.cs" />
+    <Compile Include="Memory\LevelNameCodeInjector.cs" />
     <Compile Include="Memory\GamePointer.cs" />
     <Compile Include="Memory\MemoryReader.cs" />
     <Compile Include="Program.cs" />
@@ -164,6 +177,7 @@
       <DesignTime>True</DesignTime>
     </Compile>
     <None Include="Crash.Helper_TemporaryKey.pfx" />
+    <None Include="Docs\LevelNameInjection.md" />
     <None Include="Properties\Settings.settings">
       <Generator>SettingsSingleFileGenerator</Generator>
       <LastGenOutput>Settings.Designer.cs</LastGenOutput>

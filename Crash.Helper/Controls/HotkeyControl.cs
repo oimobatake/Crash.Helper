@@ -8,6 +8,9 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using System.IO;
+using System.Threading;
+using System.Diagnostics;
 using Crash.Helper.Memory;
 using Crash.Helper;
 using Crash.Helper.Input;
@@ -34,6 +37,12 @@ namespace Crash.Helper.Controls
         private ushort pendingAssignMask = 0;
         private System.Threading.Timer pendingAssignTimer;
         private readonly int assignWindowMs = 300;
+        private bool hotkeysRegistered;
+        private bool suppressEnabledCheckboxEvent;
+        private bool userRequestedHotkeysEnabled = true;
+        private int toggleLevelLockBusy;
+
+        private string HotkeyConfigPath => Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "hotkeys.config");
 
         public HotkeyControl(CrashMemory memory, DataControl data)
         {
@@ -47,24 +56,7 @@ namespace Crash.Helper.Controls
                 new Hotkey("Set Max lives: ", KeyModifiers.Shift, (uint)Keys.O, () => { memory.Lives.Write(99); data.Lives = 99; }),
                 new Hotkey("Give one mask (+): ", KeyModifiers.Shift, (uint)Keys.F, () => { data.StoredMasks = memory.Masks.Read() + 1; data.Masks = data.StoredMasks; }),
                 new Hotkey("Give one mask (-): ", KeyModifiers.Shift, (uint)Keys.D, () => { data.StoredMasks = memory.Masks.Read() - 1; data.Masks = data.StoredMasks; }),
-                new Hotkey("Freeze level: ", KeyModifiers.Shift, (uint)Keys.L, () => {
-                    try
-                    {
-                        // toggle freeze: if already frozen, stop; otherwise freeze to current map
-                        if (data.IsMapFrozen)
-                        {
-                            data.StopMapLock();
-                        }
-                        else
-                        {
-                            // read current map value from memory (internal path)
-                            var mapVal = memory.LoadMap.Read();
-                            var mapKey = LevelSelectorControl.Levels.Keys.FirstOrDefault(k => LevelSelectorControl.Levels[k] == mapVal);
-                            if (!string.IsNullOrEmpty(mapVal)) data.SetMapLock(mapVal, mapKey, true);
-                        }
-                    }
-                    catch { }
-                })
+                new Hotkey("Toggle level lock: ", KeyModifiers.Shift, (uint)Keys.L, QueueToggleLevelLock)
             };
 
             // Keep these ordered and in sync with designer controls
@@ -72,17 +64,9 @@ namespace Crash.Helper.Controls
             hotkeyLabels = new[] { zeroLivesHotkeyLabel, addMaskHotkeyLabel, subMaskHotkeyLabel, freezeLevelHotkeyLabel };
             textboxes = new[] { zeroLivesHotkeyTextbox, addMaskHotkeyTextbox, subMaskHotkeyTextbox, freezeLevelHotkeyTextbox };
 
-            // Update labels for each registered hotkey
-            zeroLivesHotkeyLabel.Text = hotkeys[0].ToString();
-            zeroLivesHotkeyLabel.ForeColor = Color.ForestGreen;
-            addMaskHotkeyLabel.Text = hotkeys[1].ToString();
-            addMaskHotkeyLabel.ForeColor = Color.ForestGreen;
-            subMaskHotkeyLabel.Text = hotkeys[2].ToString();
-            subMaskHotkeyLabel.ForeColor = Color.ForestGreen;
-            freezeLevelHotkeyLabel.Text = hotkeys[3].ToString();
-            freezeLevelHotkeyLabel.ForeColor = Color.ForestGreen;
-
-            RegisterHotkeys();
+            LoadHotkeySettings();
+            RefreshHotkeyLabels();
+            ApplyHotkeyActivationState();
 
             try
             {
@@ -106,9 +90,215 @@ namespace Crash.Helper.Controls
             catch { /* ignore if no input backend available */ }
         }
 
+        protected override void OnHandleCreated(EventArgs e)
+        {
+            base.OnHandleCreated(e);
+            ApplyHotkeyActivationState();
+        }
+
+        protected override void OnEnabledChanged(EventArgs e)
+        {
+            base.OnEnabledChanged(e);
+            ApplyHotkeyActivationState();
+        }
+
+        private void RefreshHotkeyLabels()
+        {
+            for (int i = 0; i < hotkeyLabels.Length && i < hotkeys.Length; i++)
+            {
+                hotkeyLabels[i].Text = hotkeys[i].ToString();
+                hotkeyLabels[i].ForeColor = Color.ForestGreen;
+            }
+        }
+
+        private void LoadHotkeySettings()
+        {
+            try
+            {
+                userRequestedHotkeysEnabled = true;
+                if (!File.Exists(HotkeyConfigPath))
+                {
+                    userRequestedHotkeysEnabled = enabledCheckbox.Checked;
+                    return;
+                }
+
+                var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var line in File.ReadAllLines(HotkeyConfigPath))
+                {
+                    if (string.IsNullOrWhiteSpace(line)) continue;
+                    int split = line.IndexOf('=');
+                    if (split <= 0) continue;
+                    var key = line.Substring(0, split).Trim();
+                    var value = line.Substring(split + 1).Trim();
+                    values[key] = value;
+                }
+
+                if (values.TryGetValue("Enabled", out var enabledValue) && bool.TryParse(enabledValue, out var enabledParsed))
+                {
+                    userRequestedHotkeysEnabled = enabledParsed;
+                }
+                else
+                {
+                    userRequestedHotkeysEnabled = enabledCheckbox.Checked;
+                }
+
+                for (int i = 0; i < hotkeys.Length; i++)
+                {
+                    if (values.TryGetValue($"Hotkey{i}.Key", out var keyValue) && uint.TryParse(keyValue, out var keyParsed))
+                    {
+                        hotkeys[i].Key = keyParsed;
+                    }
+
+                    if (values.TryGetValue($"Hotkey{i}.Modifier", out var modifierValue) && int.TryParse(modifierValue, out var modifierParsed))
+                    {
+                        hotkeys[i].Modifier = (KeyModifiers)modifierParsed;
+                    }
+
+                    if (values.TryGetValue($"Hotkey{i}.GamepadMask", out var maskValue) && ushort.TryParse(maskValue, out var maskParsed))
+                    {
+                        hotkeys[i].GamepadMask = maskParsed;
+                    }
+                    else
+                    {
+                        hotkeys[i].GamepadMask = null;
+                    }
+                }
+            }
+            catch
+            {
+                userRequestedHotkeysEnabled = enabledCheckbox.Checked;
+            }
+        }
+
+        private void SaveHotkeySettings()
+        {
+            try
+            {
+                var lines = new List<string>
+                {
+                    $"Enabled={userRequestedHotkeysEnabled}"
+                };
+
+                for (int i = 0; i < hotkeys.Length; i++)
+                {
+                    lines.Add($"Hotkey{i}.Key={hotkeys[i].Key}");
+                    lines.Add($"Hotkey{i}.Modifier={(int)hotkeys[i].Modifier}");
+                    lines.Add($"Hotkey{i}.GamepadMask={(hotkeys[i].GamepadMask.HasValue ? hotkeys[i].GamepadMask.Value.ToString() : string.Empty)}");
+                }
+
+                File.WriteAllLines(HotkeyConfigPath, lines);
+            }
+            catch { }
+        }
+
+        private bool IsRuntimeReady()
+        {
+            try
+            {
+                return this.Enabled && memory != null && memory.ProcessHooked;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private bool IsHotkeyExecutionEnabled()
+        {
+            return IsRuntimeReady() && userRequestedHotkeysEnabled;
+        }
+
+        private void ApplyHotkeyActivationState()
+        {
+            bool runtimeReady = IsRuntimeReady();
+            bool shouldEnable = runtimeReady && userRequestedHotkeysEnabled;
+
+            if (enabledCheckbox != null)
+            {
+                try
+                {
+                    suppressEnabledCheckboxEvent = true;
+                    enabledCheckbox.Enabled = runtimeReady;
+                    enabledCheckbox.Checked = shouldEnable;
+                }
+                finally
+                {
+                    suppressEnabledCheckboxEvent = false;
+                }
+            }
+
+            if (shouldEnable) RegisterHotkeys(); else UnregisterHotkeys();
+
+            bool labelsEnabled = runtimeReady;
+            if (labels != null)
+            {
+                foreach (Label label in labels)
+                {
+                    if (label != null) label.Enabled = labelsEnabled;
+                }
+            }
+        }
+
+        private void QueueToggleLevelLock()
+        {
+            if (Interlocked.CompareExchange(ref toggleLevelLockBusy, 1, 0) != 0)
+            {
+                return;
+            }
+
+            try
+            {
+                if (!IsHandleCreated)
+                {
+                    Interlocked.Exchange(ref toggleLevelLockBusy, 0);
+                    return;
+                }
+
+                BeginInvoke((Action)(() =>
+                {
+                    var sw = Stopwatch.StartNew();
+                    try
+                    {
+                        var levelSelector = this.Parent?.Controls.OfType<LevelSelectorControl>().FirstOrDefault();
+                        if (levelSelector != null)
+                        {
+                            if (levelSelector.IsLevelLockActive)
+                            {
+                                levelSelector.StopLevelLock();
+                            }
+                            else
+                            {
+                                levelSelector.ApplySelectedLevelLock();
+                            }
+                            return;
+                        }
+
+                        if (data.IsMapFrozen) data.StopMapLock();
+                        else
+                        {
+                            var mapVal = memory.LoadMap.Read();
+                            var mapKey = LevelSelectorControl.Levels.Keys.FirstOrDefault(k => LevelSelectorControl.Levels[k] == mapVal);
+                            if (!string.IsNullOrEmpty(mapVal)) data.SetMapLock(mapVal, mapKey, true);
+                        }
+                    }
+                    catch { }
+                    finally
+                    {
+                        sw.Stop();
+                        Trace.WriteLine($"[Hotkey] Toggle Level Lock executed in {sw.ElapsedMilliseconds}ms");
+                        Interlocked.Exchange(ref toggleLevelLockBusy, 0);
+                    }
+                }));
+            }
+            catch
+            {
+                Interlocked.Exchange(ref toggleLevelLockBusy, 0);
+            }
+        }
+
         private void Data_MapLockChanged(object sender, string mapValue)
         {
-            // when map lock changes, update the LevelSelector combo selection if freeze checkbox is set
+            // when map value changes, update LevelSelector combo selection
             try
             {
                 if (data == null) return;
@@ -118,63 +308,36 @@ namespace Crash.Helper.Controls
                     return;
                 }
 
-                if (!data.IsMapFrozen) return;
-
-                // find matching display name from LevelSelector map dictionary
                 var ls = this.Parent?.Controls.OfType<LevelSelectorControl>().FirstOrDefault();
                 if (ls == null) return;
-                // reflect selection via public API on LevelSelectorControl (use reflection if necessary)
-                var comboField = typeof(LevelSelectorControl).GetField("combo", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-                if (comboField == null) return;
-                var combo = comboField.GetValue(ls) as ComboBox;
-                if (combo == null) return;
-
-                // mapValue is internal map path; find display name in Levels dictionary
-                var levelsField = typeof(LevelSelectorControl).GetField("Levels", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
-                if (levelsField == null) return;
-                var levels = levelsField.GetValue(null) as System.Collections.IDictionary;
-                if (levels == null) return;
-
-                string foundDisplay = null;
-                foreach (System.Collections.DictionaryEntry de in levels)
-                {
-                    if (de.Value as string == mapValue)
-                    {
-                        foundDisplay = de.Key as string;
-                        break;
-                    }
-                }
-
-                if (!string.IsNullOrEmpty(foundDisplay))
-                {
-                    for (int i = 0; i < combo.Items.Count; i++)
-                    {
-                        if (combo.Items[i] as string == foundDisplay)
-                        {
-                            combo.SelectedIndex = i;
-                            break;
-                        }
-                    }
-                }
+                ls.SyncSelectionByMap(mapValue);
             }
             catch { }
         }
 
         public void RegisterHotkeys()
         {
+            if (!IsHandleCreated || hotkeysRegistered) return;
+
             int keyCount = 0;
             foreach (Hotkey hotkey in hotkeys)
             {
                 RegisterHotKey(Handle, keyCount++, (uint)hotkey.Modifier, hotkey.Key);
             }
+
+            hotkeysRegistered = true;
         }
 
         public void UnregisterHotkeys()
         {
+            if (!IsHandleCreated || !hotkeysRegistered) return;
+
             for (int i = 0; i < hotkeys.Length; i++)
             {
                 UnregisterHotKey(Handle, i);
             }
+
+            hotkeysRegistered = false;
         }
 
         protected override void WndProc(ref Message m)
@@ -182,6 +345,7 @@ namespace Crash.Helper.Controls
             base.WndProc(ref m);
 
             if (m.Msg != 0x0312) return;
+            if (!IsHotkeyExecutionEnabled()) return;
 
             int id = m.WParam.ToInt32();
             if (id >= 0 && id < hotkeys.Length)
@@ -215,7 +379,7 @@ namespace Crash.Helper.Controls
             }
 
             // Dispatch any matching gamepad hotkey
-            if (!enabledCheckbox.Checked) return;
+            if (!IsHotkeyExecutionEnabled()) return;
             foreach (var hk in hotkeys)
             {
                 if (hk.GamepadMask.HasValue && (hk.GamepadMask.Value & (ushort)e.Button) != 0)
@@ -240,6 +404,7 @@ namespace Crash.Helper.Controls
                 pendingGamepadIndex = null;
                 pendingAssignTimer?.Dispose();
                 pendingAssignTimer = null;
+                SaveHotkeySettings();
                 UpdateGamepadBindingsLabel();
             }
         }
@@ -257,9 +422,11 @@ namespace Crash.Helper.Controls
 
         private void enabledCheckbox_CheckedChanged(object sender, EventArgs e)
         {
-            if (enabledCheckbox.Checked) RegisterHotkeys(); else UnregisterHotkeys();
+            if (suppressEnabledCheckboxEvent) return;
 
-            foreach (Label label in labels) label.Enabled = enabledCheckbox.Checked;
+            userRequestedHotkeysEnabled = enabledCheckbox.Checked;
+            SaveHotkeySettings();
+            ApplyHotkeyActivationState();
         }
 
         private void hotkeyLabelClicked(object sender, EventArgs e)
@@ -292,6 +459,7 @@ namespace Crash.Helper.Controls
             UnregisterHotkeys();
             RegisterHotkeys();
 
+            SaveHotkeySettings();
             hotkeyLabels[i].Text = hotkeys[i].ToString();
             textboxes[i].Visible = false;
             textboxes[i].Text = "";

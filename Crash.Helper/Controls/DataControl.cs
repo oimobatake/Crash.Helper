@@ -16,9 +16,9 @@ namespace Crash.Helper.Controls
     {
         // Event fired when map lock state changes. Parameter is storedMap or null when unlocked.
         public event EventHandler<string> MapLockChanged;
+        // Event fired whenever LoadMap changes. Parameter is the current map value.
+        public event EventHandler<string> CurrentMapChanged;
 
-        // suppress checkbox event when setting Checked programmatically
-        private bool suppressFreezeCheckboxEvent = false;
         // suppress restart checkbox programmatic event
         private bool suppressRestartCheckboxEvent = false;
         private System.Threading.Timer restartTimer;
@@ -127,41 +127,22 @@ namespace Crash.Helper.Controls
                     }
 
                     //oldMapLabels.Text = o;
-                    var dispValue = LevelSelectorControl.Levels.Keys.FirstOrDefault(k => LevelSelectorControl.Levels[k] == n);
-                    nowMapLabels.Text = dispValue;
+                    //var dispValue = LevelSelectorControl.Levels.Keys.FirstOrDefault(k => LevelSelectorControl.Levels[k] == n);
+                    //nowMapLabels.Text = dispValue;
+
+                    CurrentMapChanged?.Invoke(this, n);
                 });
             };
             //memory.Restart.OnValueChange += OnRestartChange;
 
             InitializeComponent();
-            // wire freeze level checkbox handler
-            freezeLevelCheckbox.CheckedChanged += freezeLevelCheckbox_CheckedChanged;
             damageMaskformCheckbox.Enabled = false;
         }
 
         public DataControl()
         {
             InitializeComponent();
-            freezeLevelCheckbox.CheckedChanged += freezeLevelCheckbox_CheckedChanged;
             damageMaskformCheckbox.Enabled = false;
-        }
-
-        private void freezeLevelCheckbox_CheckedChanged(object sender, EventArgs e)
-        {
-            if (suppressFreezeCheckboxEvent) return;
-            if (memory == null) return;
-
-            if (freezeLevelCheckbox.Checked)
-            {
-                // freeze to current map value
-                var mapVal = memory.LoadMap.Read();
-                var mapKey = LevelSelectorControl.Levels.Keys.FirstOrDefault(k => LevelSelectorControl.Levels[k] == mapVal);
-                if (!string.IsNullOrEmpty(mapVal)) SetMapLock(mapVal, mapKey, true);
-            }
-            else
-            {
-                StopMapLock();
-            }
         }
 
         // Public accessor for whether map freeze is active
@@ -406,10 +387,10 @@ namespace Crash.Helper.Controls
                 memory.LoadMap.Write(storedMap);
             }
 
-            SafeAction(() =>
-            {
-                nowMapLabels.ForeColor = Color.DodgerBlue;
-            });
+            //SafeAction(() =>
+            //{
+            //    nowMapLabels.ForeColor = Color.DodgerBlue;
+            //});
         }
 
         private void StartLivesFreeze()
@@ -469,10 +450,10 @@ namespace Crash.Helper.Controls
                     if (mapFreezeFailCount >= MapFreezeFailThreshold)
                     {
                         StopMapFreeze();
-                        SafeAction(() =>
-                        {
-                            nowMapLabels.ForeColor = Color.Black;
-                        });
+                        //SafeAction(() =>
+                        //{
+                        //    nowMapLabels.ForeColor = Color.Black;
+                        //});
                     }
                 }
             }, null, 0, 1);
@@ -597,7 +578,7 @@ namespace Crash.Helper.Controls
                     }
                     else
                     {
-                        // 保持値がない場合のみ現在Mapを保持してfreeze開始
+                        // When no stored value exists, capture current map and start freeze.
                         FreezeMap();
                         StartMapFreeze();
                     }
@@ -623,31 +604,33 @@ namespace Crash.Helper.Controls
         }
 
         // Public API to set or stop map lock from external UI
-        public void SetMapLock(string mapValue, string mapKey, bool startFreeze = true)
+        public void SetMapLock(string mapValue, string mapKey, bool startFreeze = true, bool writeToMemory = true)
         {
             if (string.IsNullOrEmpty(mapValue)) return;
 
             try
             {
-                System.Diagnostics.Trace.WriteLine($"[DataControl] SetMapLock: map='{mapValue}' startFreeze={startFreeze}");
-                // write the value to memory first
-                memory.LoadMap.Write(mapValue);
+                System.Diagnostics.Trace.WriteLine($"[DataControl] SetMapLock: map='{mapValue}' startFreeze={startFreeze} writeToMemory={writeToMemory}");
+                if (!startFreeze)
+                {
+                    StopMapFreeze();
+                }
+
+                if (writeToMemory)
+                {
+                    memory.LoadMap.Write(mapValue);
+                }
+
                 // store and update UI
                 storedMap = mapValue;
                 SafeAction(() =>
                 {
-                    nowMapLabels.Text = mapKey;
-                    if (startFreeze) nowMapLabels.ForeColor = Color.DodgerBlue;
-                    else nowMapLabels.ForeColor = Color.Black;
-                        // internal flag controls freeze behavior
-                        freezeMapEnabled = startFreeze;
-                    // reflect in UI checkbox without triggering handler
-                    try
-                    {
-                        suppressFreezeCheckboxEvent = true;
-                        freezeLevelCheckbox.Checked = startFreeze;
-                    }
-                    finally { suppressFreezeCheckboxEvent = false; }
+                    //nowMapLabels.Text = mapKey;
+                    //if (startFreeze) nowMapLabels.ForeColor = Color.DodgerBlue;
+                    //else if (!writeToMemory) nowMapLabels.ForeColor = Color.DarkOrange;
+                    //else nowMapLabels.ForeColor = Color.Black;
+                    // internal flag controls freeze behavior
+                    freezeMapEnabled = startFreeze;
                 });
 
                 if (startFreeze)
@@ -669,17 +652,12 @@ namespace Crash.Helper.Controls
                 freezeMapEnabled = false;
                 StopMapFreeze();
                 storedMap = null;
-                SafeAction(() =>
-                {
-                    // keep UI checkbox hidden/unused
-                    nowMapLabels.ForeColor = Color.Black;
-                    try
-                    {
-                        suppressFreezeCheckboxEvent = true;
-                        freezeLevelCheckbox.Checked = false;
-                    }
-                    finally { suppressFreezeCheckboxEvent = false; }
-                });
+
+                //SafeAction(() =>
+                //{
+                //    // keep UI label neutral
+                //    nowMapLabels.ForeColor = Color.Black;
+                //});
                 System.Diagnostics.Trace.WriteLine("[DataControl] StopMapLock: stopped and cleared storedMap");
                 MapLockChanged?.Invoke(this, null);
             }

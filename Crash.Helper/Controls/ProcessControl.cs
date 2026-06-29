@@ -20,6 +20,7 @@ namespace Crash.Helper.Controls
 		private CrashMemory memory;
 		private DataControl data;
         private HotkeyControl hotkeys;
+		private InputDisplayControl inputDisplay;
 		private HelperForm parent;
 		private Timer processTimer;
 		private Timer launchConfirmTimer;
@@ -30,11 +31,12 @@ namespace Crash.Helper.Controls
 		private bool scanning;
 		private string filler;
 
-		public ProcessControl(CrashMemory memory, DataControl data, HotkeyControl hotkeys, HelperForm parent)
+		public ProcessControl(CrashMemory memory, DataControl data, HotkeyControl hotkeys, InputDisplayControl inputDisplay, HelperForm parent)
 		{
 			this.memory = memory;
 			this.data = data;
             this.hotkeys = hotkeys;
+			this.inputDisplay = inputDisplay;
 			this.parent = parent;
 
 			InitializeComponent();
@@ -73,6 +75,7 @@ namespace Crash.Helper.Controls
 
 				data.Enabled = true;
                 hotkeys.Enabled = true;
+				if(inputDisplay != null) inputDisplay.Enabled = true;
 				parent.RefreshEnabled = true;
 				scanning = false;
 			}
@@ -123,6 +126,7 @@ namespace Crash.Helper.Controls
 
 			data.Enabled = isReady;
             hotkeys.Enabled = isReady;
+			if(inputDisplay != null) inputDisplay.Enabled = isReady;
 			parent.RefreshEnabled = isReady;
 		}
 
