@@ -244,9 +244,11 @@ namespace Crash.Helper.Controls
             this.dataControl = dataControl;
 
             this.AutoSize = true;
-            this.MinimumSize = new Size(250, 0);
+            this.MinimumSize = new Size(285, 137);
+            this.Margin = new Padding(0, 5, 0, 0);
+            var levelBox = new GroupBox { Text = "Level", Size = new Size(285, 137) };
 
-            combo = new ComboBox { Left = 0, Top = 10, Width = 250, DropDownStyle = ComboBoxStyle.DropDownList };
+            combo = new ComboBox { Left = 7, Top = 43, Width = 270, DropDownStyle = ComboBoxStyle.DropDownList };
             foreach (var name in LevelOrder) combo.Items.Add(name);
             if (combo.Items.Count > 0) combo.SelectedIndex = 0;
             combo.SelectedIndexChanged += (s, e) => {
@@ -261,19 +263,21 @@ namespace Crash.Helper.Controls
                 catch { }
             };
 
-            lockButton = new Button { Left = 0, Top = 45, Width = 80, Text = "Level Lock" };
+            lockButton = new Button { Left = 7, Top = 73, Width = 80, Text = "Level Lock" };
             lockButton.Click += (s, e) => { SetSelectedLevel(true); };
 
-            stopButton = new Button { Left = 85, Top = 45, Width = 80, Text = "Stop Lock" };
+            stopButton = new Button { Left = 92, Top = 73, Width = 80, Text = "Stop Lock" };
             stopButton.Click += (s, e) => { StopLock(); };
 
-            launchButton = new Button { Left = 170, Top = 45, Width = 100, Text = "Launch Game" };
+            launchButton = new Button { Left = 177, Top = 73, Width = 100, Text = "Launch Game" };
             launchButton.Click += (s, e) => { LaunchSelectedLevel(); };
 
-            this.Controls.Add(combo);
-            this.Controls.Add(lockButton);
-            this.Controls.Add(stopButton);
-            this.Controls.Add(launchButton);
+            levelBox.Controls.Add(combo);
+            levelBox.Controls.Add(lockButton);
+            levelBox.Controls.Add(stopButton);
+            levelBox.Controls.Add(launchButton);
+            dataControl.AttachLevelControls(levelBox);
+            this.Controls.Add(levelBox);
 
             ApplyAvailability(true, false);
         }

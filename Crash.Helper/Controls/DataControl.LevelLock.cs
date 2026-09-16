@@ -13,6 +13,25 @@ namespace Crash.Helper.Controls
         private Task levelLockShutdown;
         private bool showCurrentLevel;
 
+        internal void AttachLevelControls(System.Windows.Forms.GroupBox levelBox)
+        {
+            levelLabel.Text = "Level:";
+            nowMapLabels.Text = "-";
+            levelLabel.Location = new Point(7, 22);
+            nowMapLabels.Location = new Point(46, 22);
+            freezeLevelCheckbox.Location = new Point(7, 107);
+            secretLevelCheckbox.Location = new Point(155, 107);
+            var controls = new System.Windows.Forms.Control[] { levelLabel, nowMapLabels, freezeLevelCheckbox, secretLevelCheckbox };
+            foreach (var control in controls)
+            {
+                control.Enabled = Enabled;
+                levelBox.Controls.Add(control);
+            }
+            // These controls now live outside Data, but still follow the helper/game availability.
+            EnabledChanged += (s, e) => { foreach (var control in controls) control.Enabled = Enabled; };
+            Height = 100;
+        }
+
         private static string GetMapCommand(string level)
         {
             if (string.IsNullOrWhiteSpace(level)) return string.Empty;

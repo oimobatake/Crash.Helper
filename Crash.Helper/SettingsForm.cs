@@ -24,7 +24,7 @@ namespace Crash.Helper
             draft = settings.Clone();
             Text = "Crash Helper Settings";
             StartPosition = FormStartPosition.CenterParent;
-            ClientSize = new Size(550, Math.Min(740, Screen.PrimaryScreen.WorkingArea.Height - 80));
+            ClientSize = new Size(550, Math.Min(370, Screen.PrimaryScreen.WorkingArea.Height - 80));
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
             MinimizeBox = false;

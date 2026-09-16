@@ -46,6 +46,13 @@ namespace Crash.Helper
                 var settings = (HelperSettings)new DataContractJsonSerializer(typeof(HelperSettings)).ReadObject(stream);
                 if (settings == null) throw new InvalidDataException("Settings are empty.");
                 if (settings.Hotkeys == null) settings.Hotkeys = new Dictionary<string, HotkeyBinding>();
+                // Preserve bindings saved before the position terminology change.
+                HotkeyBinding legacyPositionBinding;
+                if (settings.Hotkeys.TryGetValue("Save location", out legacyPositionBinding))
+                {
+                    if (!settings.Hotkeys.ContainsKey("Save position")) settings.Hotkeys["Save position"] = legacyPositionBinding;
+                    settings.Hotkeys.Remove("Save location");
+                }
                 if (string.IsNullOrWhiteSpace(settings.SteamPath)) settings.SteamPath = new HelperSettings().SteamPath;
                 return settings;
             }

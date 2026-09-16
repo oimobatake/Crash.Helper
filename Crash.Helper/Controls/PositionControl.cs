@@ -6,29 +6,29 @@ using Crash.Helper.Memory;
 
 namespace Crash.Helper.Controls
 {
-    internal sealed class LocationControl : UserControl
+    internal sealed class PositionControl : UserControl
     {
         private readonly CrashMemory memory;
         private readonly TextBox[] editors = new TextBox[3];
         private readonly string[] axes = { "X", "Y", "Z" };
         private readonly GamePointer<float>[] pointers;
         private readonly Button teleportButton;
-        private float[] savedLocation;
+        private float[] savedPosition;
         private readonly CheckBox[] freezeCheckboxes = new CheckBox[3];
         private readonly float[] frozenValues = new float[3];
         private readonly Timer freezeTimer = new Timer { Interval = 10 };
 
-        public LocationControl(CrashMemory memory)
+        public PositionControl(CrashMemory memory)
         {
             this.memory = memory;
-            pointers = new[] { memory.LocationX, memory.LocationY, memory.LocationZ };
+            pointers = new[] { memory.PositionX, memory.PositionY, memory.PositionZ };
             Size = new Size(270, 112);
             for (int i = 0; i < editors.Length; i++)
             {
                 int index = i;
-                var label = new Label { Text = axes[i] + ":", AutoSize = true, Left = 36, Top = i * 26 + 4 };
-                var editor = new TextBox { Left = 60, Top = i * 26, Width = 100, Text = "-", TextAlign = HorizontalAlignment.Right };
-                var freeze = new CheckBox { Text = "Freeze " + axes[i], AutoSize = true, Left = 172, Top = i * 26 + 2 };
+                var label = new Label { Text = "Position " + axes[i] + ":", AutoSize = true, Left = 12, Top = i * 26 + 4 };
+                var editor = new TextBox { Left = 80, Top = i * 26, Width = 95, Text = "-", TextAlign = HorizontalAlignment.Right };
+                var freeze = new CheckBox { Text = "Freeze " + axes[i], AutoSize = true, Left = 190, Top = i * 26 + 2 };
                 freeze.CheckedChanged += (s, e) =>
                 {
                     if (freeze.Checked && Enabled && memory.ProcessHooked) frozenValues[index] = pointers[index].Read();
@@ -45,7 +45,7 @@ namespace Crash.Helper.Controls
                     float value;
                     if (!TryParseCoordinate(editor.Text, axes[index], out value))
                     {
-                        MessageBox.Show(this, "Enter a finite number for " + axes[index] + ".", "Location", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        MessageBox.Show(this, "Enter a finite number for " + axes[index] + ".", "Position", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                         return;
                     }
                     frozenValues[index] = value;
@@ -61,7 +61,7 @@ namespace Crash.Helper.Controls
             }
             var save = new Button { Text = "Save", Left = 52, Top = 80, Width = 80 };
             teleportButton = new Button { Text = "TP", Left = 137, Top = 80, Width = 80, Enabled = false };
-            save.Click += (s, e) => SaveLocation();
+            save.Click += (s, e) => SavePosition();
             teleportButton.Click += (s, e) => Teleport();
             Controls.Add(save);
             Controls.Add(teleportButton);
@@ -90,20 +90,20 @@ namespace Crash.Helper.Controls
             for (int i = 0; i < editors.Length; i++) if (!editors[i].Focused) UpdateEditor(i);
         }
 
-        internal void SaveLocation()
+        internal void SavePosition()
         {
             if (!Enabled || !memory.ProcessHooked) return;
-            savedLocation = new[] { pointers[0].Read(), pointers[1].Read(), pointers[2].Read() };
+            savedPosition = new[] { pointers[0].Read(), pointers[1].Read(), pointers[2].Read() };
             teleportButton.Enabled = true;
         }
 
         internal void Teleport()
         {
-            if (!Enabled || !memory.ProcessHooked || savedLocation == null) return;
+            if (!Enabled || !memory.ProcessHooked || savedPosition == null) return;
             for (int i = 0; i < pointers.Length; i++)
             {
-                frozenValues[i] = savedLocation[i];
-                pointers[i].Write(savedLocation[i]);
+                frozenValues[i] = savedPosition[i];
+                pointers[i].Write(savedPosition[i]);
             }
             RefreshValues();
         }

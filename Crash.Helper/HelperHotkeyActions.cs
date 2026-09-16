@@ -6,7 +6,7 @@ namespace Crash.Helper
 {
     internal static class HelperHotkeyActions
     {
-        public static IReadOnlyList<Hotkey> Create(CrashMemory memory, DataControl data, LevelSelectorControl levels, LocationControl location)
+        public static IReadOnlyList<Hotkey> Create(CrashMemory memory, DataControl data, LevelSelectorControl levels, PositionControl position)
         {
             return new[]
             {
@@ -22,11 +22,11 @@ namespace Crash.Helper
                 new Hotkey("Previous level", KeyModifiers.None, 0, () => levels.MoveSelection(-1)),
                 new Hotkey("Next level", KeyModifiers.None, 0, () => levels.MoveSelection(1)),
                 new Hotkey("Launch Game", KeyModifiers.None, 0, levels.LaunchSelectedLevel),
-                new Hotkey("Freeze X", KeyModifiers.None, 0, () => location.ToggleFreeze(0)),
-                new Hotkey("Freeze Y", KeyModifiers.None, 0, () => location.ToggleFreeze(1)),
-                new Hotkey("Freeze Z", KeyModifiers.None, 0, () => location.ToggleFreeze(2)),
-                new Hotkey("Save location", KeyModifiers.None, 0, location.SaveLocation),
-                new Hotkey("Teleport", KeyModifiers.None, 0, location.Teleport)
+                new Hotkey("Freeze X", KeyModifiers.None, 0, () => position.ToggleFreeze(0)),
+                new Hotkey("Freeze Y", KeyModifiers.None, 0, () => position.ToggleFreeze(1)),
+                new Hotkey("Freeze Z", KeyModifiers.None, 0, () => position.ToggleFreeze(2)),
+                new Hotkey("Save position", KeyModifiers.None, 0, position.SavePosition),
+                new Hotkey("Teleport", KeyModifiers.None, 0, position.Teleport)
             };
         }
     }
