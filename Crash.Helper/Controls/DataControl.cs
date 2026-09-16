@@ -93,18 +93,8 @@ namespace Crash.Helper.Controls
 
             memory.Lives.OnValueChange += OnLivesChange;
             memory.Masks.OnValueChange += OnMasksChange;
-            memory.LoadMap.OnValueChange += (o, n) => {
-                SafeAction(() =>
-                {
-                    if (this.memory == null || !Enabled || !memory.ProcessHooked) return;
-
-                    if (!freezeMapEnabled)
-                    {
-                        storedMap = n;
-                        nowMapLabels.Text = LevelSelectorControl.Levels.Keys.FirstOrDefault(k => LevelSelectorControl.Levels[k] == n);
-                    }
-                });
-            };
+            memory.LoadMap.OnValueChange += OnLoadMapChanged;
+            memory.CurrentLevel.OnValueChange += (o, n) => SafeAction(RefreshLevelDisplay);
             //memory.Restart.OnValueChange += OnRestartChange;
 
             InitializeComponent();
@@ -129,10 +119,10 @@ namespace Crash.Helper.Controls
 
             if (freezeLevelCheckbox.Checked)
             {
-                // freeze to current map value
-                var mapVal = memory.LoadMap.Read();
-                var mapKey = LevelSelectorControl.Levels.Keys.FirstOrDefault(k => LevelSelectorControl.Levels[k] == mapVal);
-                if (!string.IsNullOrEmpty(mapVal)) SetMapLock(mapVal, mapKey, true);
+                // The current level is a path, while the hook expects a loadmap command.
+                var mapVal = GetMapCommand(memory.CurrentLevel.Read());
+                if (!string.IsNullOrEmpty(mapVal)) SetMapLock(mapVal, GetLevelDisplayName(mapVal), true);
+                else ShowMapLock(nowMapLabels.Text, false, Color.Black);
             }
             else
             {
@@ -484,6 +474,7 @@ namespace Crash.Helper.Controls
 
                 RefreshLives();
                 RefreshMasks();
+                RefreshLevelDisplay();
 
                 if (freezeLivesCheckbox.Checked)
                 {

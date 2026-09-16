@@ -1,5 +1,6 @@
 using System;
 using System.Drawing;
+using System.Linq;
 using System.Threading.Tasks;
 using Crash.Helper.Memory.LevelLock;
 
@@ -10,11 +11,52 @@ namespace Crash.Helper.Controls
         private readonly LevelLockService levelLock = new LevelLockService();
         private int levelLockRevision;
         private Task levelLockShutdown;
+        private bool showCurrentLevel;
+
+        private static string GetMapCommand(string level)
+        {
+            if (string.IsNullOrWhiteSpace(level)) return string.Empty;
+            level = level.Trim();
+            return level.StartsWith("loadmap ", StringComparison.Ordinal) ? level : "loadmap " + level;
+        }
+
+        private static string GetLevelDisplayName(string level)
+        {
+            string command = GetMapCommand(level);
+            return LevelSelectorControl.Levels.FirstOrDefault(pair => pair.Value == command).Key ?? string.Empty;
+        }
+
+        private void OnLoadMapChanged(string oldValue, string newValue)
+        {
+            SafeAction(() =>
+            {
+                if (memory == null || !Enabled || !memory.ProcessHooked) return;
+                if (!freezeMapEnabled)
+                {
+                    storedMap = newValue;
+                    // A new game-side command replaces the current-level display used after unlocking.
+                    showCurrentLevel = false;
+                }
+                RefreshLevelDisplay();
+            });
+        }
+
+        private void RefreshLevelDisplay()
+        {
+            if (memory == null || !Enabled || !memory.ProcessHooked) return;
+            string map = showCurrentLevel ? null : memory.LoadMap.Read();
+            if (string.IsNullOrWhiteSpace(map)) map = memory.CurrentLevel.Read();
+            else if (freezeMapEnabled) map = storedMap;
+            nowMapLabels.Text = GetLevelDisplayName(map);
+        }
 
         public async void SetMapLock(string mapValue, string mapKey, bool startFreeze = true)
         {
             if (levelLockShutdown != null || !Enabled || memory == null || !memory.ProcessHooked || string.IsNullOrEmpty(mapValue)) return;
+            mapValue = GetMapCommand(mapValue);
+            if (mapValue.Length == 0) return;
             int revision = ++levelLockRevision;
+            showCurrentLevel = false;
             storedMap = mapValue;
             freezeMapEnabled = startFreeze;
             ShowMapLock(mapKey, startFreeze, startFreeze ? Color.DarkGoldenrod : Color.Black);
@@ -37,7 +79,8 @@ namespace Crash.Helper.Controls
             int revision = ++levelLockRevision;
             freezeMapEnabled = false;
             storedMap = null;
-            ShowMapLock(nowMapLabels.Text, false, Color.Black);
+            showCurrentLevel = true;
+            ShowMapLock(GetLevelDisplayName(memory?.CurrentLevel.Read()), false, Color.Black);
             MapLockChanged?.Invoke(this, null);
             if (levelLockShutdown != null) return;
             try { await levelLock.SetAsync(null, null); }
@@ -69,7 +112,8 @@ namespace Crash.Helper.Controls
             if (revision != levelLockRevision || IsDisposed || levelLockShutdown != null) return;
             freezeMapEnabled = false;
             storedMap = null;
-            ShowMapLock(nowMapLabels.Text, false, Color.Black);
+            showCurrentLevel = true;
+            ShowMapLock(GetLevelDisplayName(memory?.CurrentLevel.Read()), false, Color.Black);
             MapLockChanged?.Invoke(this, null);
             System.Windows.Forms.MessageBox.Show(this, "Could not change level lock.\n" + error.Message,
                 "Level lock", System.Windows.Forms.MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Error);
