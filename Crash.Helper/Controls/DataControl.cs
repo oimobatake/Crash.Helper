@@ -99,7 +99,7 @@ namespace Crash.Helper.Controls
             memory.LoadMap.OnValueChange += (o, n) => {
                 SafeAction(() =>
                 {
-                    if (this.memory == null) return;
+                    if (this.memory == null || !Enabled || !memory.ProcessHooked) return;
 
                     if (freezeMapEnabled)
                     {
@@ -134,6 +134,7 @@ namespace Crash.Helper.Controls
             //memory.Restart.OnValueChange += OnRestartChange;
 
             InitializeComponent();
+            InitializeSecretLevel();
             // wire freeze level checkbox handler
             freezeLevelCheckbox.CheckedChanged += freezeLevelCheckbox_CheckedChanged;
             damageMaskformCheckbox.Enabled = false;
@@ -142,6 +143,7 @@ namespace Crash.Helper.Controls
         public DataControl()
         {
             InitializeComponent();
+            InitializeSecretLevel();
             freezeLevelCheckbox.CheckedChanged += freezeLevelCheckbox_CheckedChanged;
             damageMaskformCheckbox.Enabled = false;
         }
@@ -149,7 +151,7 @@ namespace Crash.Helper.Controls
         private void freezeLevelCheckbox_CheckedChanged(object sender, EventArgs e)
         {
             if (suppressFreezeCheckboxEvent) return;
-            if (memory == null) return;
+            if (memory == null || !Enabled || !memory.ProcessHooked) return;
 
             if (freezeLevelCheckbox.Checked)
             {
@@ -180,6 +182,7 @@ namespace Crash.Helper.Controls
         private void OnLivesChange(int oldLives, int newLives)
         {
             SafeAction(() => {
+                if (!Enabled || !memory.ProcessHooked) return;
                 if (freezeLivesCheckbox.Checked)
                 {
                     memory.Lives.Write(storedLives);
@@ -194,6 +197,7 @@ namespace Crash.Helper.Controls
         private void OnMasksChange(int oldMasks, int newMasks)
         {
             SafeAction(() => {
+                if (!Enabled || !memory.ProcessHooked) return;
                 System.Diagnostics.Trace.WriteLine($"[DataControl] OnMasksChange: old={oldMasks}, new={newMasks}, stored={StoredMasks}, runtime={maskFreezeState.RuntimeMasks}, maskform={maskFreezeState.IsMaskFormOnDamage}");
                 if (freezeMasksCheckbox.Checked)
                 {
@@ -369,7 +373,7 @@ namespace Crash.Helper.Controls
 
         private void FreezeMasks()
         {
-            if (memory == null) return;
+            if (memory == null || !Enabled || !memory.ProcessHooked) return;
 
             int currentMasks = memory.Masks.Read();
             int targetMasks = maskFreezeState.ResolveTargetMasks(currentMasks);
@@ -394,7 +398,7 @@ namespace Crash.Helper.Controls
 
         private void FreezeMap()
         {
-            if (memory == null) return;
+            if (memory == null || !Enabled || !memory.ProcessHooked) return;
 
             // mark internal flag
             freezeMapEnabled = true;
@@ -417,7 +421,7 @@ namespace Crash.Helper.Controls
             StopLivesFreeze();
             livesFreezeTimer = new System.Threading.Timer(_ =>
             {
-                if (memory == null) return;
+                if (memory == null || !Enabled || !memory.ProcessHooked) return;
 
                 if (storedLives >= 0)
                 {
@@ -455,7 +459,7 @@ namespace Crash.Helper.Controls
             {
                 try
                 {
-                    if (!string.IsNullOrEmpty(storedMap))
+                    if (Enabled && memory.ProcessHooked && !string.IsNullOrEmpty(storedMap))
                     {
                         memory.LoadMap.Write(storedMap);
                         // reset failure counter on success
@@ -625,7 +629,7 @@ namespace Crash.Helper.Controls
         // Public API to set or stop map lock from external UI
         public void SetMapLock(string mapValue, string mapKey, bool startFreeze = true)
         {
-            if (string.IsNullOrEmpty(mapValue)) return;
+            if (!Enabled || !memory.ProcessHooked || string.IsNullOrEmpty(mapValue)) return;
 
             try
             {

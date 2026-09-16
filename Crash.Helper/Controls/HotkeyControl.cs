@@ -1,357 +1,170 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
-using System.ComponentModel;
 using System.Drawing;
-using System.Data;
 using System.Linq;
 using System.Runtime.InteropServices;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows.Forms;
 using Crash.Helper.Memory;
-using Crash.Helper;
-using Crash.Helper.Input;
 
 namespace Crash.Helper.Controls
 {
     public partial class HotkeyControl : UserControl
     {
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern bool RegisterHotKey(IntPtr handle, int id, uint modifiers, uint key);
         [DllImport("user32.dll")]
-        private static extern bool RegisterHotKey(IntPtr hWnd, int id, uint fsModifiers, uint vk);
-
+        private static extern bool UnregisterHotKey(IntPtr handle, int id);
         [DllImport("user32.dll")]
-        private static extern bool UnregisterHotKey(IntPtr hWnd, int id);
+        private static extern short GetKeyState(int key);
+        private readonly HelperSettings settings;
+        private readonly CrashMemory memory;
+        private readonly List<Hotkey> hotkeys = new List<Hotkey>();
+        private readonly List<TextBox> editors = new List<TextBox>();
+        private readonly Label status;
+        private bool ready;
+        private bool editing;
+        public event EventHandler SettingsChanged;
 
-        private CrashMemory memory;
-        private DataControl data;
-        private Hotkey[] hotkeys;
-        private Label[] labels;
-        private Label[] hotkeyLabels;
-        private TextBox[] textboxes;
-        private IGamepadListener gamepadListener;
-        private ComboDetector comboDetector;
-        private int? pendingGamepadIndex = null;
-        private ushort pendingAssignMask = 0;
-        private System.Threading.Timer pendingAssignTimer;
-        private readonly int assignWindowMs = 300;
-
-        public HotkeyControl(CrashMemory memory, DataControl data)
+        public HotkeyControl(CrashMemory memory, DataControl data, LevelSelectorControl levels, HelperSettings settings)
         {
             this.memory = memory;
-            this.data = data;
+            this.settings = settings;
+            Add("Set lives to 0", () => data.SetLives(0));
+            Add("Set lives to 99", () => data.SetLives(99));
+            Add("+1 mask", () => { data.StoredMasks = memory.Masks.Read() + 1; data.Masks = data.StoredMasks; });
+            Add("-1 mask", () => { data.StoredMasks = memory.Masks.Read() - 1; data.Masks = data.StoredMasks; });
+            Add("Freeze lives", data.ToggleFreezeLives);
+            Add("Freeze masks", data.ToggleFreezeMasks);
+            Add("Freeze current level", data.ToggleCurrentLevel);
+            Add("Level Lock / Stop Lock", levels.ToggleLock);
+            Add("Previous level", () => levels.MoveSelection(-1));
+            Add("Next level", () => levels.MoveSelection(1));
+            Add("Launch Game", levels.LaunchSelectedLevel);
 
-            InitializeComponent();
-
-            hotkeys = new[]
+            AutoSize = true;
+            MinimumSize = new Size(480, 0);
+            var box = new GroupBox { Text = "Hotkeys", AutoSize = true, Dock = DockStyle.Top, Padding = new Padding(10) };
+            var table = new TableLayoutPanel { AutoSize = true, ColumnCount = 3, Dock = DockStyle.Fill };
+            var enabled = new CheckBox { Text = "Hotkeys enabled", Checked = settings.HotkeysEnabled, AutoSize = true };
+            enabled.CheckedChanged += (s, e) => { settings.HotkeysEnabled = enabled.Checked; RegisterHotkeys(); SettingsChanged?.Invoke(this, EventArgs.Empty); };
+            table.Controls.Add(enabled, 0, 0);
+            table.SetColumnSpan(enabled, 3);
+            for (int i = 0; i < hotkeys.Count; i++)
             {
-                new Hotkey("Set Max lives: ", KeyModifiers.Shift, (uint)Keys.O, () => { memory.Lives.Write(99); data.Lives = 99; }),
-                new Hotkey("Give one mask (+): ", KeyModifiers.Shift, (uint)Keys.F, () => { data.StoredMasks = memory.Masks.Read() + 1; data.Masks = data.StoredMasks; }),
-                new Hotkey("Give one mask (-): ", KeyModifiers.Shift, (uint)Keys.D, () => { data.StoredMasks = memory.Masks.Read() - 1; data.Masks = data.StoredMasks; }),
-                new Hotkey("Freeze level: ", KeyModifiers.Shift, (uint)Keys.L, () => {
-                    try
-                    {
-                        // toggle freeze: if already frozen, stop; otherwise freeze to current map
-                        if (data.IsMapFrozen)
-                        {
-                            data.StopMapLock();
-                        }
-                        else
-                        {
-                            // read current map value from memory (internal path)
-                            var mapVal = memory.LoadMap.Read();
-                            var mapKey = LevelSelectorControl.Levels.Keys.FirstOrDefault(k => LevelSelectorControl.Levels[k] == mapVal);
-                            if (!string.IsNullOrEmpty(mapVal)) data.SetMapLock(mapVal, mapKey, true);
-                        }
-                    }
-                    catch { }
-                })
-            };
-
-            // Keep these ordered and in sync with designer controls
-            labels = new[] { zeroLivesLabel, giveMaskLabel, label2, label1 };
-            hotkeyLabels = new[] { zeroLivesHotkeyLabel, addMaskHotkeyLabel, subMaskHotkeyLabel, freezeLevelHotkeyLabel };
-            textboxes = new[] { zeroLivesHotkeyTextbox, addMaskHotkeyTextbox, subMaskHotkeyTextbox, freezeLevelHotkeyTextbox };
-
-            // Update labels for each registered hotkey
-            zeroLivesHotkeyLabel.Text = hotkeys[0].ToString();
-            zeroLivesHotkeyLabel.ForeColor = Color.ForestGreen;
-            addMaskHotkeyLabel.Text = hotkeys[1].ToString();
-            addMaskHotkeyLabel.ForeColor = Color.ForestGreen;
-            subMaskHotkeyLabel.Text = hotkeys[2].ToString();
-            subMaskHotkeyLabel.ForeColor = Color.ForestGreen;
-            freezeLevelHotkeyLabel.Text = hotkeys[3].ToString();
-            freezeLevelHotkeyLabel.ForeColor = Color.ForestGreen;
-
-            RegisterHotkeys();
-
-            try
-            {
-                // prefer WinRT listener if available, fallback to XInput
-                IGamepadListener win = null;
-                try { win = new WinRTGamepadListener(); } catch { win = null; }
-                if (win != null)
-                {
-                    gamepadListener = win;
-                }
-                else
-                {
-                    gamepadListener = new XInputListener();
-                }
-
-                comboDetector = new ComboDetector();
-                gamepadListener.ButtonPressed += Gamepad_ButtonPressed;
-                // listen for map lock changes so we can update UI selection when freeze is toggled
-                try { data.MapLockChanged += Data_MapLockChanged; } catch { }
+                int index = i;
+                var editor = new TextBox { ReadOnly = true, Width = 170, Text = BindingText(hotkeys[i]), ShortcutsEnabled = false };
+                editor.Enter += (s, e) => { editing = true; UnregisterHotkeys(); };
+                editor.Leave += (s, e) => { editing = false; RegisterHotkeys(); };
+                editor.PreviewKeyDown += (s, e) => e.IsInputKey = true;
+                editor.KeyDown += (s, e) => CaptureBinding(index, e);
+                var clear = new Button { Text = "None", AutoSize = true };
+                clear.Click += (s, e) => SetBinding(index, 0, KeyModifiers.None);
+                editors.Add(editor);
+                table.Controls.Add(new Label { Text = hotkeys[i].Label, AutoSize = true, Anchor = AnchorStyles.Left }, 0, i + 1);
+                table.Controls.Add(editor, 1, i + 1);
+                table.Controls.Add(clear, 2, i + 1);
             }
-            catch { /* ignore if no input backend available */ }
+            status = new Label { AutoSize = true, MaximumSize = new Size(470, 0) };
+            table.Controls.Add(status, 0, hotkeys.Count + 1);
+            table.SetColumnSpan(status, 3);
+            box.Controls.Add(table);
+            Controls.Add(box);
         }
 
-        private void Data_MapLockChanged(object sender, string mapValue)
+        private void Add(string label, Action callback)
         {
-            // when map lock changes, update the LevelSelector combo selection if freeze checkbox is set
-            try
+            HotkeyBinding binding;
+            if (!settings.Hotkeys.TryGetValue(label, out binding) || binding == null)
+                settings.Hotkeys[label] = binding = new HotkeyBinding();
+            hotkeys.Add(new Hotkey(label, binding.Modifiers, binding.Key, callback));
+        }
+
+        private static string BindingText(Hotkey key)
+        {
+            if (key.Key == 0) return "None";
+            return (key.Modifier.HasFlag(KeyModifiers.Control) ? "Ctrl + " : "")
+                + (key.Modifier.HasFlag(KeyModifiers.Alt) ? "Alt + " : "")
+                + (key.Modifier.HasFlag(KeyModifiers.Shift) ? "Shift + " : "")
+                + (key.Modifier.HasFlag(KeyModifiers.Win) ? "Win + " : "")
+                + ((Keys)key.Key).ToString();
+        }
+
+        private void CaptureBinding(int index, KeyEventArgs e)
+        {
+            e.SuppressKeyPress = true;
+            e.Handled = true;
+            if (e.KeyCode == Keys.ControlKey || e.KeyCode == Keys.ShiftKey || e.KeyCode == Keys.Menu || e.KeyCode == Keys.LWin || e.KeyCode == Keys.RWin) return;
+            var modifiers = KeyModifiers.None;
+            if (e.Control) modifiers |= KeyModifiers.Control;
+            if (e.Alt) modifiers |= KeyModifiers.Alt;
+            if (e.Shift) modifiers |= KeyModifiers.Shift;
+            if (GetKeyState((int)Keys.LWin) < 0 || GetKeyState((int)Keys.RWin) < 0) modifiers |= KeyModifiers.Win;
+            SetBinding(index, (uint)e.KeyCode, modifiers);
+        }
+
+        private void SetBinding(int index, uint key, KeyModifiers modifiers)
+        {
+            if (key != 0 && hotkeys.Where((h, i) => i != index).Any(h => h.Key == key && h.Modifier == modifiers))
             {
-                if (data == null) return;
-                if (data.InvokeRequired)
-                {
-                    data.BeginInvoke((Action)(() => Data_MapLockChanged(sender, mapValue)));
-                    return;
-                }
-
-                if (!data.IsMapFrozen) return;
-
-                // find matching display name from LevelSelector map dictionary
-                var ls = this.Parent?.Controls.OfType<LevelSelectorControl>().FirstOrDefault();
-                if (ls == null) return;
-                // reflect selection via public API on LevelSelectorControl (use reflection if necessary)
-                var comboField = typeof(LevelSelectorControl).GetField("combo", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-                if (comboField == null) return;
-                var combo = comboField.GetValue(ls) as ComboBox;
-                if (combo == null) return;
-
-                // mapValue is internal map path; find display name in Levels dictionary
-                var levelsField = typeof(LevelSelectorControl).GetField("Levels", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
-                if (levelsField == null) return;
-                var levels = levelsField.GetValue(null) as System.Collections.IDictionary;
-                if (levels == null) return;
-
-                string foundDisplay = null;
-                foreach (System.Collections.DictionaryEntry de in levels)
-                {
-                    if (de.Value as string == mapValue)
-                    {
-                        foundDisplay = de.Key as string;
-                        break;
-                    }
-                }
-
-                if (!string.IsNullOrEmpty(foundDisplay))
-                {
-                    for (int i = 0; i < combo.Items.Count; i++)
-                    {
-                        if (combo.Items[i] as string == foundDisplay)
-                        {
-                            combo.SelectedIndex = i;
-                            break;
-                        }
-                    }
-                }
+                MessageBox.Show(this, "This hotkey is already assigned.", "Hotkeys", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
             }
-            catch { }
+            hotkeys[index].Key = key;
+            hotkeys[index].Modifier = modifiers;
+            settings.Hotkeys[hotkeys[index].Label] = new HotkeyBinding { Key = key, Modifiers = modifiers };
+            editors[index].Text = BindingText(hotkeys[index]);
+            RegisterHotkeys();
+            SettingsChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        public void SetReady(bool value)
+        {
+            ready = value;
+            RegisterHotkeys();
+        }
+
+        public void EndEditing()
+        {
+            editing = false;
+            RegisterHotkeys();
+        }
+
+        protected override void OnHandleCreated(EventArgs e)
+        {
+            base.OnHandleCreated(e);
+            BeginInvoke((Action)RegisterHotkeys);
+        }
+
+        protected override void OnHandleDestroyed(EventArgs e)
+        {
+            UnregisterHotkeys();
+            base.OnHandleDestroyed(e);
         }
 
         public void RegisterHotkeys()
         {
-            int keyCount = 0;
-            foreach (Hotkey hotkey in hotkeys)
-            {
-                RegisterHotKey(Handle, keyCount++, (uint)hotkey.Modifier, hotkey.Key);
-            }
+            UnregisterHotkeys();
+            if (status == null) return;
+            status.Text = ready ? "Click a binding and press a key combination." : "Hotkeys inactive: helper or game process unavailable.";
+            if (!ready || editing || !settings.HotkeysEnabled) return;
+            var failures = new List<string>();
+            for (int i = 0; i < hotkeys.Count; i++)
+                if (hotkeys[i].Key != 0 && !RegisterHotKey(Handle, i, (uint)hotkeys[i].Modifier | 0x4000, hotkeys[i].Key)) failures.Add(hotkeys[i].Label);
+            if (failures.Count > 0) status.Text = "Hotkey unavailable: " + string.Join(", ", failures);
         }
 
         public void UnregisterHotkeys()
         {
-            for (int i = 0; i < hotkeys.Length; i++)
-            {
-                UnregisterHotKey(Handle, i);
-            }
-        }
-
-        protected override void WndProc(ref Message m)
-        {
-            base.WndProc(ref m);
-
-            if (m.Msg != 0x0312) return;
-
-            int id = m.WParam.ToInt32();
-            if (id >= 0 && id < hotkeys.Length)
-            {
-                try { hotkeys[id].Callback(); } catch { }
-            }
-        }
-
-        private void Gamepad_ButtonPressed(object sender, GamepadButtonEventArgs e)
-        {
-            // If user is in assignment mode, bind the pressed button
-            if (pendingGamepadIndex.HasValue)
-            {
-                // accumulate pressed buttons into a mask until timer elapses
-                pendingAssignMask |= (ushort)e.Button;
-                // reset timer
-                pendingAssignTimer?.Change(assignWindowMs, System.Threading.Timeout.Infinite);
-                if (pendingAssignTimer == null)
-                {
-                    pendingAssignTimer = new System.Threading.Timer(_ => FinalizePendingAssignment(), null, assignWindowMs, System.Threading.Timeout.Infinite);
-                }
-                // reflect interim state in UI
-                int idxPreview = pendingGamepadIndex.Value;
-                if (IsHandleCreated)
-                {
-                    string preview = MaskToNames(pendingAssignMask);
-                    if (InvokeRequired) BeginInvoke((Action)(() => hotkeyLabels[idxPreview].Text = hotkeys[idxPreview].ToString() + " [" + preview + "]"));
-                    else hotkeyLabels[idxPreview].Text = hotkeys[idxPreview].ToString() + " [" + preview + "]";
-                }
-                return;
-            }
-
-            // Dispatch any matching gamepad hotkey
-            if (!enabledCheckbox.Checked) return;
-            foreach (var hk in hotkeys)
-            {
-                if (hk.GamepadMask.HasValue && (hk.GamepadMask.Value & (ushort)e.Button) != 0)
-                {
-                    try { hk.Callback(); } catch { }
-                }
-            }
-
-            // update UI bindings display
-            UpdateGamepadBindingsLabel();
-        }
-
-        private void FinalizePendingAssignment()
-        {
-            // called on threadpool
-            int idx = -1;
-            if (pendingGamepadIndex.HasValue) idx = pendingGamepadIndex.Value;
-            if (idx >= 0 && idx < hotkeys.Length)
-            {
-                hotkeys[idx].GamepadMask = pendingAssignMask;
-                pendingAssignMask = 0;
-                pendingGamepadIndex = null;
-                pendingAssignTimer?.Dispose();
-                pendingAssignTimer = null;
-                UpdateGamepadBindingsLabel();
-            }
-        }
-
-        private static string MaskToNames(ushort mask)
-        {
-            var names = new List<string>();
-            foreach (GamepadButton b in Enum.GetValues(typeof(GamepadButton)))
-            {
-                ushort m = (ushort)b;
-                if ((mask & m) != 0) names.Add(b.ToString());
-            }
-            return names.Count > 0 ? string.Join("+", names) : "(none)";
-        }
-
-        private void enabledCheckbox_CheckedChanged(object sender, EventArgs e)
-        {
-            if (enabledCheckbox.Checked) RegisterHotkeys(); else UnregisterHotkeys();
-
-            foreach (Label label in labels) label.Enabled = enabledCheckbox.Checked;
-        }
-
-        private void hotkeyLabelClicked(object sender, EventArgs e)
-        {
-            int j;
-            for (int i = 0; i < textboxes.Length; i++) textboxes[i].Visible = false;
-            for (j = 0; j < hotkeyLabels.Length && hotkeyLabels[j] != (Label)sender; j++) { }
-            textboxes[j].Visible = true;
-            textboxes[j].Focus();
-        }
-
-        private void hotkeyTextbox_TextChanged(object sender, EventArgs e)
-        {
-            TextBox changedTextBox = (TextBox)sender;
-            if (changedTextBox.Text == "")
-            {
-                changedTextBox.Visible = false;
-                return;
-            }
-
-            char newHotkey = char.ToUpper(changedTextBox.Text[0]);
-
-            int i;
-            for (i = 0; textboxes[i] != changedTextBox; i++) { }
-
-            hotkeys[i].Key = newHotkey;
-            hotkeys[i].Modifier = KeyModifiers.Shift;
-            hotkeys[i].GamepadMask = null; // clear gamepad binding when keyboard rebind
-
-            UnregisterHotkeys();
-            RegisterHotkeys();
-
-            hotkeyLabels[i].Text = hotkeys[i].ToString();
-            textboxes[i].Visible = false;
-            textboxes[i].Text = "";
-        }
-
-        /*
-        private void gamepadAssignButton_Click(object sender, EventArgs e)
-        {
-            int idx = -1;
-            if (sender == zeroLivesGamepadButton) idx = 0;
-            else if (sender == giveMaskGamepadButton) idx = 1;
-
-            if (idx >= 0 && idx < hotkeys.Length)
-            {
-                pendingGamepadIndex = idx;
-                pendingAssignMask = 0;
-                pendingAssignTimer?.Dispose();
-                pendingAssignTimer = null;
-                if (IsHandleCreated)
-                {
-                    if (InvokeRequired) BeginInvoke((Action)(() => hotkeyLabels[idx].Text = hotkeys[idx].ToString() + " (press controller)"));
-                    else hotkeyLabels[idx].Text = hotkeys[idx].ToString() + " (press controller)";
-                }
-            }
-            UpdateGamepadBindingsLabel();
-        }
-
-        private void gamepadClearButton_Click(object sender, EventArgs e)
-        {
-            int idx = -1;
-            if (sender == zeroLivesClearButton) idx = 0;
-            else if (sender == giveMaskClearButton) idx = 1;
-
-            if (idx >= 0 && idx < hotkeys.Length)
-            {
-                hotkeys[idx].GamepadMask = null;
-                // update labels
-                hotkeyLabels[idx].Text = hotkeys[idx].ToString();
-                UpdateGamepadBindingsLabel();
-            }
-        }
-        */
-
-        private void UpdateGamepadBindingsLabel()
-        {
             if (!IsHandleCreated) return;
-            var lines = new List<string>();
-            for (int i = 0; i < hotkeys.Length; i++)
-            {
-                var hk = hotkeys[i];
-                string binding = "(none)";
-                if (hk.GamepadMask.HasValue && hk.GamepadMask.Value != 0)
-                {
-                    binding = MaskToNames(hk.GamepadMask.Value);
-                }
-                lines.Add(hk.Label + " => " + binding);
-            }
+            for (int i = 0; i < hotkeys.Count; i++) UnregisterHotKey(Handle, i);
+        }
 
-            string text = string.Join(Environment.NewLine, lines);
-            //if (InvokeRequired) BeginInvoke((Action)(() => gamepadBindingsLabel.Text = text)); else gamepadBindingsLabel.Text = text;
+        protected override void WndProc(ref Message message)
+        {
+            base.WndProc(ref message);
+            if (message.Msg != 0x0312 || !ready || editing || !settings.HotkeysEnabled || !memory.ProcessHooked) return;
+            int index = message.WParam.ToInt32();
+            if (index >= 0 && index < hotkeys.Count) hotkeys[index].Callback();
         }
     }
 }

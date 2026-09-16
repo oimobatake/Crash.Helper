@@ -1,91 +1,75 @@
-﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
-using System.Drawing;
-using System.Linq;
-using System.Runtime.InteropServices;
-using System.Text;
-using System.Threading.Tasks;
+using System;
 using System.Windows.Forms;
 using Crash.Helper.Controls;
 using Crash.Helper.Memory;
 
 namespace Crash.Helper
 {
-	public partial class HelperForm : Form
-	{
-		private const int Framerate = 10;
+    public partial class HelperForm : Form
+    {
+        private readonly CrashMemory memory;
+        private readonly DataControl dataControl;
+        private readonly LevelSelectorControl levelSelector;
+        private readonly HotkeyControl hotkeyControl;
+        private readonly ProcessControl processControl;
+        private readonly Timer refreshTimer;
+        private readonly HelperSettings settings;
+        private readonly Button settingsButton;
 
-		private CrashMemory memory;
-		private DataControl dataControl;
-        private LevelSelectorControl levelSelector;
-        private HotkeyControl hotkeyControl;
-		private ProcessControl processControl;
-		private Timer refreshTimer;
-
-		public HelperForm()
-		{
-			InitializeComponent();
-			memory = new CrashMemory();
-			dataControl = new DataControl(memory);
-			levelSelector = new LevelSelectorControl(memory, dataControl);
-			hotkeyControl = new HotkeyControl(memory, dataControl);
-			processControl = new ProcessControl(memory, dataControl, hotkeyControl, this);
-
-			flowLayoutPanel.Controls.Add(processControl);
-			flowLayoutPanel.Controls.Add(dataControl);
-			flowLayoutPanel.Controls.Add(levelSelector);
-			flowLayoutPanel.Controls.Add(hotkeyControl);
-			flowLayoutPanel.Height--;
-
-			refreshTimer = new Timer
+        public HelperForm()
+        {
+            InitializeComponent();
+            try { settings = HelperSettings.Load(); }
+            catch (Exception ex)
             {
-                Interval = (int)(1000f / Framerate),
+                MessageBox.Show("Could not load settings: " + ex.Message, "Settings", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                settings = new HelperSettings();
+            }
+            memory = new CrashMemory();
+            dataControl = new DataControl(memory);
+            levelSelector = new LevelSelectorControl(memory, dataControl) { SteamPath = settings.SteamPath };
+            hotkeyControl = new HotkeyControl(memory, dataControl, levelSelector, settings);
+            processControl = new ProcessControl(memory, dataControl, hotkeyControl, this);
+            settingsButton = new Button { Text = "Settings", AutoSize = true };
+            settingsButton.Click += (s, e) =>
+            {
+                using (var window = new SettingsForm(settings, hotkeyControl)) window.ShowDialog(this);
+                levelSelector.SteamPath = settings.SteamPath;
+                hotkeyControl.EndEditing();
             };
-
-            refreshTimer.Tick += (sender, e) => { RefreshHelper(); };
+            flowLayoutPanel.Controls.Add(processControl);
+            flowLayoutPanel.Controls.Add(dataControl);
+            flowLayoutPanel.Controls.Add(levelSelector);
+            flowLayoutPanel.Controls.Add(settingsButton);
+            flowLayoutPanel.Height--;
+            refreshTimer = new Timer { Interval = 100 };
+            refreshTimer.Tick += (s, e) => RefreshHelper();
             processControl.Rescan();
-		}
+        }
 
-		public bool RefreshEnabled
-		{
-			set
-			{
-				if (value)
-				{
-					refreshTimer.Start();
-				}
-				else
-				{
-					refreshTimer.Stop();
-				}
-			}
-		}
+        public void ApplyAvailability(bool helperEnabled, bool ready)
+        {
+            dataControl.Enabled = ready;
+            levelSelector.ApplyAvailability(helperEnabled, ready);
+            settingsButton.Enabled = helperEnabled;
+            hotkeyControl.SetReady(ready);
+            if (ready) refreshTimer.Start();
+            else refreshTimer.Stop();
+        }
 
-		public void PrepareHelperForLaunch()
-		{
-			try { processControl?.PrepareForLaunch(); } catch { }
-		}
+        public void PrepareHelperForLaunch() { processControl.PrepareForLaunch(); }
 
-		private void RefreshHelper()
-		{
-			if (!memory.HookProcess())
-			{
-				refreshTimer.Stop();
-				processControl.OnUnhook();
-				dataControl.Enabled = false;
-                hotkeyControl.Enabled = false;
+        private void RefreshHelper()
+        {
+            if (!memory.HookProcess()) { processControl.OnUnhook(); return; }
+            memory.Refresh();
+        }
 
-				return;
-			}
-
-			memory.Refresh();
-		}
-
-		private void HelperForm_FormClosing(object sender, FormClosingEventArgs e)
-		{
-			hotkeyControl.UnregisterHotkeys();
-		}
-	}
+        private void HelperForm_FormClosing(object sender, FormClosingEventArgs e)
+        {
+            ApplyAvailability(false, false);
+            refreshTimer.Dispose();
+            hotkeyControl.Dispose();
+        }
+    }
 }

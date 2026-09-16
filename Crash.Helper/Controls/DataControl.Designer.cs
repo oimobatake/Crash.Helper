@@ -13,7 +13,8 @@
 		/// <param name="disposing">true if managed resources should be disposed; otherwise, false.</param>
 		protected override void Dispose(bool disposing)
 		{
-			if (disposing && (components != null))
+			if (disposing) StopAllTimers();
+            if (disposing && (components != null))
 			{
 				components.Dispose();
 			}
@@ -135,7 +136,7 @@
             this.dataBox.Margin = new System.Windows.Forms.Padding(0);
             this.dataBox.MinimumSize = new System.Drawing.Size(250, 0);
             this.dataBox.Name = "dataBox";
-            this.dataBox.Size = new System.Drawing.Size(285, 136);
+            this.dataBox.Size = new System.Drawing.Size(285, 162);
             this.dataBox.TabIndex = 0;
             this.dataBox.TabStop = false;
             this.dataBox.Text = "Data";
@@ -148,7 +149,7 @@
             this.freezeLevelCheckbox.Name = "freezeLevelCheckbox";
             this.freezeLevelCheckbox.Size = new System.Drawing.Size(86, 16);
             this.freezeLevelCheckbox.TabIndex = 23;
-            this.freezeLevelCheckbox.Text = "Freeze level";
+            this.freezeLevelCheckbox.Text = "Freeze current level";
             this.freezeLevelCheckbox.UseVisualStyleBackColor = true;
             // 
             // levelLabel
@@ -200,7 +201,7 @@
             this.Enabled = false;
             this.Margin = new System.Windows.Forms.Padding(0, 5, 0, 0);
             this.Name = "DataControl";
-            this.Size = new System.Drawing.Size(285, 136);
+            this.Size = new System.Drawing.Size(285, 162);
             this.dataBox.ResumeLayout(false);
             this.dataBox.PerformLayout();
             this.ResumeLayout(false);

@@ -65,20 +65,20 @@ namespace Crash.Helper.Controls
 
         public void Rescan(bool skipFirstCheck = false)
 		{
-			if (!skipFirstCheck && memory.HookProcess())
+			if (!helperCheckbox.Checked) { parent.ApplyAvailability(false, false); return; }
+            if (!skipFirstCheck && memory.HookProcess())
 			{
 				processLabel.Text = "Process attached.";
 				processLabel.ForeColor = Color.ForestGreen;
 				processTimer?.Stop();
 
-				data.Enabled = true;
-                hotkeys.Enabled = true;
-				parent.RefreshEnabled = true;
+				parent.ApplyAvailability(true, true);
 				scanning = false;
 			}
 			else
 			{
-				retryTimeRemaining = RetryTime;
+				parent.ApplyAvailability(helperCheckbox.Checked, false);
+                retryTimeRemaining = RetryTime;
 				processLabel.Text = $"Process {filler}. Retrying in {RetryTime}...";
 				processTimer.Start();
 				scanning = true;
@@ -121,9 +121,7 @@ namespace Crash.Helper.Controls
 
 			bool isReady = helperCheckbox.Checked && memory.ProcessHooked;
 
-			data.Enabled = isReady;
-            hotkeys.Enabled = isReady;
-			parent.RefreshEnabled = isReady;
+			parent.ApplyAvailability(helperCheckbox.Checked, isReady);
 		}
 
 		public void PrepareForLaunch()

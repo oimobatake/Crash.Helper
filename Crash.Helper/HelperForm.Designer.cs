@@ -40,20 +40,21 @@
             this.flowLayoutPanel.FlowDirection = System.Windows.Forms.FlowDirection.TopDown;
             this.flowLayoutPanel.Location = new System.Drawing.Point(0, 0);
             this.flowLayoutPanel.Name = "flowLayoutPanel";
-            this.flowLayoutPanel.Padding = new System.Windows.Forms.Padding(10);
-            this.flowLayoutPanel.Size = new System.Drawing.Size(284, 261);
+            this.flowLayoutPanel.Padding = new System.Windows.Forms.Padding(10, 9, 10, 9);
+            this.flowLayoutPanel.Size = new System.Drawing.Size(284, 241);
             this.flowLayoutPanel.TabIndex = 0;
             // 
             // HelperForm
             // 
-            this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
+            this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 12F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.AutoSize = true;
             this.AutoSizeMode = System.Windows.Forms.AutoSizeMode.GrowAndShrink;
             this.BackColor = System.Drawing.SystemColors.Menu;
-            this.ClientSize = new System.Drawing.Size(284, 261);
+            this.ClientSize = new System.Drawing.Size(284, 241);
             this.Controls.Add(this.flowLayoutPanel);
             this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
+            this.MaximizeBox = false;
             this.Name = "HelperForm";
             this.Text = "Crash Helper";
             this.TransparencyKey = System.Drawing.Color.DarkGray;
