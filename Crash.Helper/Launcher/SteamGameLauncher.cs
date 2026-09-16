@@ -10,6 +10,10 @@ namespace Crash.Helper.Launcher
 
         internal ProcessStartInfo CreateStartInfo(string levelPath)
         {
+            const string commandPrefix = "loadmap ";
+            if (levelPath != null && levelPath.StartsWith(commandPrefix, StringComparison.Ordinal))
+                levelPath = levelPath.Substring(commandPrefix.Length);
+
             return new ProcessStartInfo
             {
                 FileName = settings.SteamPath,
