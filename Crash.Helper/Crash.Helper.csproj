@@ -134,6 +134,14 @@
       <DependentUpon>HelperForm.cs</DependentUpon>
     </Compile>
     <Compile Include="Hotkey.cs" />
+    <Compile Include="Controls\DataControl.LevelLock.cs">
+      <DependentUpon>DataControl.cs</DependentUpon>
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Memory\LevelLock\LevelLockCode.cs" />
+    <Compile Include="Memory\LevelLock\LevelLockNative.cs" />
+    <Compile Include="Memory\LevelLock\LevelLockPatch.cs" />
+    <Compile Include="Memory\LevelLock\LevelLockService.cs" />
     <Compile Include="Input\HotkeyDisplay.cs" />
     <Compile Include="Memory\GameFlag.cs" />
     <Compile Include="Controls\LocationControl.cs">

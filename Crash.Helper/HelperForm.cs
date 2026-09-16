@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Drawing;
 using Crash.Helper.Input;
 using Crash.Helper.Launcher;
@@ -20,6 +20,8 @@ namespace Crash.Helper
         private readonly Button settingsButton;
         private readonly HotkeyManager hotkeyManager;
         private readonly SteamGameLauncher launcher;
+        private bool levelLockCleanupComplete;
+        private bool levelLockCleanupPending;
 
         public HelperForm() : this(new CrashMemory()) { }
 
@@ -94,8 +96,28 @@ namespace Crash.Helper
             locationControl.RefreshValues();
         }
 
-        private void HelperForm_FormClosing(object sender, FormClosingEventArgs e)
+        private async void HelperForm_FormClosing(object sender, FormClosingEventArgs e)
         {
+            if (!levelLockCleanupComplete)
+            {
+                e.Cancel = true;
+                if (levelLockCleanupPending) return;
+                levelLockCleanupPending = true;
+                ApplyAvailability(false, false);
+                try
+                {
+                    await dataControl.ShutdownLevelLockAsync();
+                    levelLockCleanupComplete = true;
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show(this, "Could not remove the level hook.\n" + ex.Message,
+                        "Level lock", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+                finally { levelLockCleanupPending = false; }
+                if (levelLockCleanupComplete) Close();
+                return;
+            }
             ApplyAvailability(false, false);
             refreshTimer.Dispose();
 

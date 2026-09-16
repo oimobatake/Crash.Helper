@@ -84,9 +84,6 @@ namespace Crash.Helper.Controls
 
         private System.Threading.Timer livesFreezeTimer;
         private System.Threading.Timer masksFreezeTimer;
-        private System.Threading.Timer mapFreezeTimer;
-        private int mapFreezeFailCount = 0;
-        private const int MapFreezeFailThreshold = 5;
         // Internal flag for map freeze (UI checkbox is kept hidden)
         private bool freezeMapEnabled = false;
 
@@ -101,34 +98,11 @@ namespace Crash.Helper.Controls
                 {
                     if (this.memory == null || !Enabled || !memory.ProcessHooked) return;
 
-                    if (freezeMapEnabled)
+                    if (!freezeMapEnabled)
                     {
-                        // if we have a storedMap enforced, reapply that; otherwise fall back to old value
-                        if (!string.IsNullOrEmpty(storedMap))
-                        {
-                            memory.LoadMap.Write(storedMap);
-                            System.Diagnostics.Trace.WriteLine($"[DataControl] OnValueChange: reapplying storedMap='{storedMap}' (old='{o}', new='{n}')");
-                        }
-                        else
-                        {
-                            memory.LoadMap.Write(o);
-                            System.Diagnostics.Trace.WriteLine($"[DataControl] OnValueChange: freeze enabled, restored old='{o}' (new='{n}')");
-                        }
+                        storedMap = n;
+                        nowMapLabels.Text = LevelSelectorControl.Levels.Keys.FirstOrDefault(k => LevelSelectorControl.Levels[k] == n);
                     }
-                    else
-                    {
-                        // Freezeしていない場合は、変更されたMapをSetMapLock(startFreeze:false)経由で保持値へ反映する
-                        if (!string.IsNullOrEmpty(n))
-                        {
-                            var mapKey = LevelSelectorControl.Levels.Keys.FirstOrDefault(k => LevelSelectorControl.Levels[k] == n);
-                            SetMapLock(n, mapKey, false);
-                            System.Diagnostics.Trace.WriteLine($"[DataControl] OnValueChange: freeze disabled, updated storedMap via SetMapLock new='{n}' (old='{o}')");
-                        }
-                    }
-
-                    //oldMapLabels.Text = o;
-                    var dispValue = LevelSelectorControl.Levels.Keys.FirstOrDefault(k => LevelSelectorControl.Levels[k] == n);
-                    nowMapLabels.Text = dispValue;
                 });
             };
             //memory.Restart.OnValueChange += OnRestartChange;
@@ -396,26 +370,6 @@ namespace Crash.Helper.Controls
         }
         */
 
-        private void FreezeMap()
-        {
-            if (memory == null || !Enabled || !memory.ProcessHooked) return;
-
-            // mark internal flag
-            freezeMapEnabled = true;
-            // store current map value and write it immediately so it becomes the enforced value
-            storedMap = memory.LoadMap.Read();
-            System.Diagnostics.Trace.WriteLine($"[DataControl] FreezeMap: storing map='{storedMap}'");
-            if (!string.IsNullOrEmpty(storedMap))
-            {
-                memory.LoadMap.Write(storedMap);
-            }
-
-            SafeAction(() =>
-            {
-                nowMapLabels.ForeColor = Color.DodgerBlue;
-            });
-        }
-
         private void StartLivesFreeze()
         {
             StopLivesFreeze();
@@ -449,43 +403,6 @@ namespace Crash.Helper.Controls
         {
             masksFreezeTimer?.Dispose();
             masksFreezeTimer = null;
-        }
-
-        private void StartMapFreeze()
-        {
-            StopMapFreeze();
-            // use a moderate interval and track failures. Timer interval set to 50ms.
-            mapFreezeTimer = new System.Threading.Timer(_ =>
-            {
-                try
-                {
-                    if (Enabled && memory.ProcessHooked && !string.IsNullOrEmpty(storedMap))
-                    {
-                        memory.LoadMap.Write(storedMap);
-                        // reset failure counter on success
-                        mapFreezeFailCount = 0;
-                    }
-                }
-                catch
-                {
-                    // increment failure count; if too many consecutive failures, stop freeze
-                    mapFreezeFailCount++;
-                    if (mapFreezeFailCount >= MapFreezeFailThreshold)
-                    {
-                        StopMapFreeze();
-                        SafeAction(() =>
-                        {
-                            nowMapLabels.ForeColor = Color.Black;
-                        });
-                    }
-                }
-            }, null, 0, 1);
-        }
-
-        private void StopMapFreeze()
-        {
-            mapFreezeTimer?.Dispose();
-            mapFreezeTimer = null;
         }
 
         private void RefreshLives(int newLives = -1)
@@ -602,8 +519,7 @@ namespace Crash.Helper.Controls
                     else
                     {
                         // 保持値がない場合のみ現在Mapを保持してfreeze開始
-                        FreezeMap();
-                        StartMapFreeze();
+                        freezeLevelCheckbox_CheckedChanged(this, EventArgs.Empty);
                     }
                 }
 
@@ -626,69 +542,6 @@ namespace Crash.Helper.Controls
             }
         }
 
-        // Public API to set or stop map lock from external UI
-        public void SetMapLock(string mapValue, string mapKey, bool startFreeze = true)
-        {
-            if (!Enabled || !memory.ProcessHooked || string.IsNullOrEmpty(mapValue)) return;
-
-            try
-            {
-                System.Diagnostics.Trace.WriteLine($"[DataControl] SetMapLock: map='{mapValue}' startFreeze={startFreeze}");
-                // write the value to memory first
-                memory.LoadMap.Write(mapValue);
-                // store and update UI
-                storedMap = mapValue;
-                SafeAction(() =>
-                {
-                    nowMapLabels.Text = mapKey;
-                    if (startFreeze) nowMapLabels.ForeColor = Color.DodgerBlue;
-                    else nowMapLabels.ForeColor = Color.Black;
-                        // internal flag controls freeze behavior
-                        freezeMapEnabled = startFreeze;
-                    // reflect in UI checkbox without triggering handler
-                    try
-                    {
-                        suppressFreezeCheckboxEvent = true;
-                        freezeLevelCheckbox.Checked = startFreeze;
-                    }
-                    finally { suppressFreezeCheckboxEvent = false; }
-                });
-
-                if (startFreeze)
-                {
-                    StartMapFreeze();
-                }
-
-                // notify listeners
-                MapLockChanged?.Invoke(this, storedMap);
-            }
-            catch (Exception ex) { System.Diagnostics.Trace.WriteLine($"[DataControl] SetMapLock: exception: {ex}"); }
-        }
-
-        public void StopMapLock()
-        {
-            try
-            {
-                // disable internal flag and stop enforcing
-                freezeMapEnabled = false;
-                StopMapFreeze();
-                storedMap = null;
-                SafeAction(() =>
-                {
-                    // keep UI checkbox hidden/unused
-                    nowMapLabels.ForeColor = Color.Black;
-                    try
-                    {
-                        suppressFreezeCheckboxEvent = true;
-                        freezeLevelCheckbox.Checked = false;
-                    }
-                    finally { suppressFreezeCheckboxEvent = false; }
-                });
-                System.Diagnostics.Trace.WriteLine("[DataControl] StopMapLock: stopped and cleared storedMap");
-                MapLockChanged?.Invoke(this, null);
-            }
-            catch (Exception ex) { System.Diagnostics.Trace.WriteLine($"[DataControl] StopMapLock: exception: {ex}"); }
-        }
         public void SetLives(int value)
         {
             if (!Enabled || !memory.ProcessHooked) return;
@@ -705,7 +558,7 @@ namespace Crash.Helper.Controls
         {
             StopLivesFreeze();
             StopMasksFreeze();
-            StopMapFreeze();
+            _ = ShutdownLevelLockAsync();
             StopRestart();
             secretLevelTimer?.Dispose();
         }
