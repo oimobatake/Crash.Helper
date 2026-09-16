@@ -44,7 +44,8 @@ namespace Crash.Helper
 
 		public override string ToString()
 		{
-			StringBuilder builder = new StringBuilder();
+			if (Key == 0 && (!GamepadMask.HasValue || GamepadMask.Value == 0)) return "None";
+            StringBuilder builder = new StringBuilder();
 
 			void AppendFunction(object value)
 			{
@@ -75,13 +76,15 @@ namespace Crash.Helper
 				AppendFunction("Shift");
 			}
 
-			if (Key == (uint)System.Windows.Forms.Keys.Add)
+			if ((Modifier & KeyModifiers.Win) != 0) AppendFunction("Win");
+
+            if (Key == (uint)System.Windows.Forms.Keys.Add)
 			{
 				AppendFunction('+');
 			}
 			else
 			{
-				AppendFunction((char)Key);
+				if (Key != 0) AppendFunction((System.Windows.Forms.Keys)Key);
 			}
 
             if (GamepadMask.HasValue && GamepadMask.Value != 0)

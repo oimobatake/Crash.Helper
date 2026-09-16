@@ -4,7 +4,7 @@ namespace Crash.Helper.Controls
     {
         protected override void Dispose(bool disposing)
         {
-            if (disposing) UnregisterHotkeys();
+            if (disposing) manager.StatusChanged -= OnStatusChanged;
             base.Dispose(disposing);
         }
     }

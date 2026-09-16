@@ -1,4 +1,7 @@
 using System;
+using System.Drawing;
+using Crash.Helper.Input;
+using Crash.Helper.Launcher;
 using System.Windows.Forms;
 using Crash.Helper.Controls;
 using Crash.Helper.Memory;
@@ -15,8 +18,12 @@ namespace Crash.Helper
         private readonly Timer refreshTimer;
         private readonly HelperSettings settings;
         private readonly Button settingsButton;
+        private readonly HotkeyManager hotkeyManager;
+        private readonly SteamGameLauncher launcher;
 
-        public HelperForm()
+        public HelperForm() : this(new CrashMemory()) { }
+
+        internal HelperForm(CrashMemory memory)
         {
             InitializeComponent();
             try { settings = HelperSettings.Load(); }
@@ -25,22 +32,32 @@ namespace Crash.Helper
                 MessageBox.Show("Could not load settings: " + ex.Message, "Settings", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 settings = new HelperSettings();
             }
-            memory = new CrashMemory();
+            this.memory = memory ?? throw new ArgumentNullException(nameof(memory));
             dataControl = new DataControl(memory);
-            levelSelector = new LevelSelectorControl(memory, dataControl) { SteamPath = settings.SteamPath };
-            hotkeyControl = new HotkeyControl(memory, dataControl, levelSelector, settings);
-            processControl = new ProcessControl(memory, dataControl, hotkeyControl, this);
+            levelSelector = new LevelSelectorControl(dataControl);
+            launcher = new SteamGameLauncher(settings);
+            levelSelector.LaunchRequested += LaunchGame;
+            hotkeyManager = new HotkeyManager(HelperHotkeyActions.Create(memory, dataControl, levelSelector), settings,
+                () => memory.ProcessHooked, action => { if (!IsDisposed && IsHandleCreated) BeginInvoke(action); });
+            hotkeyControl = new HotkeyControl(hotkeyManager);
+            processControl = new ProcessControl(memory, this);
             settingsButton = new Button { Text = "Settings", AutoSize = true };
             settingsButton.Click += (s, e) =>
             {
                 using (var window = new SettingsForm(settings, hotkeyControl)) window.ShowDialog(this);
-                levelSelector.SteamPath = settings.SteamPath;
-                hotkeyControl.EndEditing();
+                hotkeyManager.SetEditing(false);
             };
             flowLayoutPanel.Controls.Add(processControl);
             flowLayoutPanel.Controls.Add(dataControl);
             flowLayoutPanel.Controls.Add(levelSelector);
-            flowLayoutPanel.Controls.Add(settingsButton);
+            var settingsRow = new Panel { Height = settingsButton.PreferredSize.Height, Width = levelSelector.LaunchButtonRight, Margin = new Padding(levelSelector.Margin.Left, 3, levelSelector.Margin.Right, 3) };
+            settingsButton.AutoSize = false;
+            settingsButton.Size = settingsButton.PreferredSize;
+            settingsButton.Location = new Point(settingsRow.Width - settingsButton.Width, 0);
+            settingsButton.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            settingsRow.Controls.Add(settingsButton);
+            flowLayoutPanel.Controls.Add(settingsRow);
+            levelSelector.Layout += (s, e) => settingsRow.Width = levelSelector.LaunchButtonRight;
             flowLayoutPanel.Height--;
             refreshTimer = new Timer { Interval = 100 };
             refreshTimer.Tick += (s, e) => RefreshHelper();
@@ -52,12 +69,20 @@ namespace Crash.Helper
             dataControl.Enabled = ready;
             levelSelector.ApplyAvailability(helperEnabled, ready);
             settingsButton.Enabled = helperEnabled;
-            hotkeyControl.SetReady(ready);
+            hotkeyManager.SetReady(ready);
             if (ready) refreshTimer.Start();
             else refreshTimer.Stop();
         }
 
-        public void PrepareHelperForLaunch() { processControl.PrepareForLaunch(); }
+        private void LaunchGame(string map)
+        {
+            try { processControl.PrepareForLaunch(); } catch { }
+            try { launcher.Launch(map); }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this, $"Failed to launch Steam. Tried: {settings.SteamPath}\nError: {ex.Message}", "Launch failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
 
         private void RefreshHelper()
         {
@@ -70,6 +95,7 @@ namespace Crash.Helper
             ApplyAvailability(false, false);
             refreshTimer.Dispose();
             hotkeyControl.Dispose();
+            hotkeyManager.Dispose();
         }
     }
 }

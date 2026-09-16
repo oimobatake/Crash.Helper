@@ -4,19 +4,17 @@ using System.Drawing;
 using System.Linq;
 using System.Windows.Forms;
 using Crash.Helper.Memory;
-using System.Diagnostics;
+
 
 namespace Crash.Helper.Controls
 {
     public class LevelSelectorControl : UserControl
     {
         private ComboBox combo;
-        private Button setButton;
         private Button lockButton;
         private Button stopButton;
         private Button launchButton;
         private DataControl dataControl;
-        private CrashMemory memory;
 
         private static readonly List<string> LevelOrder = new List<string>
         {
@@ -241,9 +239,8 @@ namespace Crash.Helper.Controls
             ["Crash 3 - Future Tense"]         = "crash3/l333_futuretense/l333_futuretense"
         };
 
-        public LevelSelectorControl(CrashMemory memory, DataControl dataControl)
+        public LevelSelectorControl(DataControl dataControl)
         {
-            this.memory = memory;
             this.dataControl = dataControl;
 
             this.AutoSize = true;
@@ -274,7 +271,6 @@ namespace Crash.Helper.Controls
             launchButton.Click += (s, e) => { LaunchSelectedLevel(); };
 
             this.Controls.Add(combo);
-            this.Controls.Add(setButton);
             this.Controls.Add(lockButton);
             this.Controls.Add(stopButton);
             this.Controls.Add(launchButton);
@@ -282,7 +278,8 @@ namespace Crash.Helper.Controls
             ApplyAvailability(true, false);
         }
 
-        public string SteamPath { get; set; }
+        public event Action<string> LaunchRequested;
+        public int LaunchButtonRight => launchButton.Right;
 
         public void ApplyAvailability(bool helperEnabled, bool ready)
         {
@@ -339,31 +336,7 @@ namespace Crash.Helper.Controls
             if (!Levels.ContainsKey(display)) return;
             var map = Levels[display];
 
-            try
-            {
-                var form = this.FindForm() as HelperForm;
-                form?.PrepareHelperForLaunch();
-            }
-            catch { }
-
-            string steamPath = SteamPath;
-
-            string args = $"-applaunch 731490 --overridemap {map}";
-
-            try
-            {
-                var psi = new ProcessStartInfo
-                {
-                    FileName = steamPath,
-                    Arguments = args,
-                    UseShellExecute = true
-                };
-                Process.Start(psi);
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Failed to launch Steam. Tried: {steamPath}\nError: {ex.Message}", "Launch failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
+            LaunchRequested?.Invoke(map);
         }
     }
 }

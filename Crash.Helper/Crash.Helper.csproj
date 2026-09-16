@@ -87,6 +87,9 @@
   <PropertyGroup>
     <SignManifests>true</SignManifests>
   </PropertyGroup>
+  <PropertyGroup>
+    <ApplicationIcon>koala.ico</ApplicationIcon>
+  </PropertyGroup>
   <ItemGroup>
     <Reference Include="System" />
     <Reference Include="System.Core" />
@@ -131,6 +134,11 @@
       <DependentUpon>HelperForm.cs</DependentUpon>
     </Compile>
     <Compile Include="Hotkey.cs" />
+    <Compile Include="HelperHotkeyActions.cs" />
+    <Compile Include="Input\KeyboardHotkeyListener.cs" />
+    <Compile Include="Input\HotkeyManager.cs" />
+    <Compile Include="Memory\SecretLevelRules.cs" />
+    <Compile Include="Launcher\SteamGameLauncher.cs" />
     <Compile Include="HelperSettings.cs" />
     <Compile Include="SettingsForm.cs">
       <SubType>Form</SubType>
@@ -198,6 +206,7 @@
     </BootstrapperPackage>
   </ItemGroup>
   <ItemGroup>
+    <Content Include="koala.ico" />
     <Content Include="Resources\Add.png" />
     <Content Include="Resources\Subtract.png" />
   </ItemGroup>

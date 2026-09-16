@@ -689,5 +689,25 @@ namespace Crash.Helper.Controls
             }
             catch (Exception ex) { System.Diagnostics.Trace.WriteLine($"[DataControl] StopMapLock: exception: {ex}"); }
         }
+        public void SetLives(int value)
+        {
+            if (!Enabled || !memory.ProcessHooked) return;
+            storedLives = value;
+            memory.Lives.Write(value);
+            RefreshLives(value);
+        }
+
+        public void ToggleFreezeLives() { if (Enabled) freezeLivesCheckbox.Checked = !freezeLivesCheckbox.Checked; }
+        public void ToggleFreezeMasks() { if (Enabled) freezeMasksCheckbox.Checked = !freezeMasksCheckbox.Checked; }
+        public void ToggleCurrentLevel() { if (Enabled) freezeLevelCheckbox.Checked = !freezeLevelCheckbox.Checked; }
+
+        private void StopAllTimers()
+        {
+            StopLivesFreeze();
+            StopMasksFreeze();
+            StopMapFreeze();
+            StopRestart();
+            secretLevelTimer?.Dispose();
+        }
     }
 }

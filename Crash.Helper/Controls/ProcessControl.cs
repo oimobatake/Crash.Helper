@@ -18,8 +18,6 @@ namespace Crash.Helper.Controls
 		private const int LaunchConfirmMaxAttempts = 60;
 
 		private CrashMemory memory;
-		private DataControl data;
-        private HotkeyControl hotkeys;
 		private HelperForm parent;
 		private Timer processTimer;
 		private Timer launchConfirmTimer;
@@ -30,11 +28,9 @@ namespace Crash.Helper.Controls
 		private bool scanning;
 		private string filler;
 
-		public ProcessControl(CrashMemory memory, DataControl data, HotkeyControl hotkeys, HelperForm parent)
+		public ProcessControl(CrashMemory memory, HelperForm parent)
 		{
 			this.memory = memory;
-			this.data = data;
-            this.hotkeys = hotkeys;
 			this.parent = parent;
 
 			InitializeComponent();
