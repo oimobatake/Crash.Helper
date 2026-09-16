@@ -134,6 +134,14 @@
       <DependentUpon>HelperForm.cs</DependentUpon>
     </Compile>
     <Compile Include="Hotkey.cs" />
+    <Compile Include="Input\HotkeyDisplay.cs" />
+    <Compile Include="Memory\GameFlag.cs" />
+    <Compile Include="Controls\LocationControl.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Controls\GameFlagControl.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
     <Compile Include="HelperHotkeyActions.cs" />
     <Compile Include="Input\KeyboardHotkeyListener.cs" />
     <Compile Include="Input\HotkeyManager.cs" />

@@ -84,7 +84,7 @@ namespace Crash.Helper
 			}
 			else
 			{
-				if (Key != 0) AppendFunction((System.Windows.Forms.Keys)Key);
+				if (Key != 0) AppendFunction(HotkeyDisplay.KeyName((System.Windows.Forms.Keys)Key));
 			}
 
             if (GamepadMask.HasValue && GamepadMask.Value != 0)

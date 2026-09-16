@@ -12,14 +12,22 @@ namespace Crash.Helper.Memory
 	{
 		public CrashMemory() : base("CrashBandicootNSaneTrilogy")
 		{
-			SecretLevel = new GamePointer<int>(0x01A69A98, 0x30, 0x1740);
+			LocationX = new GamePointer<float>(0x01A5C160, 0x18, 0x8, 0x80);
+            LocationY = new GamePointer<float>(0x01A5C160, 0x18, 0x8, 0x84);
+            LocationZ = new GamePointer<float>(0x01A5C160, 0x18, 0x8, 0x88);
+            Flags = GameFlag.CreateAll();
+            SecretLevel = new GamePointer<int>(0x01A69A98, 0x30, 0x1740);
             Lives = new GamePointer<int>(0x01AA27C8, 0x10);
 			Masks = new GamePointer<int>(0x01A69A98, 0x30, 0x1E0);
 			LoadMap = new GamePointer(StringEncodingMode.Utf8, 0x01A5C6D8, 0x20);
 			//Restart = new GamePointer<byte>(0x01A69A98, 0x18, 0x60, 0xE0, 0x730);
         }
 
-		public GamePointer<int> SecretLevel { get; }
+		public GamePointer<float> LocationX { get; }
+        public GamePointer<float> LocationY { get; }
+        public GamePointer<float> LocationZ { get; }
+        public IReadOnlyList<GameFlag> Flags { get; }
+        public GamePointer<int> SecretLevel { get; }
         public GamePointer<int> Lives { get; }
 		public GamePointer<int> Masks { get; }
 		public GamePointer LoadMap{ get; }
@@ -27,7 +35,11 @@ namespace Crash.Helper.Memory
 
         protected override void OnHook(Process process)
 		{
-			SecretLevel.Process = process;
+			LocationX.Process = process;
+            LocationY.Process = process;
+            LocationZ.Process = process;
+            foreach (var flag in Flags) flag.Value.Process = process;
+            SecretLevel.Process = process;
             Lives.Process = process;
 			Masks.Process = process;
 			LoadMap.Process = process;
@@ -36,7 +48,11 @@ namespace Crash.Helper.Memory
 
 		protected override void OnUnhook()
 		{
-			SecretLevel.Process = null;
+			LocationX.Process = null;
+            LocationY.Process = null;
+            LocationZ.Process = null;
+            foreach (var flag in Flags) flag.Value.Process = null;
+            SecretLevel.Process = null;
             Lives.Process = null;
 			Masks.Process = null;
 			LoadMap.Process = null;

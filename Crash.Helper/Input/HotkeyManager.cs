@@ -42,6 +42,20 @@ namespace Crash.Helper.Input
             UpdateState();
         }
 
+        public void ReloadSettings()
+        {
+            foreach (var hotkey in Hotkeys)
+            {
+                HotkeyBinding binding;
+                if (settings.Hotkeys.TryGetValue(hotkey.Label, out binding))
+                {
+                    hotkey.Key = binding.Key;
+                    hotkey.Modifier = binding.Modifiers;
+                }
+            }
+            UpdateState();
+        }
+
         public bool TrySetBinding(int index, uint key, KeyModifiers modifiers)
         {
             if (key != 0 && Hotkeys.Where((h, i) => i != index).Any(h => h.Key == key && h.Modifier == modifiers)) return false;

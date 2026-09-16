@@ -13,7 +13,7 @@ namespace Crash.Helper
         private readonly CrashMemory memory;
         private readonly DataControl dataControl;
         private readonly LevelSelectorControl levelSelector;
-        private readonly HotkeyControl hotkeyControl;
+        private readonly LocationControl locationControl;
         private readonly ProcessControl processControl;
         private readonly Timer refreshTimer;
         private readonly HelperSettings settings;
@@ -37,19 +37,20 @@ namespace Crash.Helper
             levelSelector = new LevelSelectorControl(dataControl);
             launcher = new SteamGameLauncher(settings);
             levelSelector.LaunchRequested += LaunchGame;
-            hotkeyManager = new HotkeyManager(HelperHotkeyActions.Create(memory, dataControl, levelSelector), settings,
+            locationControl = new LocationControl(memory) { Enabled = false };
+            hotkeyManager = new HotkeyManager(HelperHotkeyActions.Create(memory, dataControl, levelSelector, locationControl), settings,
                 () => memory.ProcessHooked, action => { if (!IsDisposed && IsHandleCreated) BeginInvoke(action); });
-            hotkeyControl = new HotkeyControl(hotkeyManager);
             processControl = new ProcessControl(memory, this);
             settingsButton = new Button { Text = "Settings", AutoSize = true };
             settingsButton.Click += (s, e) =>
             {
-                using (var window = new SettingsForm(settings, hotkeyControl)) window.ShowDialog(this);
+                using (var window = new SettingsForm(settings, hotkeyManager, memory, () => dataControl.Enabled)) window.ShowDialog(this);
                 hotkeyManager.SetEditing(false);
             };
             flowLayoutPanel.Controls.Add(processControl);
             flowLayoutPanel.Controls.Add(dataControl);
             flowLayoutPanel.Controls.Add(levelSelector);
+            flowLayoutPanel.Controls.Add(locationControl);
             var settingsRow = new Panel { Height = settingsButton.PreferredSize.Height, Width = levelSelector.LaunchButtonRight, Margin = new Padding(levelSelector.Margin.Left, 3, levelSelector.Margin.Right, 3) };
             settingsButton.AutoSize = false;
             settingsButton.Size = settingsButton.PreferredSize;
@@ -67,6 +68,8 @@ namespace Crash.Helper
         public void ApplyAvailability(bool helperEnabled, bool ready)
         {
             dataControl.Enabled = ready;
+            locationControl.Enabled = ready;
+            locationControl.RefreshValues();
             levelSelector.ApplyAvailability(helperEnabled, ready);
             settingsButton.Enabled = helperEnabled;
             hotkeyManager.SetReady(ready);
@@ -88,13 +91,14 @@ namespace Crash.Helper
         {
             if (!memory.HookProcess()) { processControl.OnUnhook(); return; }
             memory.Refresh();
+            locationControl.RefreshValues();
         }
 
         private void HelperForm_FormClosing(object sender, FormClosingEventArgs e)
         {
             ApplyAvailability(false, false);
             refreshTimer.Dispose();
-            hotkeyControl.Dispose();
+
             hotkeyManager.Dispose();
         }
     }

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Text;
 using System.Runtime.Serialization;
 using System.Runtime.Serialization.Json;
 
@@ -21,6 +22,22 @@ namespace Crash.Helper
         [DataMember] public bool HotkeysEnabled { get; set; } = true;
         [DataMember] public Dictionary<string, HotkeyBinding> Hotkeys { get; set; } = new Dictionary<string, HotkeyBinding>();
 
+        public HelperSettings Clone()
+        {
+            var copy = new HelperSettings();
+            copy.CopyFrom(this);
+            return copy;
+        }
+
+        public void CopyFrom(HelperSettings source)
+        {
+            SteamPath = source.SteamPath;
+            HotkeysEnabled = source.HotkeysEnabled;
+            Hotkeys = new Dictionary<string, HotkeyBinding>();
+            foreach (var entry in source.Hotkeys)
+                Hotkeys[entry.Key] = new HotkeyBinding { Key = entry.Value.Key, Modifiers = entry.Value.Modifiers };
+        }
+
         public static HelperSettings Load()
         {
             if (!File.Exists(FilePath)) return new HelperSettings();
@@ -38,7 +55,8 @@ namespace Crash.Helper
         {
             string temporaryPath = FilePath + ".tmp";
             using (var stream = File.Create(temporaryPath))
-                new DataContractJsonSerializer(typeof(HelperSettings)).WriteObject(stream, this);
+            using (var writer = JsonReaderWriterFactory.CreateJsonWriter(stream, Encoding.UTF8, false, true, "  "))
+                new DataContractJsonSerializer(typeof(HelperSettings)).WriteObject(writer, this);
             if (File.Exists(FilePath)) File.Replace(temporaryPath, FilePath, null);
             else File.Move(temporaryPath, FilePath);
         }
