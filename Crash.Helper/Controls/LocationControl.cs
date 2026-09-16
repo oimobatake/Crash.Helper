@@ -26,8 +26,8 @@ namespace Crash.Helper.Controls
             for (int i = 0; i < editors.Length; i++)
             {
                 int index = i;
-                var label = new Label { Text = axes[i] + ":", AutoSize = true, Left = 0, Top = i * 26 + 4 };
-                var editor = new TextBox { Left = 24, Top = i * 26, Width = 135, Text = "-" };
+                var label = new Label { Text = axes[i] + ":", AutoSize = true, Left = 36, Top = i * 26 + 4 };
+                var editor = new TextBox { Left = 60, Top = i * 26, Width = 100, Text = "-", TextAlign = HorizontalAlignment.Right };
                 var freeze = new CheckBox { Text = "Freeze " + axes[i], AutoSize = true, Left = 172, Top = i * 26 + 2 };
                 freeze.CheckedChanged += (s, e) =>
                 {

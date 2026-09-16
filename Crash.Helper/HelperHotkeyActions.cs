@@ -12,8 +12,8 @@ namespace Crash.Helper
             {
                 new Hotkey("Set lives to 0", KeyModifiers.None, 0, () => data.SetLives(0)),
                 new Hotkey("Set lives to 99", KeyModifiers.None, 0, () => data.SetLives(99)),
-                new Hotkey("mask +1", KeyModifiers.None, 0, () => { data.StoredMasks = memory.Masks.Read() + 1; data.Masks = data.StoredMasks; }),
-                new Hotkey("mask -1", KeyModifiers.None, 0, () => { data.StoredMasks = memory.Masks.Read() - 1; data.Masks = data.StoredMasks; }),
+                new Hotkey("Mask +1", KeyModifiers.None, 0, () => { data.StoredMasks = memory.Masks.Read() + 1; data.Masks = data.StoredMasks; }),
+                new Hotkey("Mask -1", KeyModifiers.None, 0, () => { data.StoredMasks = memory.Masks.Read() - 1; data.Masks = data.StoredMasks; }),
                 new Hotkey("Freeze lives", KeyModifiers.None, 0, data.ToggleFreezeLives),
                 new Hotkey("Freeze masks", KeyModifiers.None, 0, data.ToggleFreezeMasks),
                 new Hotkey("Freeze current level", KeyModifiers.None, 0, data.ToggleCurrentLevel),
