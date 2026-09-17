@@ -196,9 +196,9 @@ namespace Crash.Helper.Controls
             ["Crash 2 - Night Fight"]          = "loadmap crash2/l223_nightfight/l223_nightfight",
             ["Crash 2 - Pack Attack"]          = "loadmap crash2/l224_packattack/l224_packattack",
             ["Crash 2 - Spaced Out"]           = "loadmap crash2/l225_spacedout/l225_spacedout",
-            ["Crash 2 - Dr. Neo Cortex"]       = "loadmap crash２/bosses/b２05_drneocortex/b２05_drneocortex",
-            ["Crash 2 - Totally Bear"]         = "loadmap crash２/l２２６_totallybear/l２２６_totallybear",
-            ["Crash 2 - Totally Fly"]          = "loadmap crash２/l２２７_totallyfly/l２２７_totallyfly",
+            ["Crash 2 - Dr. Neo Cortex"]       = "loadmap crash2/bosses/b205_drneocortex/b205_drneocortex",
+            ["Crash 2 - Totally Bear"]         = "loadmap crash2/l226_totallybear/l226_totallybear",
+            ["Crash 2 - Totally Fly"]          = "loadmap crash2/l227_totallyfly/l227_totallyfly",
 
             ["Crash 3 - The Time Twister"]     = "loadmap crash3/l300_hub/l300_hub",
             ["Crash 3 - Toad Village"]         = "loadmap crash3/l301_toadvillage/l301_toadvillage",
