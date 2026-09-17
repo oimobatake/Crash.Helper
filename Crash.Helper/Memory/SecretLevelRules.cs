@@ -18,7 +18,7 @@ namespace Crash.Helper.Memory
                 case "Crash 3 - Rings of Power": return 10;
                 case "Crash 3 - Hot Coco": return 11;
                 case "Crash 3 - Eggipus Rex": return 12;
-                case "Crash 3 - Future Tense": return 13;
+                case "Crash 3 - Future Tense": return 1;
                 default: return 0;
             }
         }
