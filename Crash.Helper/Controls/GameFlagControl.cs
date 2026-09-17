@@ -20,11 +20,11 @@ namespace Crash.Helper.Controls
             this.memory = memory;
             this.canEdit = canEdit;
             AutoSize = true;
-            MinimumSize = new System.Drawing.Size(480, 0);
+            MinimumSize = new System.Drawing.Size(420, 0);
             var layout = new FlowLayoutPanel { AutoSize = true, FlowDirection = FlowDirection.LeftToRight, WrapContents = false, Dock = DockStyle.Fill };
             foreach (var group in memory.Flags.GroupBy(flag => flag.Group))
             {
-                var box = new GroupBox { Text = group.Key, AutoSize = true, MinimumSize = new System.Drawing.Size(group.Key == "Color Gems" ? 140 : 320, 0), Padding = new Padding(10) };
+                var box = new GroupBox { Text = group.Key, AutoSize = true, MinimumSize = new System.Drawing.Size(group.Key == "Color Gems" ? 130 : 270, 0), Padding = new Padding(10) };
                 var rows = new FlowLayoutPanel { AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, Dock = DockStyle.Fill };
                 foreach (var flag in group)
                 {

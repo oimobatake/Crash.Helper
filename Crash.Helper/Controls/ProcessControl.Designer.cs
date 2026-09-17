@@ -31,6 +31,7 @@
 			this.processBox = new System.Windows.Forms.GroupBox();
 			this.helperCheckbox = new System.Windows.Forms.CheckBox();
 			this.processLabel = new System.Windows.Forms.Label();
+            this.versionLabel = new System.Windows.Forms.Label();
 			this.processBox.SuspendLayout();
 			this.SuspendLayout();
 			// 
@@ -39,11 +40,12 @@
 			this.processBox.AutoSizeMode = System.Windows.Forms.AutoSizeMode.GrowAndShrink;
 			this.processBox.Controls.Add(this.helperCheckbox);
 			this.processBox.Controls.Add(this.processLabel);
+            this.processBox.Controls.Add(this.versionLabel);
 			this.processBox.Location = new System.Drawing.Point(0, 0);
 			this.processBox.Margin = new System.Windows.Forms.Padding(0);
 			this.processBox.MinimumSize = new System.Drawing.Size(250, 0);
 			this.processBox.Name = "processBox";
-			this.processBox.Size = new System.Drawing.Size(285, 42);
+			this.processBox.Size = new System.Drawing.Size(285, 64);
 			this.processBox.TabIndex = 0;
 			this.processBox.TabStop = false;
 			this.processBox.Text = "Process";
@@ -70,6 +72,13 @@
 			this.processLabel.Size = new System.Drawing.Size(51, 13);
 			this.processLabel.TabIndex = 0;
 			this.processLabel.Text = "[Process]";
+            //
+            // versionLabel
+            //
+            this.versionLabel.AutoSize = true;
+            this.versionLabel.Location = new System.Drawing.Point(7, 42);
+            this.versionLabel.Name = "versionLabel";
+            this.versionLabel.Text = "Version: Unknown";
 			// 
 			// ProcessControl
 			// 
@@ -80,7 +89,7 @@
 			this.Controls.Add(this.processBox);
 			this.Margin = new System.Windows.Forms.Padding(0);
 			this.Name = "ProcessControl";
-			this.Size = new System.Drawing.Size(285, 42);
+			this.Size = new System.Drawing.Size(285, 64);
 			this.processBox.ResumeLayout(false);
 			this.processBox.PerformLayout();
 			this.ResumeLayout(false);
@@ -92,5 +101,6 @@
 		private System.Windows.Forms.GroupBox processBox;
 		private System.Windows.Forms.CheckBox helperCheckbox;
 		private System.Windows.Forms.Label processLabel;
+        private System.Windows.Forms.Label versionLabel;
 	}
 }

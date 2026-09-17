@@ -24,7 +24,7 @@ namespace Crash.Helper
             draft = settings.Clone();
             Text = "Crash Helper Settings";
             StartPosition = FormStartPosition.CenterParent;
-            ClientSize = new Size(550, Math.Min(370, Screen.PrimaryScreen.WorkingArea.Height - 80));
+            ClientSize = new Size(480, Math.Min(410, Screen.PrimaryScreen.WorkingArea.Height - 80));
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
             MinimizeBox = false;
@@ -37,7 +37,7 @@ namespace Crash.Helper
             var layout = new FlowLayoutPanel { AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, Dock = DockStyle.Top };
             layout.Controls.Add(new Label { Text = "Steam application", AutoSize = true });
             var pathRow = new FlowLayoutPanel { AutoSize = true, WrapContents = false };
-            path = new TextBox { Width = 365, Text = draft.SteamPath };
+            path = new TextBox { Width = 300, Text = draft.SteamPath };
             var browse = new Button { Text = "Browse...", AutoSize = true };
             pathRow.Controls.Add(path);
             pathRow.Controls.Add(browse);

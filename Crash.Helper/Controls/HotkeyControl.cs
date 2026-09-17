@@ -21,7 +21,7 @@ namespace Crash.Helper.Controls
             this.draft = draft;
             bindings = manager.Hotkeys.Select(key => new Hotkey(key.Label, draft.Hotkeys[key.Label].Modifiers, draft.Hotkeys[key.Label].Key, key.Callback)).ToList();
             AutoSize = true;
-            MinimumSize = new Size(480, 0);
+            MinimumSize = new Size(420, 0);
             var box = new GroupBox { Text = "Hotkeys", AutoSize = true, Dock = DockStyle.Top, Padding = new Padding(10) };
             var table = new TableLayoutPanel { AutoSize = true, ColumnCount = 3, Dock = DockStyle.Fill };
             var header = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = Padding.Empty };

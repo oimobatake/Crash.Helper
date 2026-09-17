@@ -12,21 +12,30 @@ namespace Crash.Helper.Memory.LevelLock
         private readonly Process process;
         private readonly IntPtr handle;
         private readonly long moduleBase, moduleEnd, mapRoot;
+        private readonly byte?[] pattern;
         private long injection, cave, control, dataPage;
         private int dataOffset, originalOffset;
         private byte[] patch;
         private bool installed;
 
-        internal LevelLockPatch(Process process) : this(process, process.MainModule.BaseAddress.ToInt64(), process.MainModule.ModuleMemorySize,
-            process.MainModule.BaseAddress.ToInt64() + 0x01A5C6D8) { }
+        internal LevelLockPatch(Process process) : this(process, GameMemoryProfile.FromModuleSize(process.MainModule.ModuleMemorySize)) { }
+
+        private LevelLockPatch(Process process, GameMemoryProfile profile) : this(process,
+            process.MainModule.BaseAddress.ToInt64(), process.MainModule.ModuleMemorySize,
+            process.MainModule.BaseAddress.ToInt64() + (profile ?? throw new InvalidOperationException("Level lock is unavailable for an unknown game version.")).LoadMap[0],
+            profile.LevelLockPattern) { }
 
         internal LevelLockPatch(Process process, long moduleBase, int moduleSize, long mapRoot)
+            : this(process, moduleBase, moduleSize, mapRoot, GameMemoryProfile.Steam.LevelLockPattern) { }
+
+        internal LevelLockPatch(Process process, long moduleBase, int moduleSize, long mapRoot, byte?[] pattern)
         {
             if (IntPtr.Size != 8 || !process.Is64Bit()) throw new InvalidOperationException("Level lock requires a 64-bit helper and game.");
             this.process = Process.GetProcessById(process.Id);
             this.moduleBase = moduleBase;
             moduleEnd = checked(moduleBase + moduleSize);
             this.mapRoot = mapRoot;
+            this.pattern = (byte?[])pattern.Clone();
             handle = LevelLockNative.OpenProcess(0x0838 | 0x0400, false, process.Id);
             try { LevelLockNative.Check(handle != IntPtr.Zero, "Open game memory for level lock"); }
             catch { this.process.Dispose(); throw; }
@@ -78,18 +87,18 @@ namespace Crash.Helper.Memory.LevelLock
                     var scan = new byte[tail.Length + block.Length];
                     Buffer.BlockCopy(tail, 0, scan, 0, tail.Length);
                     Buffer.BlockCopy(block, 0, scan, tail.Length, block.Length);
-                    for (int i = 0; i <= scan.Length - LevelLockCode.Pattern.Length; i++)
+                    for (int i = 0; i <= scan.Length - pattern.Length; i++)
                     {
                         if ((i & 4095) == 0) cancellation.ThrowIfCancellationRequested();
                         bool equal = true;
-                        for (int j = 0; j < LevelLockCode.Pattern.Length; j++)
-                            if (LevelLockCode.Pattern[j].HasValue && scan[i + j] != LevelLockCode.Pattern[j].Value) { equal = false; break; }
+                        for (int j = 0; j < pattern.Length; j++)
+                            if (pattern[j].HasValue && scan[i + j] != pattern[j].Value) { equal = false; break; }
                         if (!equal) continue;
                         long address = cursor - tail.Length + i;
                         if (match != 0) throw new InvalidOperationException("The level-lock signature is not unique. No hook was installed.");
                         match = address;
                     }
-                    int overlap = Math.Min(LevelLockCode.Pattern.Length - 1, scan.Length);
+                    int overlap = Math.Min(pattern.Length - 1, scan.Length);
                     tail = new byte[overlap];
                     Buffer.BlockCopy(scan, scan.Length - overlap, tail, 0, overlap);
                     cursor += count;

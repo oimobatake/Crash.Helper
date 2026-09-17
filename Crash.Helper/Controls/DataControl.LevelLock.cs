@@ -12,6 +12,7 @@ namespace Crash.Helper.Controls
         private int levelLockRevision;
         private Task levelLockShutdown;
         private bool showCurrentLevel;
+        private bool mapLockActive;
 
         internal void AttachLevelControls(System.Windows.Forms.GroupBox levelBox)
         {
@@ -24,11 +25,15 @@ namespace Crash.Helper.Controls
             var controls = new System.Windows.Forms.Control[] { levelLabel, nowMapLabels, freezeLevelCheckbox, secretLevelCheckbox };
             foreach (var control in controls)
             {
-                control.Enabled = Enabled;
+                control.Enabled = control != secretLevelCheckbox && Enabled;
                 levelBox.Controls.Add(control);
             }
             // These controls now live outside Data, but still follow the helper/game availability.
-            EnabledChanged += (s, e) => { foreach (var control in controls) control.Enabled = Enabled; };
+            EnabledChanged += (s, e) =>
+            {
+                foreach (var control in controls) if (control != secretLevelCheckbox) control.Enabled = Enabled;
+                UpdateSecretLevel();
+            };
             Height = 100;
         }
 
@@ -71,13 +76,14 @@ namespace Crash.Helper.Controls
 
         public async void SetMapLock(string mapValue, string mapKey, bool startFreeze = true)
         {
-            if (levelLockShutdown != null || !Enabled || memory == null || !memory.ProcessHooked || string.IsNullOrEmpty(mapValue)) return;
+            if (levelLockShutdown != null || !Enabled || memory == null || !memory.ProcessHooked || !memory.IsSupportedVersion || string.IsNullOrEmpty(mapValue)) return;
             mapValue = GetMapCommand(mapValue);
             if (mapValue.Length == 0) return;
             int revision = ++levelLockRevision;
             showCurrentLevel = false;
             storedMap = mapValue;
             freezeMapEnabled = startFreeze;
+            mapLockActive = false;
             ShowMapLock(mapKey, startFreeze, startFreeze ? Color.DarkGoldenrod : Color.Black);
             MapLockChanged?.Invoke(this, storedMap);
             var process = memory.LoadMap.Process;
@@ -85,6 +91,8 @@ namespace Crash.Helper.Controls
             {
                 await levelLock.SetAsync(startFreeze ? process : null, startFreeze ? mapValue : null);
                 if (revision != levelLockRevision || IsDisposed || levelLockShutdown != null || !Enabled || !memory.ProcessHooked) return;
+                mapLockActive = startFreeze;
+                UpdateSecretLevel();
                 // Apply the selected map once; subsequent writes are intercepted inside the game.
                 memory.LoadMap.Write(mapValue);
                 ShowMapLock(mapKey, startFreeze, startFreeze ? Color.DodgerBlue : Color.Black);
@@ -97,6 +105,7 @@ namespace Crash.Helper.Controls
         {
             int revision = ++levelLockRevision;
             freezeMapEnabled = false;
+            mapLockActive = false;
             storedMap = null;
             showCurrentLevel = true;
             ShowMapLock(GetLevelDisplayName(memory?.CurrentLevel.Read()), false, Color.Black);
@@ -109,6 +118,8 @@ namespace Crash.Helper.Controls
 
         private async void StopMapFreeze()
         {
+            mapLockActive = false;
+            UpdateSecretLevel();
             if (levelLockShutdown != null) return;
             int revision = ++levelLockRevision;
             try { await levelLock.SetAsync(null, null); }
@@ -123,6 +134,7 @@ namespace Crash.Helper.Controls
             suppressFreezeCheckboxEvent = true;
             try { freezeLevelCheckbox.Checked = enabled; }
             finally { suppressFreezeCheckboxEvent = false; }
+            UpdateSecretLevel();
         }
 
         private void ReportLevelLockFailure(int revision, Exception error)
@@ -130,6 +142,7 @@ namespace Crash.Helper.Controls
             System.Diagnostics.Trace.WriteLine("[LevelLock] " + error);
             if (revision != levelLockRevision || IsDisposed || levelLockShutdown != null) return;
             freezeMapEnabled = false;
+            mapLockActive = false;
             storedMap = null;
             showCurrentLevel = true;
             ShowMapLock(GetLevelDisplayName(memory?.CurrentLevel.Read()), false, Color.Black);
@@ -143,6 +156,8 @@ namespace Crash.Helper.Controls
             if (levelLockShutdown == null || levelLockShutdown.IsFaulted || levelLockShutdown.IsCanceled)
             {
                 ++levelLockRevision;
+                mapLockActive = false;
+                UpdateSecretLevel();
                 levelLockShutdown = levelLock.ShutdownAsync();
             }
             return levelLockShutdown;

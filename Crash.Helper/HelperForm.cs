@@ -73,6 +73,7 @@ namespace Crash.Helper
 
         public void ApplyAvailability(bool helperEnabled, bool ready)
         {
+            ready = ready && memory.IsSupportedVersion;
             dataControl.Enabled = ready;
             positionControl.Enabled = ready;
             positionControl.RefreshValues();

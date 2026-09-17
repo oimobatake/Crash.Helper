@@ -32,6 +32,17 @@ namespace Crash.Helper.Memory
 		public Process Process { get; set; }
 		public event Action<T, T> OnValueChange;
 
+        internal void Configure(Process process, int[] newOffsets)
+        {
+            Process = null;
+            offsets = (int[])newOffsets.Clone();
+            cachedBaseAddress = IntPtr.Zero;
+            cachedProcessId = -1;
+            currentValue = default(T);
+            justWritten = false;
+            Process = process;
+        }
+
         private bool TryGetBaseAddress(out IntPtr baseAddress)
         {
             baseAddress = IntPtr.Zero;
@@ -134,6 +145,17 @@ namespace Crash.Helper.Memory
 
         public Process Process { get; set; }
         public event Action<string, string> OnValueChange;
+
+        internal void Configure(Process process, int[] newOffsets)
+        {
+            Process = null;
+            offsets = (int[])newOffsets.Clone();
+            cachedBaseAddress = IntPtr.Zero;
+            cachedProcessId = -1;
+            currentValue = null;
+            justWritten = false;
+            Process = process;
+        }
 
         private bool TryGetBaseAddress(out IntPtr baseAddress)
         {

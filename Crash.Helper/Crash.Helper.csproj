@@ -144,6 +144,7 @@
     <Compile Include="Memory\LevelLock\LevelLockService.cs" />
     <Compile Include="Input\HotkeyDisplay.cs" />
     <Compile Include="Memory\GameFlag.cs" />
+    <Compile Include="Memory\GameMemoryProfile.cs" />
     <Compile Include="Controls\PositionControl.cs">
       <SubType>UserControl</SubType>
     </Compile>

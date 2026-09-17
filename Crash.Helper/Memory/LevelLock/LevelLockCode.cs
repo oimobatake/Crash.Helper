@@ -7,7 +7,6 @@ namespace Crash.Helper.Memory.LevelLock
     internal static class LevelLockCode
     {
         internal static readonly byte[] Original = { 0x41, 0x88, 0x00, 0x48, 0x85, 0xD2 };
-        internal static readonly byte?[] Pattern = { 0x41, 0x88, 0x00, 0x48, 0x85, 0xD2, 0x74, null, 0x49, 0x83, 0xC8, 0xFF };
 
         internal static byte[] EncodeName(string name)
         {

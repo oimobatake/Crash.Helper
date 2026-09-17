@@ -39,6 +39,7 @@ namespace Crash.Helper.Controls
 			processTimer.Interval = 1000;
 			processTimer.Tick += (sender, e) =>
 			{
+                if (!scanning) { Rescan(); return; }
 				retryTimeRemaining--;
 
 				if (retryTimeRemaining == 0)
@@ -61,12 +62,13 @@ namespace Crash.Helper.Controls
 
         public void Rescan(bool skipFirstCheck = false)
 		{
-			if (!helperCheckbox.Checked) { parent.ApplyAvailability(false, false); return; }
+			if (!helperCheckbox.Checked) { UpdateVersionLabel(); parent.ApplyAvailability(false, false); return; }
             if (!skipFirstCheck && memory.HookProcess())
 			{
 				processLabel.Text = "Process attached.";
 				processLabel.ForeColor = Color.ForestGreen;
-				processTimer?.Stop();
+                if (memory.IsSupportedVersion) processTimer?.Stop();
+                else processTimer?.Start();
 
 				parent.ApplyAvailability(true, true);
 				scanning = false;
@@ -79,7 +81,13 @@ namespace Crash.Helper.Controls
 				processTimer.Start();
 				scanning = true;
 			}
+            UpdateVersionLabel();
 		}
+
+        private void UpdateVersionLabel()
+        {
+            versionLabel.Text = "Version: " + (memory != null && memory.ProcessHooked ? memory.VersionName : "Unknown");
+        }
 
 		public void OnUnhook()
 		{
@@ -103,11 +111,8 @@ namespace Crash.Helper.Controls
 				processLabel.Text = "Helper is disabled.";
 				processLabel.ForeColor = SystemColors.ControlDarkDark;
 
-				if (scanning)
-				{
-					processTimer.Stop();
-					scanning = false;
-				}
+                processTimer?.Stop();
+                scanning = false;
 
 				if (reenableHelperAfterLaunch)
 				{
@@ -118,6 +123,7 @@ namespace Crash.Helper.Controls
 			bool isReady = helperCheckbox.Checked && memory.ProcessHooked;
 
 			parent.ApplyAvailability(helperCheckbox.Checked, isReady);
+            UpdateVersionLabel();
 		}
 
 		public void PrepareForLaunch()
