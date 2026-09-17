@@ -14,6 +14,7 @@ namespace Crash.Helper
         private readonly DataControl dataControl;
         private readonly LevelSelectorControl levelSelector;
         private readonly PositionControl positionControl;
+        private readonly GroupBox positionBox;
         private readonly ProcessControl processControl;
         private readonly Timer refreshTimer;
         private readonly HelperSettings settings;
@@ -52,7 +53,7 @@ namespace Crash.Helper
             flowLayoutPanel.Controls.Add(processControl);
             flowLayoutPanel.Controls.Add(dataControl);
             flowLayoutPanel.Controls.Add(levelSelector);
-            var positionBox = new GroupBox { Text = "Position", Size = new Size(285, 138), Margin = new Padding(0, 5, 0, 0) };
+            positionBox = new GroupBox { Text = "Position", Size = new Size(285, 138), Margin = new Padding(0, 5, 0, 0), Enabled = false };
             positionControl.Location = new Point(7, 19);
             positionControl.Margin = Padding.Empty;
             positionBox.Controls.Add(positionControl);
@@ -75,6 +76,7 @@ namespace Crash.Helper
         {
             ready = ready && memory.IsSupportedVersion;
             dataControl.Enabled = ready;
+            positionBox.Enabled = ready;
             positionControl.Enabled = ready;
             positionControl.RefreshValues();
             levelSelector.ApplyAvailability(helperEnabled, ready);
