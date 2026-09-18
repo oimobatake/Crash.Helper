@@ -27,8 +27,8 @@ namespace Crash.Helper
                 new Hotkey("Freeze Z", KeyModifiers.None, 0, () => position.ToggleFreeze(2)),
                 new Hotkey("Position Save", KeyModifiers.None, 0, position.SavePosition),
                 new Hotkey("Position TP", KeyModifiers.None, 0, position.Teleport),
-                new Hotkey("Freeze XYZ", KeyModifiers.None, 0, () => camera.ToggleFreeze(false)),
-                new Hotkey("Freeze YawPitch", KeyModifiers.None, 0, () => camera.ToggleFreeze(true)),
+                new Hotkey("Control XYZ", KeyModifiers.None, 0, () => camera.ToggleFreeze(false)),
+                new Hotkey("Control YawPitch", KeyModifiers.None, 0, () => camera.ToggleFreeze(true)),
                 CameraMovement("Forward", 1, 1),
                 CameraMovement("Back", 1, -1),
                 CameraMovement("Left", 0, -1),
@@ -40,7 +40,8 @@ namespace Crash.Helper
                 CameraMovement("Pitch (Up)", 4, -1),
                 CameraMovement("Pitch (Down)", 4, 1),
                 new Hotkey("Camera Save", KeyModifiers.None, 0, camera.SaveCamera),
-                new Hotkey("Camera TP", KeyModifiers.None, 0, camera.Teleport)
+                new Hotkey("Camera TP", KeyModifiers.None, 0, camera.Teleport),
+                new Hotkey("Invert mouse Y", KeyModifiers.None, 0, camera.ToggleMouseY)
             };
             for (int i = 0; i < hotkeys.Count; i++)
                 hotkeys[i].Group = i < 6 ? "Data" : i < 12 ? "Level" : i < 17 ? "Position" : "Camera";

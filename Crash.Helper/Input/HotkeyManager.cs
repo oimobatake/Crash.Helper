@@ -21,6 +21,7 @@ namespace Crash.Helper.Input
         public IReadOnlyList<Hotkey> Hotkeys { get; }
         public string Status { get; private set; }
         public bool IsActive { get; private set; }
+        internal bool CanUseCameraInput => !disposed && ready && !editing && Enabled && gameAvailable();
         public event EventHandler StatusChanged;
         public bool Enabled
         {
@@ -34,6 +35,8 @@ namespace Crash.Helper.Input
             this.settings = settings;
             this.gameAvailable = gameAvailable;
             this.dispatch = dispatch;
+            var currentNames = new HashSet<string>(hotkeys.Select(h => h.Label));
+            foreach (var name in settings.Hotkeys.Keys.Where(name => !currentNames.Contains(name)).ToArray()) settings.Hotkeys.Remove(name);
             foreach (var hotkey in hotkeys)
             {
                 HotkeyBinding binding;
@@ -99,7 +102,7 @@ namespace Crash.Helper.Input
         private void OnKeyPressed(uint key, KeyModifiers modifiers)
         {
             if (!IsActive) return;
-            var matches = Hotkeys.Where(h => h.Key != 0 && h.Key == key && h.Modifier == modifiers).ToArray();
+            var matches = Hotkeys.Where(h => h.Key != 0 && h.Key == key && h.Modifier == KeyIdentity.ModifiersForKey(key, modifiers)).ToArray();
             if (matches.Length == 0) return;
             foreach (var hotkey in matches.Where(h => h.RepeatWhileHeld))
             {
@@ -138,7 +141,7 @@ namespace Crash.Helper.Input
             var modifiers = KeyboardHotkeyListener.CurrentModifiers;
             foreach (var action in heldActions.ToArray())
             {
-                if (!listener.IsHeld(action.Key) || action.Modifier != modifiers) heldActions.Remove(action);
+                if (!listener.IsHeld(action.Key) || action.Modifier != KeyIdentity.ModifiersForKey(action.Key, modifiers)) heldActions.Remove(action);
                 else if (action.CameraAxis < 0) action.Callback();
             }
             PublishMovement();

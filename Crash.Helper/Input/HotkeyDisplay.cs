@@ -12,6 +12,10 @@ namespace Crash.Helper.Input
             // Use the unshifted JIS key legends; modifiers are displayed separately.
             switch (key)
             {
+                case Keys.ShiftKey: return "Shift";
+                case Keys.ControlKey: return "Ctrl";
+                case Keys.Menu: return "Alt";
+                case Keys.LWin: return "Win";
                 case Keys.Add: return "Num+";
                 case Keys.Subtract: return "Num-";
                 case Keys.Divide: return "Num/";

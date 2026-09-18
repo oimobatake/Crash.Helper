@@ -53,6 +53,15 @@ namespace Crash.Helper.Controls
                     group.Controls.Add(table);
                     groups.Controls.Add(group, 0, groups.Controls.Count);
                     row = 0;
+                    if (currentGroup == "Camera")
+                    {
+                        var followPitch = new CheckBox { Text = "Move in the pitch direction", AutoSize = true, Checked = draft.CameraMoveWithPitch };
+                        var mouse = new CheckBox { Text = "Mouse control", AutoSize = true, Checked = draft.CameraMouseControl };
+                        followPitch.CheckedChanged += (s, e) => draft.CameraMoveWithPitch = followPitch.Checked;
+                        mouse.CheckedChanged += (s, e) => draft.CameraMouseControl = mouse.Checked;
+                        table.Controls.Add(followPitch, 0, row++); table.SetColumnSpan(followPitch, 3);
+                        table.Controls.Add(mouse, 0, row++); table.SetColumnSpan(mouse, 3);
+                    }
                 }
                 int index = i;
                 var editor = new HotkeyTextBox { ReadOnly = true, Width = 170, Text = bindings[i].ToString(), ShortcutsEnabled = false };
@@ -84,7 +93,6 @@ namespace Crash.Helper.Controls
         {
             e.SuppressKeyPress = true;
             e.Handled = true;
-            if (e.KeyCode == Keys.ControlKey || e.KeyCode == Keys.ShiftKey || e.KeyCode == Keys.Menu || e.KeyCode == Keys.LWin || e.KeyCode == Keys.RWin) return;
             var modifiers = KeyModifiers.None;
             if (e.Control) modifiers |= KeyModifiers.Control;
             if (e.Alt) modifiers |= KeyModifiers.Alt;
@@ -92,7 +100,8 @@ namespace Crash.Helper.Controls
             modifiers |= KeyboardHotkeyListener.CurrentModifiers & KeyModifiers.Win;
             uint key = (uint)e.KeyCode;
             if (e.KeyCode == Keys.Enter && ((HotkeyTextBox)editors[index]).PhysicalKey == KeyIdentity.NumEnter) key = KeyIdentity.NumEnter;
-            SetBinding(index, key, modifiers);
+            key = KeyIdentity.Normalize(key);
+            SetBinding(index, key, KeyIdentity.ModifiersForKey(key, modifiers));
         }
 
         private void SetBinding(int index, uint key, KeyModifiers modifiers)

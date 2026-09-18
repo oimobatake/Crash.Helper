@@ -2,9 +2,12 @@ using System;
 using System.Diagnostics;
 using System.Drawing;
 using System.Globalization;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using Crash.Helper.Memory.Camera;
+using Crash.Helper.Input;
 
 namespace Crash.Helper.Controls
 {
@@ -15,6 +18,8 @@ namespace Crash.Helper.Controls
         private readonly string[] axes = { "X", "Y", "Z", "Yaw", "Pitch" };
         private readonly CheckBox freezeXYZ, freezeYawPitch;
         private readonly TextBox xyzSpeedEditor, yawPitchSpeedEditor;
+        private readonly TextBox mouseXEditor, mouseYEditor;
+        private readonly MouseCameraListener mouse = new MouseCameraListener();
         private readonly Button saveButton, teleportButton;
         private readonly ToolTip toolTip = new ToolTip();
         private readonly Timer refreshTimer = new Timer { Interval = 33 };
@@ -22,6 +27,8 @@ namespace Crash.Helper.Controls
         private CameraMemoryProfile profile;
         private float[] values, saved;
         private float xyzSpeed = 30f, yawPitchSpeed = 0.03f;
+        private float mouseXSensitivity = 0.002f, mouseYSensitivity = 0.002f;
+        private bool followPitch = true, mouseControl, invertMouseY, rotationHotkeys, inputEnabled;
         private int[] heldDirections = new int[5];
         private bool available, ready, changing, refreshing, suppressChanges, closing;
         private int generation;
@@ -60,32 +67,38 @@ namespace Crash.Helper.Controls
                 Controls.Add(label);
                 Controls.Add(editor);
             }
-            freezeXYZ = new CheckBox { Text = "Freeze XYZ", AutoSize = true, Left = 160, Top = 28 };
-            freezeYawPitch = new CheckBox { Text = "Freeze YawPitch", AutoSize = true, Left = 160, Top = 93 };
+            freezeXYZ = new CheckBox { Text = "Control XYZ", AutoSize = true, Left = 160, Top = 28 };
+            freezeYawPitch = new CheckBox { Text = "Control YawPitch", AutoSize = true, Left = 160, Top = 93 };
             freezeXYZ.CheckedChanged += OnFreezeChanged;
             freezeYawPitch.CheckedChanged += OnFreezeChanged;
             Controls.Add(freezeXYZ);
             Controls.Add(freezeYawPitch);
             xyzSpeedEditor = CreateSpeedEditor("XYZ Speed:", 138, () => xyzSpeed, value => xyzSpeed = value);
             yawPitchSpeedEditor = CreateSpeedEditor("YawPitch Speed:", 164, () => yawPitchSpeed, value => yawPitchSpeed = value);
+            mouseXEditor = CreateSpeedEditor("Mouse X sensitivity:", 190, () => mouseXSensitivity, value => mouseXSensitivity = value);
+            mouseYEditor = CreateSpeedEditor("Mouse Y sensitivity:", 216, () => mouseYSensitivity, value => mouseYSensitivity = value);
+            mouse.Moved += OnMouseMovement;
             saveButton = new Button { Text = "Save", Left = 52, Top = 196, Width = 80 };
             teleportButton = new Button { Text = "TP", Left = 137, Top = 196, Width = 80 };
             saveButton.Click += (s, e) => SaveCamera();
             teleportButton.Click += (s, e) => Teleport();
-            toolTip.SetToolTip(teleportButton, "Restore saved camera values for the enabled Freeze groups.");
+            toolTip.SetToolTip(teleportButton, "Restore saved camera values for the enabled Control groups.");
             Controls.Add(saveButton);
             Controls.Add(teleportButton);
             MouseDown += (s, e) => EndEditing();
             foreach (Control control in Controls)
                 if (control is Label) control.MouseDown += (s, e) => EndEditing();
             refreshTimer.Tick += async (s, e) => await RefreshAsync();
+            UpdateSpeedLayout();
             UpdateState();
         }
 
         private TextBox CreateSpeedEditor(string title, int top, Func<float> get, Action<float> set)
         {
-            Controls.Add(new Label { Text = title, AutoSize = true, Left = 12, Top = top + 4 });
+            var label = new Label { Text = title, AutoSize = true, Left = 12, Top = top + 4 };
+            Controls.Add(label);
             var editor = new TextBox { Left = 120, Top = top, Width = 80, Text = get().ToString("R", CultureInfo.InvariantCulture), TextAlign = HorizontalAlignment.Right };
+            editor.Tag = label;
             editor.Enter += (s, e) => EditingChanged?.Invoke(true);
             editor.MouseDown += (s, e) => EditingChanged?.Invoke(true);
             editor.Leave += (s, e) =>
@@ -120,8 +133,12 @@ namespace Crash.Helper.Controls
             }
             xyzSpeedEditor.Text = xyzSpeed.ToString("R", CultureInfo.InvariantCulture);
             yawPitchSpeedEditor.Text = yawPitchSpeed.ToString("R", CultureInfo.InvariantCulture);
+            mouseXEditor.Text = mouseXSensitivity.ToString("R", CultureInfo.InvariantCulture);
+            mouseYEditor.Text = mouseYSensitivity.ToString("R", CultureInfo.InvariantCulture);
             xyzSpeedEditor.Select(0, 0);
             yawPitchSpeedEditor.Select(0, 0);
+            mouseXEditor.Select(0, 0);
+            mouseYEditor.Select(0, 0);
             ActiveControl = null;
             if (FindForm() != null) FindForm().ActiveControl = null;
             EditingChanged?.Invoke(false);
@@ -194,7 +211,10 @@ namespace Crash.Helper.Controls
                 if (!editors[i].Focused) UpdateEditor(i);
             }
             freezeXYZ.Enabled = freezeYawPitch.Enabled = available && ready && !changing && !closing;
-            xyzSpeedEditor.Enabled = yawPitchSpeedEditor.Enabled = available && ready && !closing;
+            SetSpeedEnabled(xyzSpeedEditor, CanWrite(0));
+            SetSpeedEnabled(yawPitchSpeedEditor, CanWrite(3));
+            SetSpeedEnabled(mouseXEditor, CanWrite(3));
+            SetSpeedEnabled(mouseYEditor, CanWrite(3));
             saveButton.Enabled = available && ready && !changing && values != null && !closing;
             teleportButton.Enabled = saved != null && (CanWrite(0) || CanWrite(3));
             UpdateMovement();
@@ -270,10 +290,68 @@ namespace Crash.Helper.Controls
         private void UpdateMovement()
         {
             var directions = new int[5];
-            if (available && ready && !changing && !closing)
+            if (inputEnabled && available && ready && !changing && !closing)
                 for (int i = 0; i < directions.Length; i++)
                     if (i < 3 ? freezeXYZ.Checked : freezeYawPitch.Checked) directions[i] = heldDirections[i];
-            service.SetMovement(directions, xyzSpeed, yawPitchSpeed);
+            bool useMouse = inputEnabled && mouseControl && CanWrite(3);
+            try
+            {
+                if (useMouse) mouse.Start(process.Id);
+                else mouse.Stop();
+            }
+            catch (Exception ex) { useMouse = false; HelperLog.Error("Configure mouse input", ex); }
+            service.SetMovement(directions, xyzSpeed, yawPitchSpeed, followPitch, useMouse && mouse.IsTargetForeground);
+        }
+
+        internal void ApplySettings(HelperSettings settings, IReadOnlyList<Hotkey> hotkeys)
+        {
+            followPitch = settings.CameraMoveWithPitch;
+            mouseControl = settings.CameraMouseControl;
+            rotationHotkeys = hotkeys.Any(key => key.CameraAxis >= 3 && key.Key != 0);
+            UpdateSpeedLayout();
+            UpdateMovement();
+        }
+
+        internal void SetInputEnabled(bool enabled)
+        {
+            inputEnabled = enabled;
+            UpdateMovement();
+        }
+
+        internal void ToggleMouseY()
+        {
+            if (inputEnabled && mouseControl && CanWrite(3)) invertMouseY = !invertMouseY;
+        }
+
+        private void OnMouseMovement(int x, int y)
+        {
+            if (!inputEnabled || !mouseControl || !CanWrite(3) || !mouse.IsTargetForeground) return;
+            UpdateMovement();
+            service.AddMouseMovement(-x * (double)mouseXSensitivity, y * (double)mouseYSensitivity * (invertMouseY ? -1 : 1));
+        }
+
+        private static void SetSpeedEnabled(TextBox editor, bool enabled)
+        {
+            editor.Enabled = enabled;
+            ((Label)editor.Tag).Enabled = enabled;
+        }
+
+        private void UpdateSpeedLayout()
+        {
+            int top = 138;
+            foreach (var editor in new[] { xyzSpeedEditor, yawPitchSpeedEditor, mouseXEditor, mouseYEditor })
+            {
+                bool visible = editor == xyzSpeedEditor || (editor == yawPitchSpeedEditor ? rotationHotkeys : mouseControl);
+                editor.Visible = ((Label)editor.Tag).Visible = visible;
+                if (!visible) continue;
+                editor.Top = top;
+                ((Label)editor.Tag).Top = top + 4;
+                // Give the longer sensitivity labels room while retaining the existing speed field widths.
+                editor.Left = editor == mouseXEditor || editor == mouseYEditor ? 150 : 120;
+                top += 26;
+            }
+            saveButton.Top = teleportButton.Top = top + 6;
+            Height = saveButton.Bottom + 5;
         }
 
         internal async Task ShutdownAsync()
@@ -293,6 +371,7 @@ namespace Crash.Helper.Controls
                 generation++;
                 refreshTimer.Dispose();
                 toolTip.Dispose();
+                mouse.Dispose();
                 // Normal window closing awaits cleanup first. Direct disposal also restores
                 // patches synchronously, rather than abandoning a background cleanup at exit.
                 try { service.Dispose(); }

@@ -23,6 +23,8 @@ namespace Crash.Helper
         [DataMember] public string SteamPath { get; set; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "Steam", "steam.exe");
         [DataMember] public bool HotkeysEnabled { get; set; } = true;
         [DataMember] public bool AdvancedControlsEnabled { get; set; }
+        [DataMember] public bool CameraMoveWithPitch { get; set; } = true;
+        [DataMember] public bool CameraMouseControl { get; set; }
         [DataMember] public Dictionary<string, HotkeyBinding> Hotkeys { get; set; } = new Dictionary<string, HotkeyBinding>();
 
         public HelperSettings Clone()
@@ -37,6 +39,8 @@ namespace Crash.Helper
             SteamPath = source.SteamPath;
             HotkeysEnabled = source.HotkeysEnabled;
             AdvancedControlsEnabled = source.AdvancedControlsEnabled;
+            CameraMoveWithPitch = source.CameraMoveWithPitch;
+            CameraMouseControl = source.CameraMouseControl;
             Hotkeys = new Dictionary<string, HotkeyBinding>();
             foreach (var entry in source.Hotkeys)
                 Hotkeys[entry.Key] = new HotkeyBinding { Key = entry.Value.Key, Modifiers = entry.Value.Modifiers };
@@ -50,32 +54,6 @@ namespace Crash.Helper
                 var settings = (HelperSettings)new DataContractJsonSerializer(typeof(HelperSettings)).ReadObject(stream);
                 if (settings == null) throw new InvalidDataException("Settings are empty.");
                 if (settings.Hotkeys == null) settings.Hotkeys = new Dictionary<string, HotkeyBinding>();
-                // Preserve bindings saved before the position terminology change.
-                HotkeyBinding legacyPositionBinding;
-                if (settings.Hotkeys.TryGetValue("Save location", out legacyPositionBinding))
-                {
-                    if (!settings.Hotkeys.ContainsKey("Save position")) settings.Hotkeys["Save position"] = legacyPositionBinding;
-                    settings.Hotkeys.Remove("Save location");
-                }
-                if (settings.Hotkeys.TryGetValue("Teleport", out legacyPositionBinding))
-                {
-                    if (!settings.Hotkeys.ContainsKey("TP position")) settings.Hotkeys["TP position"] = legacyPositionBinding;
-                    settings.Hotkeys.Remove("Teleport");
-                }
-                settings.RenameBinding("Save position", "Position Save");
-                settings.RenameBinding("TP position", "Position TP");
-                settings.RenameBinding("Save camera", "Camera Save");
-                settings.RenameBinding("TP camera", "Camera TP");
-                settings.RenameBinding("Camera X+", "Camera Left");
-                settings.RenameBinding("Camera X-", "Camera Right");
-                settings.RenameBinding("Camera Y+", "Camera Forward");
-                settings.RenameBinding("Camera Y-", "Camera Back");
-                settings.RenameBinding("Camera Z+", "Camera Up");
-                settings.RenameBinding("Camera Z-", "Camera Down");
-                settings.RenameBinding("Camera Yaw+", "Camera Yaw (Left)");
-                settings.RenameBinding("Camera Yaw-", "Camera Yaw (Right)");
-                settings.RenameBinding("Camera Pitch+", "Camera Pitch (Down)");
-                settings.RenameBinding("Camera Pitch-", "Camera Pitch (Up)");
                 if (string.IsNullOrWhiteSpace(settings.SteamPath)) settings.SteamPath = new HelperSettings().SteamPath;
                 return settings;
             }
@@ -91,6 +69,7 @@ namespace Crash.Helper
         {
             // A file created by the Advanced Controls button can contain only its own setting.
             HotkeysEnabled = true;
+            CameraMoveWithPitch = true;
         }
 
         public static void SaveAdvancedControls(bool enabled)
@@ -122,12 +101,5 @@ namespace Crash.Helper
             else File.Move(temporaryPath, FilePath);
         }
 
-        private void RenameBinding(string oldName, string newName)
-        {
-            HotkeyBinding binding;
-            if (!Hotkeys.TryGetValue(oldName, out binding)) return;
-            if (!Hotkeys.ContainsKey(newName)) Hotkeys[newName] = binding;
-            Hotkeys.Remove(oldName);
-        }
     }
 }

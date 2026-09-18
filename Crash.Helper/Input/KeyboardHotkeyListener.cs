@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
@@ -17,7 +18,8 @@ namespace Crash.Helper.Input
         public event Action<uint, KeyModifiers> KeyPressed;
         public event Action<uint> KeyReleased;
 
-        internal bool IsHeld(uint key) => pressedKeys.Contains(key) && GetAsyncKeyState(KeyIdentity.VirtualKey(key)) < 0;
+        internal bool IsHeld(uint key) => pressedKeys.Any(physical => KeyIdentity.Normalize(physical) == key) &&
+            (key == (uint)Keys.LWin ? GetAsyncKeyState((int)Keys.LWin) < 0 || GetAsyncKeyState((int)Keys.RWin) < 0 : GetAsyncKeyState(KeyIdentity.VirtualKey(key)) < 0);
 
         public KeyboardHotkeyListener() { callback = OnKeyboardInput; }
 
@@ -26,7 +28,7 @@ namespace Crash.Helper.Input
             if (hook != IntPtr.Zero) return;
             pressedKeys.Clear();
             for (uint key = 1; key < 256; key++)
-                if (GetAsyncKeyState((int)key) < 0) pressedKeys.Add(key);
+                if (key != (uint)Keys.ShiftKey && key != (uint)Keys.ControlKey && key != (uint)Keys.Menu && GetAsyncKeyState((int)key) < 0) pressedKeys.Add(key);
             initialEnterHeld = pressedKeys.Contains((uint)Keys.Enter);
             if (initialEnterHeld) pressedKeys.Add(KeyIdentity.NumEnter);
             hook = SetWindowsHookEx(13, callback, GetModuleHandle(null), 0);
@@ -72,10 +74,16 @@ namespace Crash.Helper.Input
                             initialEnterHeld = false;
                         }
                         pressedKeys.Remove(key);
-                        KeyReleased?.Invoke(key);
+                        uint logical = KeyIdentity.Normalize(key);
+                        if (!pressedKeys.Any(physical => KeyIdentity.Normalize(physical) == logical)) KeyReleased?.Invoke(logical);
                     }
-                    else if ((kind == 0x0100 || kind == 0x0104) && pressedKeys.Add(key))
-                        KeyPressed?.Invoke(key, CurrentModifiers);
+                    else if (kind == 0x0100 || kind == 0x0104)
+                    {
+                        uint logical = KeyIdentity.Normalize(key);
+                        bool wasHeld = pressedKeys.Any(physical => KeyIdentity.Normalize(physical) == logical);
+                        if (pressedKeys.Add(key) && !wasHeld)
+                            KeyPressed?.Invoke(logical, KeyIdentity.ModifiersForKey(logical, CurrentModifiers));
+                    }
                 }
                 catch (Exception ex) { System.Diagnostics.Trace.WriteLine(ex); }
             }

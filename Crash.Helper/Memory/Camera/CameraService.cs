@@ -19,6 +19,8 @@ namespace Crash.Helper.Memory.Camera
         private readonly Task motionWorker;
         private int[] directions = new int[5];
         private float xyzSpeed = 0.5f, rotationSpeed = 0.01f;
+        private bool followPitch, acceptMouse;
+        private double pendingMouseYaw, pendingMousePitch;
         private bool stopping, disposed, shutdownComplete;
 
         internal CameraService()
@@ -26,15 +28,29 @@ namespace Crash.Helper.Memory.Camera
             motionWorker = Task.Factory.StartNew(MoveLoop, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
         }
 
-        internal void SetMovement(int[] value, float xyz, float rotation)
+        internal void SetMovement(int[] value, float xyz, float rotation, bool pitch = false, bool mouse = false)
         {
             lock (sync)
             {
                 if (stopping || disposed) return;
-                if (directions.SequenceEqual(value) && xyzSpeed == xyz && rotationSpeed == rotation) return;
+                if (!mouse) pendingMouseYaw = pendingMousePitch = 0;
+                if (directions.SequenceEqual(value) && xyzSpeed == xyz && rotationSpeed == rotation && followPitch == pitch && acceptMouse == mouse) return;
                 directions = (int[])value.Clone();
                 xyzSpeed = xyz;
                 rotationSpeed = rotation;
+                followPitch = pitch;
+                acceptMouse = mouse;
+                motionChanged.Set();
+            }
+        }
+
+        internal void AddMouseMovement(double yaw, double pitch)
+        {
+            lock (sync)
+            {
+                if (stopping || disposed || !acceptMouse) return;
+                pendingMouseYaw += yaw;
+                pendingMousePitch += pitch;
                 motionChanged.Set();
             }
         }
@@ -50,14 +66,16 @@ namespace Crash.Helper.Memory.Camera
                 {
                     int[] input;
                     float xyz, rotation;
+                    bool pitch, moving;
                     lock (sync)
                     {
                         if (stopping) return;
                         input = (int[])directions.Clone();
                         xyz = xyzSpeed;
                         rotation = rotationSpeed;
+                        pitch = followPitch;
+                        moving = input.Any(value => value != 0) || pendingMouseYaw != 0 || pendingMousePitch != 0;
                     }
-                    bool moving = input.Any(value => value != 0);
                     if (!moving)
                     {
                         if (preciseTimer) { timeEndPeriod(1); preciseTimer = false; }
@@ -74,13 +92,22 @@ namespace Crash.Helper.Memory.Camera
                         try
                         {
                             bool apply;
-                            lock (sync) apply = !stopping && active && directions.SequenceEqual(input);
-                            if (apply) patch.Move(input, xyz, rotation, elapsed);
+                            double mouseYaw = 0, mousePitch = 0;
+                            lock (sync)
+                            {
+                                apply = !stopping && active && directions.SequenceEqual(input);
+                                if (apply)
+                                {
+                                    mouseYaw = pendingMouseYaw; mousePitch = pendingMousePitch;
+                                    pendingMouseYaw = pendingMousePitch = 0;
+                                }
+                            }
+                            if (apply) patch.Move(input, xyz, rotation, elapsed, pitch, mouseYaw, mousePitch);
                         }
                         catch (Exception ex)
                         {
                             HelperLog.Error("Move camera", ex);
-                            lock (sync) directions = new int[5];
+                            lock (sync) { directions = new int[5]; pendingMouseYaw = pendingMousePitch = 0; }
                         }
                         finally { gate.Release(); }
                     }
@@ -99,6 +126,7 @@ namespace Crash.Helper.Memory.Camera
             lock (sync)
             {
                 generation++;
+                pendingMouseYaw = pendingMousePitch = 0;
                 pending?.Cancel();
                 pending = request = new CancellationTokenSource();
             }
@@ -183,6 +211,8 @@ namespace Crash.Helper.Memory.Camera
             {
                 if (disposed || shutdownComplete) return;
                 stopping = true;
+                acceptMouse = false;
+                pendingMouseYaw = pendingMousePitch = 0;
                 directions = new int[5];
                 motionChanged.Set();
             }

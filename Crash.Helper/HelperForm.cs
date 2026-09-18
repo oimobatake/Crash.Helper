@@ -82,6 +82,8 @@ namespace Crash.Helper
             cameraControl.Location = new Point(7, 19);
             cameraControl.Margin = Padding.Empty;
             cameraBox.Controls.Add(cameraControl);
+            cameraControl.SizeChanged += (s, e) => cameraBox.Height = cameraControl.Height + 26;
+            cameraBox.Height = cameraControl.Height + 26;
             rightColumn.Controls.Add(cameraBox);
             var settingsRow = new Panel { Height = Math.Max(settingsButton.PreferredSize.Height, advancedButton.PreferredSize.Height), Width = levelSelector.Width, Margin = new Padding(levelSelector.Margin.Left, 3, levelSelector.Margin.Right, 3) };
             settingsButton.AutoSize = false;
@@ -100,7 +102,15 @@ namespace Crash.Helper
             refreshTimer = new Timer { Interval = 100 };
             refreshTimer.Tick += (s, e) => RefreshHelper();
             advancedButton.CheckedChanged += (s, e) => ToggleAdvancedControls();
+            hotkeyManager.StatusChanged += (s, e) => RefreshCameraInput();
+            RefreshCameraInput();
             processControl.Rescan();
+        }
+
+        private void RefreshCameraInput()
+        {
+            cameraControl.ApplySettings(settings, hotkeyManager.Hotkeys);
+            cameraControl.SetInputEnabled(hotkeyManager.CanUseCameraInput);
         }
 
         private void ToggleAdvancedControls()
