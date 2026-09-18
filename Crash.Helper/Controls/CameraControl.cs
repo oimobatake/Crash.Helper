@@ -29,6 +29,8 @@ namespace Crash.Helper.Controls
         private float xyzSpeed = 30f, yawPitchSpeed = 0.03f;
         private float mouseXSensitivity = 0.002f, mouseYSensitivity = 0.002f;
         private bool followPitch = true, mouseControl, invertMouseY, rotationHotkeys, inputEnabled;
+        private bool speedBoost;
+        private HelperSettings settings;
         private int[] heldDirections = new int[5];
         private bool available, ready, changing, refreshing, suppressChanges, closing;
         private int generation;
@@ -73,10 +75,10 @@ namespace Crash.Helper.Controls
             freezeYawPitch.CheckedChanged += OnFreezeChanged;
             Controls.Add(freezeXYZ);
             Controls.Add(freezeYawPitch);
-            xyzSpeedEditor = CreateSpeedEditor("XYZ Speed:", 138, () => xyzSpeed, value => xyzSpeed = value);
-            yawPitchSpeedEditor = CreateSpeedEditor("YawPitch Speed:", 164, () => yawPitchSpeed, value => yawPitchSpeed = value);
-            mouseXEditor = CreateSpeedEditor("Mouse X sensitivity:", 190, () => mouseXSensitivity, value => mouseXSensitivity = value);
-            mouseYEditor = CreateSpeedEditor("Mouse Y sensitivity:", 216, () => mouseYSensitivity, value => mouseYSensitivity = value);
+            xyzSpeedEditor = CreateSpeedEditor("XYZ Speed:", 138, () => xyzSpeed, value => xyzSpeed = value, nameof(HelperSettings.CameraXYZSpeed));
+            yawPitchSpeedEditor = CreateSpeedEditor("YawPitch Speed:", 164, () => yawPitchSpeed, value => yawPitchSpeed = value, nameof(HelperSettings.CameraYawPitchSpeed));
+            mouseXEditor = CreateSpeedEditor("Mouse X sensitivity:", 190, () => mouseXSensitivity, value => mouseXSensitivity = value, nameof(HelperSettings.CameraMouseXSensitivity));
+            mouseYEditor = CreateSpeedEditor("Mouse Y sensitivity:", 216, () => mouseYSensitivity, value => mouseYSensitivity = value, nameof(HelperSettings.CameraMouseYSensitivity));
             mouse.Moved += OnMouseMovement;
             saveButton = new Button { Text = "Save", Left = 52, Top = 196, Width = 80 };
             teleportButton = new Button { Text = "TP", Left = 137, Top = 196, Width = 80 };
@@ -93,7 +95,7 @@ namespace Crash.Helper.Controls
             UpdateState();
         }
 
-        private TextBox CreateSpeedEditor(string title, int top, Func<float> get, Action<float> set)
+        private TextBox CreateSpeedEditor(string title, int top, Func<float> get, Action<float> set, string settingName)
         {
             var label = new Label { Text = title, AutoSize = true, Left = 12, Top = top + 4 };
             Controls.Add(label);
@@ -113,7 +115,10 @@ namespace Crash.Helper.Controls
                 e.SuppressKeyPress = true;
                 float value;
                 if (float.TryParse(editor.Text.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out value) && value >= 0 && value <= 1000)
-                    set(value);
+                {
+                    try { settings.SaveCameraValue(settingName, value); set(value); }
+                    catch (Exception ex) { HelperLog.Error("Save camera setting", ex); }
+                }
                 else HelperLog.Error("Edit camera speed", new ArgumentException("Speed must be a number between 0 and 1000."));
                 EndEditing();
                 UpdateMovement();
@@ -300,13 +305,23 @@ namespace Crash.Helper.Controls
                 else mouse.Stop();
             }
             catch (Exception ex) { useMouse = false; HelperLog.Error("Configure mouse input", ex); }
-            service.SetMovement(directions, xyzSpeed, yawPitchSpeed, followPitch, useMouse && mouse.IsTargetForeground);
+            service.SetMovement(directions, xyzSpeed * (speedBoost ? 2 : 1), yawPitchSpeed, followPitch, useMouse && mouse.IsTargetForeground);
         }
 
         internal void ApplySettings(HelperSettings settings, IReadOnlyList<Hotkey> hotkeys)
         {
+            this.settings = settings;
             followPitch = settings.CameraMoveWithPitch;
             mouseControl = settings.CameraMouseControl;
+            invertMouseY = settings.CameraInvertMouseY;
+            xyzSpeed = settings.CameraXYZSpeed;
+            yawPitchSpeed = settings.CameraYawPitchSpeed;
+            mouseXSensitivity = settings.CameraMouseXSensitivity;
+            mouseYSensitivity = settings.CameraMouseYSensitivity;
+            if (!xyzSpeedEditor.Focused) xyzSpeedEditor.Text = xyzSpeed.ToString("R", CultureInfo.InvariantCulture);
+            if (!yawPitchSpeedEditor.Focused) yawPitchSpeedEditor.Text = yawPitchSpeed.ToString("R", CultureInfo.InvariantCulture);
+            if (!mouseXEditor.Focused) mouseXEditor.Text = mouseXSensitivity.ToString("R", CultureInfo.InvariantCulture);
+            if (!mouseYEditor.Focused) mouseYEditor.Text = mouseYSensitivity.ToString("R", CultureInfo.InvariantCulture);
             rotationHotkeys = hotkeys.Any(key => key.CameraAxis >= 3 && key.Key != 0);
             UpdateSpeedLayout();
             UpdateMovement();
@@ -318,9 +333,10 @@ namespace Crash.Helper.Controls
             UpdateMovement();
         }
 
-        internal void ToggleMouseY()
+        internal void SetSpeedBoost(bool enabled)
         {
-            if (inputEnabled && mouseControl && CanWrite(3)) invertMouseY = !invertMouseY;
+            speedBoost = enabled;
+            UpdateMovement();
         }
 
         private void OnMouseMovement(int x, int y)

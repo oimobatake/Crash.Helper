@@ -6,6 +6,7 @@ using System.Runtime.Serialization;
 using System.Runtime.Serialization.Json;
 using System.Xml;
 using System.Xml.Linq;
+using System.Globalization;
 
 namespace Crash.Helper
 {
@@ -25,6 +26,11 @@ namespace Crash.Helper
         [DataMember] public bool AdvancedControlsEnabled { get; set; }
         [DataMember] public bool CameraMoveWithPitch { get; set; } = true;
         [DataMember] public bool CameraMouseControl { get; set; }
+        [DataMember] public bool CameraInvertMouseY { get; set; }
+        [DataMember] public float CameraXYZSpeed { get; set; } = 30f;
+        [DataMember] public float CameraYawPitchSpeed { get; set; } = 0.03f;
+        [DataMember] public float CameraMouseXSensitivity { get; set; } = 0.002f;
+        [DataMember] public float CameraMouseYSensitivity { get; set; } = 0.002f;
         [DataMember] public Dictionary<string, HotkeyBinding> Hotkeys { get; set; } = new Dictionary<string, HotkeyBinding>();
 
         public HelperSettings Clone()
@@ -41,6 +47,11 @@ namespace Crash.Helper
             AdvancedControlsEnabled = source.AdvancedControlsEnabled;
             CameraMoveWithPitch = source.CameraMoveWithPitch;
             CameraMouseControl = source.CameraMouseControl;
+            CameraInvertMouseY = source.CameraInvertMouseY;
+            CameraXYZSpeed = source.CameraXYZSpeed;
+            CameraYawPitchSpeed = source.CameraYawPitchSpeed;
+            CameraMouseXSensitivity = source.CameraMouseXSensitivity;
+            CameraMouseYSensitivity = source.CameraMouseYSensitivity;
             Hotkeys = new Dictionary<string, HotkeyBinding>();
             foreach (var entry in source.Hotkeys)
                 Hotkeys[entry.Key] = new HotkeyBinding { Key = entry.Value.Key, Modifiers = entry.Value.Modifiers };
@@ -54,6 +65,10 @@ namespace Crash.Helper
                 var settings = (HelperSettings)new DataContractJsonSerializer(typeof(HelperSettings)).ReadObject(stream);
                 if (settings == null) throw new InvalidDataException("Settings are empty.");
                 if (settings.Hotkeys == null) settings.Hotkeys = new Dictionary<string, HotkeyBinding>();
+                if (!IsCameraValueValid(settings.CameraXYZSpeed)) settings.CameraXYZSpeed = 30f;
+                if (!IsCameraValueValid(settings.CameraYawPitchSpeed)) settings.CameraYawPitchSpeed = 0.03f;
+                if (!IsCameraValueValid(settings.CameraMouseXSensitivity)) settings.CameraMouseXSensitivity = 0.002f;
+                if (!IsCameraValueValid(settings.CameraMouseYSensitivity)) settings.CameraMouseYSensitivity = 0.002f;
                 if (string.IsNullOrWhiteSpace(settings.SteamPath)) settings.SteamPath = new HelperSettings().SteamPath;
                 return settings;
             }
@@ -70,9 +85,36 @@ namespace Crash.Helper
             // A file created by the Advanced Controls button can contain only its own setting.
             HotkeysEnabled = true;
             CameraMoveWithPitch = true;
+            CameraXYZSpeed = 30f;
+            CameraYawPitchSpeed = 0.03f;
+            CameraMouseXSensitivity = CameraMouseYSensitivity = 0.002f;
         }
 
         public static void SaveAdvancedControls(bool enabled)
+        {
+            SaveSingleSetting(nameof(AdvancedControlsEnabled), "boolean", enabled ? "true" : "false");
+        }
+
+        private static bool IsCameraValueValid(float value) => !float.IsNaN(value) && value >= 0 && value <= 1000;
+
+        public void SaveCameraValue(string name, float value)
+        {
+            if (!IsCameraValueValid(value)) throw new ArgumentOutOfRangeException(nameof(value));
+            if (name != nameof(CameraXYZSpeed) && name != nameof(CameraYawPitchSpeed) &&
+                name != nameof(CameraMouseXSensitivity) && name != nameof(CameraMouseYSensitivity))
+                throw new ArgumentException("Unknown camera setting.", nameof(name));
+            SaveSingleSetting(name, "number", value.ToString("R", CultureInfo.InvariantCulture));
+            // Apply the live value only after the single-property save succeeds.
+            switch (name)
+            {
+                case nameof(CameraXYZSpeed): CameraXYZSpeed = value; break;
+                case nameof(CameraYawPitchSpeed): CameraYawPitchSpeed = value; break;
+                case nameof(CameraMouseXSensitivity): CameraMouseXSensitivity = value; break;
+                case nameof(CameraMouseYSensitivity): CameraMouseYSensitivity = value; break;
+            }
+        }
+
+        private static void SaveSingleSetting(string name, string type, string value)
         {
             XDocument document;
             if (File.Exists(FilePath))
@@ -82,12 +124,12 @@ namespace Crash.Helper
                 if (document.Root?.Attribute("type")?.Value != "object") throw new InvalidDataException("Settings must be a JSON object.");
             }
             else document = new XDocument(new XElement("root", new XAttribute("type", "object")));
-            var setting = new XElement(nameof(AdvancedControlsEnabled), new XAttribute("type", "boolean"), enabled ? "true" : "false");
-            var previous = document.Root.Element(nameof(AdvancedControlsEnabled));
+            var setting = new XElement(name, new XAttribute("type", type), value);
+            var previous = document.Root.Element(name);
             if (previous == null) document.Root.Add(setting);
             else previous.ReplaceWith(setting);
             // Preserve saved bindings (including legacy names) and all other JSON members.
-            // Never serialize the live or draft Settings window from this button.
+            // Never serialize the live or draft Settings window from a single-property edit.
             SaveJson(writer => document.Root.WriteTo(writer));
         }
 

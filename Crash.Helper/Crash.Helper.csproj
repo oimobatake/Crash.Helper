@@ -165,6 +165,7 @@
     <Compile Include="HelperHotkeyActions.cs" />
     <Compile Include="Input\KeyboardHotkeyListener.cs" />
     <Compile Include="Input\MouseCameraListener.cs" />
+    <Compile Include="Input\ForegroundApplication.cs" />
     <Compile Include="Input\HotkeyManager.cs" />
     <Compile Include="Memory\SecretLevelRules.cs" />
     <Compile Include="Launcher\SteamGameLauncher.cs" />

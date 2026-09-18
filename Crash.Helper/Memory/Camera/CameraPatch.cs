@@ -13,6 +13,7 @@ namespace Crash.Helper.Memory.Camera
         private readonly CameraProcessMemory memory;
         private readonly CameraMemoryProfile profile;
         private readonly long positionCode, rotationCode;
+        private readonly long moduleBase;
         private long injection, cave, pointerStorage;
         private byte[] capturePatch;
         private bool installed, freezePosition, freezeRotation;
@@ -22,6 +23,7 @@ namespace Crash.Helper.Memory.Camera
 
         internal CameraPatch(Process process, long moduleBase, int moduleSize, CameraMemoryProfile profile)
         {
+            this.moduleBase = moduleBase;
             this.profile = profile ?? throw new ArgumentNullException(nameof(profile));
             memory = new CameraProcessMemory(process, moduleBase, moduleSize, profile.CapturePattern);
             positionCode = moduleBase + profile.PositionCodeOffset;
@@ -157,9 +159,30 @@ namespace Crash.Helper.Memory.Camera
             bool followPitch = false, double mouseYaw = 0, double mousePitch = 0)
         {
             if (!installed || HasExited) return;
+            if ((mouseYaw != 0 || mousePitch != 0) && IsPauseMenuOpen()) mouseYaw = mousePitch = 0;
             // Freeze removes the game writers. Movement must not suspend the entire game each frame.
             WriteValuesCore(null, true, current => CameraMovement.Delta(directions, xyzSpeed, rotationSpeed, seconds,
                 current[3], current[4], followPitch, mouseYaw, mousePitch));
+        }
+
+        private bool IsPauseMenuOpen()
+        {
+            if (profile.PauseMenu == null || profile.PauseMenu.Length == 0) return false;
+            try
+            {
+                long address = moduleBase;
+                for (int i = 0; i < profile.PauseMenu.Length - 1; i++)
+                {
+                    address = BitConverter.ToInt64(memory.Read(address + profile.PauseMenu[i], 8), 0);
+                    if (address == 0) return true;
+                }
+                return memory.Read(address + profile.PauseMenu[profile.PauseMenu.Length - 1], 1)[0] != 0;
+            }
+            catch (Win32Exception ex)
+            {
+                HelperLog.Error("Read pause menu for mouse control", ex);
+                return true;
+            }
         }
 
         private void WriteValuesCore(float?[] values, bool relative, Func<float[], float?[]> calculate = null)

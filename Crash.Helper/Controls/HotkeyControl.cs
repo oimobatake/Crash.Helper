@@ -57,10 +57,13 @@ namespace Crash.Helper.Controls
                     {
                         var followPitch = new CheckBox { Text = "Move in the pitch direction", AutoSize = true, Checked = draft.CameraMoveWithPitch };
                         var mouse = new CheckBox { Text = "Mouse control", AutoSize = true, Checked = draft.CameraMouseControl };
+                        var invert = new CheckBox { Text = "Invert mouse Y", AutoSize = true, Checked = draft.CameraInvertMouseY };
                         followPitch.CheckedChanged += (s, e) => draft.CameraMoveWithPitch = followPitch.Checked;
                         mouse.CheckedChanged += (s, e) => draft.CameraMouseControl = mouse.Checked;
+                        invert.CheckedChanged += (s, e) => draft.CameraInvertMouseY = invert.Checked;
                         table.Controls.Add(followPitch, 0, row++); table.SetColumnSpan(followPitch, 3);
                         table.Controls.Add(mouse, 0, row++); table.SetColumnSpan(mouse, 3);
+                        table.Controls.Add(invert, 0, row++); table.SetColumnSpan(invert, 3);
                     }
                 }
                 int index = i;

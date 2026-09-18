@@ -48,9 +48,11 @@ namespace Crash.Helper
             positionControl = new PositionControl(memory) { Enabled = false };
             cameraControl = new CameraControl();
             hotkeyManager = new HotkeyManager(HelperHotkeyActions.Create(memory, dataControl, levelSelector, positionControl, cameraControl), settings,
-                () => memory.ProcessHooked, action => { if (!IsDisposed && IsHandleCreated) BeginInvoke(action); });
+                () => memory.ProcessHooked, action => { if (!IsDisposed && IsHandleCreated) BeginInvoke(action); },
+                () => ForegroundApplication.IsGameOrHelper(memory.LoadMap.Process));
             cameraControl.EditingChanged += hotkeyManager.SetEditing;
             hotkeyManager.CameraMovementChanged += cameraControl.SetMovement;
+            hotkeyManager.CameraSpeedBoostChanged += cameraControl.SetSpeedBoost;
             Deactivate += (s, e) => cameraControl.EndEditing();
             processControl = new ProcessControl(memory, this);
             settingsButton = new Button { Text = "Settings", AutoSize = true };
