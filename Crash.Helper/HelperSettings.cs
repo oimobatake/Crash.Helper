@@ -53,6 +53,15 @@ namespace Crash.Helper
                     if (!settings.Hotkeys.ContainsKey("Save position")) settings.Hotkeys["Save position"] = legacyPositionBinding;
                     settings.Hotkeys.Remove("Save location");
                 }
+                if (settings.Hotkeys.TryGetValue("Teleport", out legacyPositionBinding))
+                {
+                    if (!settings.Hotkeys.ContainsKey("TP position")) settings.Hotkeys["TP position"] = legacyPositionBinding;
+                    settings.Hotkeys.Remove("Teleport");
+                }
+                settings.RenameBinding("Save position", "Position Save");
+                settings.RenameBinding("TP position", "Position TP");
+                settings.RenameBinding("Save camera", "Camera Save");
+                settings.RenameBinding("TP camera", "Camera TP");
                 if (string.IsNullOrWhiteSpace(settings.SteamPath)) settings.SteamPath = new HelperSettings().SteamPath;
                 return settings;
             }
@@ -66,6 +75,14 @@ namespace Crash.Helper
                 new DataContractJsonSerializer(typeof(HelperSettings)).WriteObject(writer, this);
             if (File.Exists(FilePath)) File.Replace(temporaryPath, FilePath, null);
             else File.Move(temporaryPath, FilePath);
+        }
+
+        private void RenameBinding(string oldName, string newName)
+        {
+            HotkeyBinding binding;
+            if (!Hotkeys.TryGetValue(oldName, out binding)) return;
+            if (!Hotkeys.ContainsKey(newName)) Hotkeys[newName] = binding;
+            Hotkeys.Remove(oldName);
         }
     }
 }

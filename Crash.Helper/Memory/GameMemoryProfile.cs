@@ -14,10 +14,12 @@ namespace Crash.Helper.Memory
         internal int[][] Position { get; private set; }
         internal int[][] Flags { get; private set; }
         internal byte?[] LevelLockPattern { get; private set; }
+        internal Camera.CameraMemoryProfile Camera { get; private set; }
 
         internal static readonly GameMemoryProfile Steam = new GameMemoryProfile
         {
             Name = "Steam", ModuleSize = 30883840,
+            Camera = Memory.Camera.CameraMemoryProfile.Steam,
             Lives = new[] { 0x01AA27C8, 0x10 },
             Masks = new[] { 0x01A69A98, 0x30, 0x1E0 },
             CurrentLevel = new[] { 0x01A5C6E0 },

@@ -145,6 +145,17 @@
     <Compile Include="Input\HotkeyDisplay.cs" />
     <Compile Include="Memory\GameFlag.cs" />
     <Compile Include="Memory\GameMemoryProfile.cs" />
+    <Compile Include="Memory\Camera\CameraMemoryProfile.cs" />
+    <Compile Include="Memory\Camera\CameraCode.cs" />
+    <Compile Include="Memory\Camera\CameraMovement.cs" />
+    <Compile Include="Input\KeyIdentity.cs" />
+    <Compile Include="HelperLog.cs" />
+    <Compile Include="Memory\Camera\CameraProcessMemory.cs" />
+    <Compile Include="Memory\Camera\CameraPatch.cs" />
+    <Compile Include="Memory\Camera\CameraService.cs" />
+    <Compile Include="Controls\CameraControl.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
     <Compile Include="Controls\PositionControl.cs">
       <SubType>UserControl</SubType>
     </Compile>

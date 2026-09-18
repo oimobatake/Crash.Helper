@@ -42,6 +42,11 @@ namespace Crash.Helper
 
 		public Action Callback { get; }
 
+        public string Group { get; set; } = "General";
+        public bool RepeatWhileHeld { get; set; }
+        public int CameraAxis { get; set; } = -1;
+        public int CameraDirection { get; set; }
+
 		public override string ToString()
 		{
 			if (Key == 0 && (!GamepadMask.HasValue || GamepadMask.Value == 0)) return "None";
@@ -78,14 +83,7 @@ namespace Crash.Helper
 
 			if ((Modifier & KeyModifiers.Win) != 0) AppendFunction("Win");
 
-            if (Key == (uint)System.Windows.Forms.Keys.Add)
-			{
-				AppendFunction('+');
-			}
-			else
-			{
-				if (Key != 0) AppendFunction(HotkeyDisplay.KeyName((System.Windows.Forms.Keys)Key));
-			}
+            if (Key != 0) AppendFunction(HotkeyDisplay.KeyName((System.Windows.Forms.Keys)Key));
 
             if (GamepadMask.HasValue && GamepadMask.Value != 0)
             {

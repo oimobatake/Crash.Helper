@@ -13,7 +13,11 @@ namespace Crash.Helper.Input
         private readonly HookCallback callback;
         private readonly HashSet<uint> pressedKeys = new HashSet<uint>();
         private IntPtr hook;
+        private bool initialEnterHeld;
         public event Action<uint, KeyModifiers> KeyPressed;
+        public event Action<uint> KeyReleased;
+
+        internal bool IsHeld(uint key) => pressedKeys.Contains(key) && GetAsyncKeyState(KeyIdentity.VirtualKey(key)) < 0;
 
         public KeyboardHotkeyListener() { callback = OnKeyboardInput; }
 
@@ -23,6 +27,8 @@ namespace Crash.Helper.Input
             pressedKeys.Clear();
             for (uint key = 1; key < 256; key++)
                 if (GetAsyncKeyState((int)key) < 0) pressedKeys.Add(key);
+            initialEnterHeld = pressedKeys.Contains((uint)Keys.Enter);
+            if (initialEnterHeld) pressedKeys.Add(KeyIdentity.NumEnter);
             hook = SetWindowsHookEx(13, callback, GetModuleHandle(null), 0);
             if (hook == IntPtr.Zero) throw new Win32Exception(Marshal.GetLastWin32Error());
         }
@@ -32,6 +38,7 @@ namespace Crash.Helper.Input
             if (hook != IntPtr.Zero) UnhookWindowsHookEx(hook);
             hook = IntPtr.Zero;
             pressedKeys.Clear();
+            initialEnterHeld = false;
         }
 
         public static KeyModifiers CurrentModifiers
@@ -54,8 +61,19 @@ namespace Crash.Helper.Input
                 try
                 {
                     uint key = unchecked((uint)Marshal.ReadInt32(data));
+                    key = KeyIdentity.Encode(key, (Marshal.ReadInt32(data, 8) & 1) != 0);
                     int kind = message.ToInt32();
-                    if (kind == 0x0101 || kind == 0x0105) pressedKeys.Remove(key);
+                    if (kind == 0x0101 || kind == 0x0105)
+                    {
+                        if (initialEnterHeld && KeyIdentity.VirtualKey(key) == (int)Keys.Enter)
+                        {
+                            pressedKeys.Remove((uint)Keys.Enter);
+                            pressedKeys.Remove(KeyIdentity.NumEnter);
+                            initialEnterHeld = false;
+                        }
+                        pressedKeys.Remove(key);
+                        KeyReleased?.Invoke(key);
+                    }
                     else if ((kind == 0x0100 || kind == 0x0104) && pressedKeys.Add(key))
                         KeyPressed?.Invoke(key, CurrentModifiers);
                 }

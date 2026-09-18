@@ -48,6 +48,18 @@ namespace Crash.Helper.Memory.LevelLock
 
         internal static void RelocateThreads(Process process, long injection, long originalTest, bool installing)
         {
+            RelocateThreads(process, rip =>
+            {
+                if (installing && rip == injection + 3) return originalTest;
+                if (!installing && rip == injection + 5) return injection + 6;
+                if (rip > injection && rip < injection + 6)
+                    throw new InvalidOperationException("A game thread is inside an unexpected hook instruction.");
+                return rip;
+            });
+        }
+
+        internal static void RelocateThreads(Process process, Func<long, long> relocate)
+        {
             process.Refresh();
             foreach (ProcessThread thread in process.Threads)
             {
@@ -61,11 +73,7 @@ namespace Crash.Helper.Memory.LevelLock
                     Marshal.WriteInt32(context, 48, 0x00100001); // AMD64 CONTEXT_CONTROL
                     Check(GetThreadContext(handle, context), "Read game thread context");
                     long rip = Marshal.ReadInt64(context, 248);
-                    long replacement = rip;
-                    if (installing && rip == injection + 3) replacement = originalTest;
-                    else if (!installing && rip == injection + 5) replacement = injection + 6;
-                    else if (rip > injection && rip < injection + 6)
-                        throw new InvalidOperationException("A game thread is inside an unexpected hook instruction.");
+                    long replacement = relocate(rip);
                     if (replacement != rip)
                     {
                         Marshal.WriteInt64(context, 248, replacement);

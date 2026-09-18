@@ -15,6 +15,8 @@ namespace Crash.Helper
         private readonly LevelSelectorControl levelSelector;
         private readonly PositionControl positionControl;
         private readonly GroupBox positionBox;
+        private readonly CameraControl cameraControl;
+        private readonly GroupBox cameraBox;
         private readonly ProcessControl processControl;
         private readonly Timer refreshTimer;
         private readonly HelperSettings settings;
@@ -41,8 +43,12 @@ namespace Crash.Helper
             launcher = new SteamGameLauncher(settings);
             levelSelector.LaunchRequested += LaunchGame;
             positionControl = new PositionControl(memory) { Enabled = false };
-            hotkeyManager = new HotkeyManager(HelperHotkeyActions.Create(memory, dataControl, levelSelector, positionControl), settings,
+            cameraControl = new CameraControl();
+            hotkeyManager = new HotkeyManager(HelperHotkeyActions.Create(memory, dataControl, levelSelector, positionControl, cameraControl), settings,
                 () => memory.ProcessHooked, action => { if (!IsDisposed && IsHandleCreated) BeginInvoke(action); });
+            cameraControl.EditingChanged += hotkeyManager.SetEditing;
+            hotkeyManager.CameraMovementChanged += cameraControl.SetMovement;
+            Deactivate += (s, e) => cameraControl.EndEditing();
             processControl = new ProcessControl(memory, this);
             settingsButton = new Button { Text = "Settings", AutoSize = true };
             settingsButton.Click += (s, e) =>
@@ -50,21 +56,32 @@ namespace Crash.Helper
                 using (var window = new SettingsForm(settings, hotkeyManager, memory, () => dataControl.Enabled)) window.ShowDialog(this);
                 hotkeyManager.SetEditing(false);
             };
-            flowLayoutPanel.Controls.Add(processControl);
-            flowLayoutPanel.Controls.Add(dataControl);
-            flowLayoutPanel.Controls.Add(levelSelector);
-            positionBox = new GroupBox { Text = "Position", Size = new Size(285, 138), Margin = new Padding(0, 5, 0, 0), Enabled = false };
+            flowLayoutPanel.FlowDirection = FlowDirection.LeftToRight;
+            flowLayoutPanel.WrapContents = false;
+            var leftColumn = new FlowLayoutPanel { FlowDirection = FlowDirection.TopDown, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, WrapContents = false, Margin = Padding.Empty };
+            var rightColumn = new FlowLayoutPanel { FlowDirection = FlowDirection.TopDown, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, WrapContents = false, Margin = new Padding(12, 0, 0, 0) };
+            flowLayoutPanel.Controls.Add(leftColumn);
+            flowLayoutPanel.Controls.Add(rightColumn);
+            leftColumn.Controls.Add(processControl);
+            leftColumn.Controls.Add(dataControl);
+            leftColumn.Controls.Add(levelSelector);
+            positionBox = new GroupBox { Text = "Position", Size = new Size(285, 138), Margin = new Padding(0, 3, 0, 0), Enabled = false };
             positionControl.Location = new Point(7, 19);
             positionControl.Margin = Padding.Empty;
             positionBox.Controls.Add(positionControl);
-            flowLayoutPanel.Controls.Add(positionBox);
+            rightColumn.Controls.Add(positionBox);
+            cameraBox = new GroupBox { Text = "Camera", Size = new Size(285, 250), Margin = new Padding(0, 5, 0, 0), Enabled = false };
+            cameraControl.Location = new Point(7, 19);
+            cameraControl.Margin = Padding.Empty;
+            cameraBox.Controls.Add(cameraControl);
+            rightColumn.Controls.Add(cameraBox);
             var settingsRow = new Panel { Height = settingsButton.PreferredSize.Height, Width = levelSelector.LaunchButtonRight, Margin = new Padding(levelSelector.Margin.Left, 3, levelSelector.Margin.Right, 3) };
             settingsButton.AutoSize = false;
             settingsButton.Size = settingsButton.PreferredSize;
             settingsButton.Location = new Point(settingsRow.Width - settingsButton.Width, 0);
             settingsButton.Anchor = AnchorStyles.Top | AnchorStyles.Right;
             settingsRow.Controls.Add(settingsButton);
-            flowLayoutPanel.Controls.Add(settingsRow);
+            leftColumn.Controls.Add(settingsRow);
             levelSelector.Layout += (s, e) => settingsRow.Width = levelSelector.LaunchButtonRight;
             flowLayoutPanel.Height--;
             refreshTimer = new Timer { Interval = 100 };
@@ -74,11 +91,14 @@ namespace Crash.Helper
 
         public void ApplyAvailability(bool helperEnabled, bool ready)
         {
+            if (levelLockCleanupPending || levelLockCleanupComplete) { helperEnabled = false; ready = false; }
             ready = ready && memory.IsSupportedVersion;
             dataControl.Enabled = ready;
             positionBox.Enabled = ready;
             positionControl.Enabled = ready;
             positionControl.RefreshValues();
+            cameraBox.Enabled = ready && memory.Profile?.Camera != null;
+            cameraControl.SetAvailability(ready ? memory.LoadMap.Process : null, ready ? memory.Profile?.Camera : null);
             levelSelector.ApplyAvailability(helperEnabled, ready);
             settingsButton.Enabled = helperEnabled;
             hotkeyManager.SetReady(ready);
@@ -113,13 +133,14 @@ namespace Crash.Helper
                 ApplyAvailability(false, false);
                 try
                 {
-                    await dataControl.ShutdownLevelLockAsync();
+                    await System.Threading.Tasks.Task.WhenAll(cameraControl.ShutdownAsync(), dataControl.ShutdownLevelLockAsync());
                     levelLockCleanupComplete = true;
                 }
                 catch (Exception ex)
                 {
-                    MessageBox.Show(this, "Could not remove the level hook.\n" + ex.Message,
-                        "Level lock", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    HelperLog.Error("Restore game hooks on close", ex);
+                    MessageBox.Show(this, "Could not restore game hooks.\n" + ex.Message,
+                        "Crash Helper", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
                 finally { levelLockCleanupPending = false; }
                 if (levelLockCleanupComplete) Close();

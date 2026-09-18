@@ -19,23 +19,37 @@ namespace Crash.Helper.Controls
         {
             this.manager = manager;
             this.draft = draft;
-            bindings = manager.Hotkeys.Select(key => new Hotkey(key.Label, draft.Hotkeys[key.Label].Modifiers, draft.Hotkeys[key.Label].Key, key.Callback)).ToList();
+            bindings = manager.Hotkeys.Select(key => new Hotkey(key.Label, draft.Hotkeys[key.Label].Modifiers, draft.Hotkeys[key.Label].Key, key.Callback) { Group = key.Group }).ToList();
             AutoSize = true;
-            MinimumSize = new Size(420, 0);
+            MinimumSize = new Size(424, 0);
             var box = new GroupBox { Text = "Hotkeys", AutoSize = true, Dock = DockStyle.Top, Padding = new Padding(10) };
-            var table = new TableLayoutPanel { AutoSize = true, ColumnCount = 3, Dock = DockStyle.Fill };
+            var groups = new TableLayoutPanel { AutoSize = true, ColumnCount = 1, Dock = DockStyle.Fill };
             var header = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = Padding.Empty };
             var enabled = new CheckBox { Text = "Hotkeys enabled", Checked = draft.HotkeysEnabled, AutoSize = true };
             status = new Label { AutoSize = true, Anchor = AnchorStyles.Left, Margin = new Padding(6, 3, 3, 3) };
             enabled.CheckedChanged += (s, e) => draft.HotkeysEnabled = enabled.Checked;
             header.Controls.Add(enabled);
             header.Controls.Add(status);
-            table.Controls.Add(header, 0, 0);
-            table.SetColumnSpan(header, 3);
+            groups.Controls.Add(header, 0, 0);
+            TableLayoutPanel table = null;
+            string currentGroup = null;
+            int row = 0;
             for (int i = 0; i < bindings.Count; i++)
             {
+                if (bindings[i].Group != currentGroup)
+                {
+                    currentGroup = bindings[i].Group;
+                    var group = new GroupBox { Text = currentGroup, AutoSize = true, Dock = DockStyle.Fill, Padding = new Padding(6), Margin = new Padding(0, 4, 0, 4) };
+                    table = new TableLayoutPanel { AutoSize = true, ColumnCount = 3, Dock = DockStyle.Fill };
+                    table.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+                    table.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+                    table.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+                    group.Controls.Add(table);
+                    groups.Controls.Add(group, 0, groups.Controls.Count);
+                    row = 0;
+                }
                 int index = i;
-                var editor = new TextBox { ReadOnly = true, Width = 170, Text = bindings[i].ToString(), ShortcutsEnabled = false };
+                var editor = new HotkeyTextBox { ReadOnly = true, Width = 170, Text = bindings[i].ToString(), ShortcutsEnabled = false };
                 editor.Enter += (s, e) => manager.SetEditing(true);
                 editor.Leave += (s, e) => { editor.Text = bindings[index].ToString(); editor.Select(0, 0); manager.SetEditing(false); };
                 editor.PreviewKeyDown += (s, e) => e.IsInputKey = true;
@@ -43,11 +57,12 @@ namespace Crash.Helper.Controls
                 var reset = new Button { Text = "Reset", AutoSize = true };
                 reset.Click += (s, e) => SetBinding(index, 0, KeyModifiers.None);
                 editors.Add(editor);
-                table.Controls.Add(new Label { Text = bindings[i].Label, AutoSize = true, Anchor = AnchorStyles.Left }, 0, i + 1);
-                table.Controls.Add(editor, 1, i + 1);
-                table.Controls.Add(reset, 2, i + 1);
+                table.Controls.Add(new Label { Text = bindings[i].Label, AutoSize = true, Anchor = AnchorStyles.Left }, 0, row);
+                table.Controls.Add(editor, 1, row);
+                table.Controls.Add(reset, 2, row);
+                row++;
             }
-            box.Controls.Add(table);
+            box.Controls.Add(groups);
             Controls.Add(box);
             manager.StatusChanged += OnStatusChanged;
             OnStatusChanged(this, EventArgs.Empty);
@@ -69,7 +84,9 @@ namespace Crash.Helper.Controls
             if (e.Alt) modifiers |= KeyModifiers.Alt;
             if (e.Shift) modifiers |= KeyModifiers.Shift;
             modifiers |= KeyboardHotkeyListener.CurrentModifiers & KeyModifiers.Win;
-            SetBinding(index, (uint)e.KeyCode, modifiers);
+            uint key = (uint)e.KeyCode;
+            if (e.KeyCode == Keys.Enter && ((HotkeyTextBox)editors[index]).PhysicalKey == KeyIdentity.NumEnter) key = KeyIdentity.NumEnter;
+            SetBinding(index, key, modifiers);
         }
 
         private void SetBinding(int index, uint key, KeyModifiers modifiers)

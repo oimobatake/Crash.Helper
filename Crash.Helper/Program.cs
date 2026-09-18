@@ -13,7 +13,7 @@ namespace Crash.Helper
 		{
 			Application.EnableVisualStyles();
 			Application.SetCompatibleTextRenderingDefault(false);
-			Application.Run(new HelperForm());
+            using (var helper = new HelperForm()) Application.Run(helper);
 		}
 	}
 }

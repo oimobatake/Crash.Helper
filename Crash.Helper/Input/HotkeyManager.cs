@@ -10,6 +10,10 @@ namespace Crash.Helper.Input
         private readonly Func<bool> gameAvailable;
         private readonly Action<Action> dispatch;
         private readonly KeyboardHotkeyListener listener = new KeyboardHotkeyListener();
+        private readonly System.Windows.Forms.Timer repeatTimer = new System.Windows.Forms.Timer { Interval = 8 };
+        private readonly HashSet<Hotkey> heldActions = new HashSet<Hotkey>();
+        private int[] movement = new int[5];
+        public event Action<int[]> CameraMovementChanged;
         private bool ready;
         private bool editing;
         private bool disposed;
@@ -39,6 +43,8 @@ namespace Crash.Helper.Input
                 hotkey.Modifier = binding.Modifiers;
             }
             listener.KeyPressed += OnKeyPressed;
+            listener.KeyReleased += OnKeyReleased;
+            repeatTimer.Tick += (s, e) => RepeatHeldActions();
             UpdateState();
         }
 
@@ -67,12 +73,15 @@ namespace Crash.Helper.Input
             return true;
         }
 
-        public void SetReady(bool value) { ready = value; UpdateState(); }
-        public void SetEditing(bool value) { editing = value; UpdateState(); }
+        public void SetReady(bool value) { if (ready != value) { ready = value; UpdateState(); } }
+        public void SetEditing(bool value) { if (editing != value) { editing = value; UpdateState(); } }
 
         private void UpdateState()
         {
             generation++;
+            heldActions.Clear();
+            PublishMovement();
+            repeatTimer.Stop();
             IsActive = false;
             if (disposed) Status = "Stopped.";
             else if (!Enabled) Status = "Disabled.";
@@ -93,6 +102,12 @@ namespace Crash.Helper.Input
             if (!IsActive) return;
             var hotkey = Hotkeys.FirstOrDefault(h => h.Key == key && h.Modifier == modifiers);
             if (hotkey == null) return;
+            if (hotkey.RepeatWhileHeld)
+            {
+                heldActions.Add(hotkey);
+                repeatTimer.Start();
+                if (hotkey.CameraAxis >= 0) { PublishMovement(); return; }
+            }
             int pendingGeneration = generation;
             // Memory operations run later on the UI thread, outside the keyboard hook.
             dispatch(() =>
@@ -102,11 +117,50 @@ namespace Crash.Helper.Input
             });
         }
 
+        private void OnKeyReleased(uint key)
+        {
+            heldActions.RemoveWhere(h => h.Key == key);
+            PublishMovement();
+            if (heldActions.Count == 0) repeatTimer.Stop();
+        }
+
+        private void RepeatHeldActions()
+        {
+            if (!IsActive || !ready || editing || !Enabled || !gameAvailable())
+            {
+                heldActions.Clear();
+                PublishMovement();
+                repeatTimer.Stop();
+                return;
+            }
+            var modifiers = KeyboardHotkeyListener.CurrentModifiers;
+            foreach (var action in heldActions.ToArray())
+            {
+                if (!listener.IsHeld(action.Key) || action.Modifier != modifiers) heldActions.Remove(action);
+                else if (action.CameraAxis < 0) action.Callback();
+            }
+            PublishMovement();
+            if (heldActions.Count == 0) repeatTimer.Stop();
+        }
+
+        private void PublishMovement()
+        {
+            var next = new int[5];
+            foreach (var action in heldActions)
+                if (action.CameraAxis >= 0 && action.CameraAxis < next.Length) next[action.CameraAxis] += action.CameraDirection;
+            for (int i = 0; i < next.Length; i++) next[i] = Math.Sign(next[i]);
+            if (next.SequenceEqual(movement)) return;
+            movement = next;
+            CameraMovementChanged?.Invoke((int[])next.Clone());
+        }
+
         public void Dispose()
         {
             disposed = true;
             UpdateState();
             listener.KeyPressed -= OnKeyPressed;
+            listener.KeyReleased -= OnKeyReleased;
+            repeatTimer.Dispose();
             listener.Dispose();
         }
     }
