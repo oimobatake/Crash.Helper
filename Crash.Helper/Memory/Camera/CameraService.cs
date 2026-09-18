@@ -75,7 +75,7 @@ namespace Crash.Helper.Memory.Camera
                         {
                             bool apply;
                             lock (sync) apply = !stopping && active && directions.SequenceEqual(input);
-                            if (apply) patch.Move(CameraMovement.Delta(input, xyz, rotation, elapsed));
+                            if (apply) patch.Move(input, xyz, rotation, elapsed);
                         }
                         catch (Exception ex)
                         {

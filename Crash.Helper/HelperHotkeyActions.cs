@@ -29,19 +29,31 @@ namespace Crash.Helper
                 new Hotkey("Position TP", KeyModifiers.None, 0, position.Teleport),
                 new Hotkey("Freeze XYZ", KeyModifiers.None, 0, () => camera.ToggleFreeze(false)),
                 new Hotkey("Freeze YawPitch", KeyModifiers.None, 0, () => camera.ToggleFreeze(true)),
+                CameraMovement("Forward", 1, 1),
+                CameraMovement("Back", 1, -1),
+                CameraMovement("Left", 0, -1),
+                CameraMovement("Right", 0, 1),
+                CameraMovement("Up", 2, 1),
+                CameraMovement("Down", 2, -1),
+                CameraMovement("Yaw (Left)", 3, 1),
+                CameraMovement("Yaw (Right)", 3, -1),
+                CameraMovement("Pitch (Up)", 4, -1),
+                CameraMovement("Pitch (Down)", 4, 1),
                 new Hotkey("Camera Save", KeyModifiers.None, 0, camera.SaveCamera),
                 new Hotkey("Camera TP", KeyModifiers.None, 0, camera.Teleport)
             };
             for (int i = 0; i < hotkeys.Count; i++)
                 hotkeys[i].Group = i < 6 ? "Data" : i < 12 ? "Level" : i < 17 ? "Position" : "Camera";
-            string[] axes = { "X", "Y", "Z", "Yaw", "Pitch" };
-            for (int i = 0; i < axes.Length; i++)
-            {
-                int axis = i;
-                hotkeys.Add(new Hotkey("Camera " + axes[i] + "+", KeyModifiers.None, 0, () => { }) { Group = "Camera", RepeatWhileHeld = true, CameraAxis = axis, CameraDirection = 1 });
-                hotkeys.Add(new Hotkey("Camera " + axes[i] + "-", KeyModifiers.None, 0, () => { }) { Group = "Camera", RepeatWhileHeld = true, CameraAxis = axis, CameraDirection = -1 });
-            }
             return hotkeys;
+        }
+
+        private static Hotkey CameraMovement(string name, int axis, int direction)
+        {
+            // Keep movement axes independent of the display order.
+            return new Hotkey("Camera " + name, KeyModifiers.None, 0, () => { })
+            {
+                RepeatWhileHeld = true, CameraAxis = axis, CameraDirection = direction
+            };
         }
     }
 }

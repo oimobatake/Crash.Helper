@@ -14,7 +14,7 @@ namespace Crash.Helper.Controls
         private bool showCurrentLevel;
         private bool mapLockActive;
 
-        internal void AttachLevelControls(System.Windows.Forms.GroupBox levelBox)
+        internal void AttachLevelControls(System.Windows.Forms.GroupBox levelBox, System.Windows.Forms.Control levelList)
         {
             levelLabel.Text = "Level:";
             nowMapLabels.Text = "-";
@@ -28,6 +28,9 @@ namespace Crash.Helper.Controls
                 control.Enabled = control != secretLevelCheckbox && Enabled;
                 levelBox.Controls.Add(control);
             }
+            // Keep the checkbox aligned after inherited font/DPI scaling and reparenting.
+            levelBox.Layout += (s, e) => freezeLevelCheckbox.Left = levelList.Left;
+            freezeLevelCheckbox.Left = levelList.Left;
             // These controls now live outside Data, but still follow the helper/game availability.
             EnabledChanged += (s, e) =>
             {

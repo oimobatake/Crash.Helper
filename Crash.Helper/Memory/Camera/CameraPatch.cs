@@ -153,18 +153,19 @@ namespace Crash.Helper.Memory.Camera
             memory.Write(pointerStorage + 16, owner);
         }
 
-        internal void Move(float?[] delta)
+        internal void Move(int[] directions, float xyzSpeed, float rotationSpeed, double seconds)
         {
             if (!installed || HasExited) return;
             // Freeze removes the game writers. Movement must not suspend the entire game each frame.
-            WriteValuesCore(delta, true);
+            WriteValuesCore(null, true, current => CameraMovement.Delta(directions, xyzSpeed, rotationSpeed, seconds, current[3]));
         }
 
-        private void WriteValuesCore(float?[] values, bool relative)
+        private void WriteValuesCore(float?[] values, bool relative, Func<float[], float?[]> calculate = null)
         {
             long address = BitConverter.ToInt64(memory.Read(pointerStorage, 8), 0);
             var current = ReadValues();
             if (current == null || BitConverter.ToInt64(memory.Read(pointerStorage, 8), 0) != address) return;
+            if (calculate != null) values = calculate(current);
             for (int i = 0; i < 5; i++)
             {
                 if (!values[i].HasValue || !(i < 3 ? freezePosition : freezeRotation)) continue;

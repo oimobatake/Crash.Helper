@@ -60,6 +60,8 @@ namespace Crash.Helper.Controls
             InitializeComponent();
         }
 
+        public bool HelperEnabled => helperCheckbox.Checked;
+
         public void Rescan(bool skipFirstCheck = false)
 		{
 			if (!helperCheckbox.Checked) { UpdateVersionLabel(); parent.ApplyAvailability(false, false); return; }
@@ -86,7 +88,7 @@ namespace Crash.Helper.Controls
 
         private void UpdateVersionLabel()
         {
-            versionLabel.Text = "Version: " + (memory != null && memory.ProcessHooked ? memory.VersionName : "Unknown");
+            versionLabel.Text = "Version: " + (helperCheckbox.Checked && memory != null && memory.ProcessHooked ? memory.VersionName : "Unknown");
         }
 
 		public void OnUnhook()

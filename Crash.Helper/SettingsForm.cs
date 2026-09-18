@@ -17,7 +17,7 @@ namespace Crash.Helper
         private readonly TabControl tabs;
         private string pathBeforeEdit;
 
-        internal SettingsForm(HelperSettings settings, HotkeyManager manager, CrashMemory memory, Func<bool> canEditGame)
+        internal SettingsForm(HelperSettings settings, HotkeyManager manager, CrashMemory memory, Func<bool> canEditGame, bool helperEnabled)
         {
             this.settings = settings;
             this.manager = manager;
@@ -42,7 +42,7 @@ namespace Crash.Helper
             pathRow.Controls.Add(path);
             pathRow.Controls.Add(browse);
             layout.Controls.Add(pathRow);
-            layout.Controls.Add(new HotkeyControl(manager, draft));
+            layout.Controls.Add(new HotkeyControl(manager, draft) { Enabled = helperEnabled });
             helperPage.Controls.Add(layout);
             var footer = new Panel { Dock = DockStyle.Bottom, Height = 44, Padding = new Padding(8) };
             save = new Button { Text = "Save", Size = new Size(75, 25), Anchor = AnchorStyles.Top | AnchorStyles.Right };

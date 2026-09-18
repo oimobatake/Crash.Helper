@@ -276,7 +276,7 @@ namespace Crash.Helper.Controls
             levelBox.Controls.Add(lockButton);
             levelBox.Controls.Add(stopButton);
             levelBox.Controls.Add(launchButton);
-            dataControl.AttachLevelControls(levelBox);
+            dataControl.AttachLevelControls(levelBox, combo);
             this.Controls.Add(levelBox);
 
             ApplyAvailability(true, false);
@@ -285,9 +285,9 @@ namespace Crash.Helper.Controls
         public event Action<string> LaunchRequested;
         public int LaunchButtonRight => launchButton.Right;
 
-        public void ApplyAvailability(bool helperEnabled, bool ready)
+        public void ApplyAvailability(bool canConfigure, bool ready)
         {
-            combo.Enabled = helperEnabled;
+            combo.Enabled = canConfigure;
             lockButton.Enabled = ready;
             stopButton.Enabled = ready;
             launchButton.Enabled = true;

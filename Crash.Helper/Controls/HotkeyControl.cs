@@ -13,6 +13,7 @@ namespace Crash.Helper.Controls
         private readonly HelperSettings draft;
         private readonly List<Hotkey> bindings;
         private readonly List<TextBox> editors = new List<TextBox>();
+        private readonly List<GroupBox> bindingGroups = new List<GroupBox>();
         private readonly Label status;
 
         internal HotkeyControl(HotkeyManager manager, HelperSettings draft)
@@ -27,7 +28,11 @@ namespace Crash.Helper.Controls
             var header = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = Padding.Empty };
             var enabled = new CheckBox { Text = "Hotkeys enabled", Checked = draft.HotkeysEnabled, AutoSize = true };
             status = new Label { AutoSize = true, Anchor = AnchorStyles.Left, Margin = new Padding(6, 3, 3, 3) };
-            enabled.CheckedChanged += (s, e) => draft.HotkeysEnabled = enabled.Checked;
+            enabled.CheckedChanged += (s, e) =>
+            {
+                draft.HotkeysEnabled = enabled.Checked;
+                foreach (var group in bindingGroups) group.Enabled = enabled.Checked;
+            };
             header.Controls.Add(enabled);
             header.Controls.Add(status);
             groups.Controls.Add(header, 0, 0);
@@ -39,7 +44,8 @@ namespace Crash.Helper.Controls
                 if (bindings[i].Group != currentGroup)
                 {
                     currentGroup = bindings[i].Group;
-                    var group = new GroupBox { Text = currentGroup, AutoSize = true, Dock = DockStyle.Fill, Padding = new Padding(6), Margin = new Padding(0, 4, 0, 4) };
+                    var group = new GroupBox { Text = currentGroup, AutoSize = true, Dock = DockStyle.Fill, Padding = new Padding(6), Margin = new Padding(0, 4, 0, 4), Enabled = draft.HotkeysEnabled };
+                    bindingGroups.Add(group);
                     table = new TableLayoutPanel { AutoSize = true, ColumnCount = 3, Dock = DockStyle.Fill };
                     table.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
                     table.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
@@ -91,11 +97,6 @@ namespace Crash.Helper.Controls
 
         private void SetBinding(int index, uint key, KeyModifiers modifiers)
         {
-            if (key != 0 && bindings.Where((binding, i) => i != index).Any(binding => binding.Key == key && binding.Modifier == modifiers))
-            {
-                MessageBox.Show(this, "This hotkey is already assigned.", "Hotkeys", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
-            }
             bindings[index].Key = key;
             bindings[index].Modifier = modifiers;
             draft.Hotkeys[bindings[index].Label] = new HotkeyBinding { Key = key, Modifiers = modifiers };

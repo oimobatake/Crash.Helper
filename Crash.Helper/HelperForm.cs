@@ -21,10 +21,13 @@ namespace Crash.Helper
         private readonly Timer refreshTimer;
         private readonly HelperSettings settings;
         private readonly Button settingsButton;
+        private readonly CheckBox advancedButton;
+        private readonly FlowLayoutPanel rightColumn;
         private readonly HotkeyManager hotkeyManager;
         private readonly SteamGameLauncher launcher;
         private bool levelLockCleanupComplete;
         private bool levelLockCleanupPending;
+        private bool updatingAdvancedButton;
 
         public HelperForm() : this(new CrashMemory()) { }
 
@@ -53,19 +56,24 @@ namespace Crash.Helper
             settingsButton = new Button { Text = "Settings", AutoSize = true };
             settingsButton.Click += (s, e) =>
             {
-                using (var window = new SettingsForm(settings, hotkeyManager, memory, () => dataControl.Enabled)) window.ShowDialog(this);
+                using (var window = new SettingsForm(settings, hotkeyManager, memory, () => dataControl.Enabled, processControl.HelperEnabled)) window.ShowDialog(this);
                 hotkeyManager.SetEditing(false);
+            };
+            advancedButton = new CheckBox
+            {
+                Text = "Advanced Controls", Appearance = Appearance.Button, AutoSize = true,
+                TextAlign = ContentAlignment.MiddleCenter, Checked = settings.AdvancedControlsEnabled
             };
             flowLayoutPanel.FlowDirection = FlowDirection.LeftToRight;
             flowLayoutPanel.WrapContents = false;
             var leftColumn = new FlowLayoutPanel { FlowDirection = FlowDirection.TopDown, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, WrapContents = false, Margin = Padding.Empty };
-            var rightColumn = new FlowLayoutPanel { FlowDirection = FlowDirection.TopDown, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, WrapContents = false, Margin = new Padding(12, 0, 0, 0) };
+            rightColumn = new FlowLayoutPanel { FlowDirection = FlowDirection.TopDown, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, WrapContents = false, Margin = new Padding(12, 0, 0, 0), Visible = settings.AdvancedControlsEnabled };
             flowLayoutPanel.Controls.Add(leftColumn);
             flowLayoutPanel.Controls.Add(rightColumn);
             leftColumn.Controls.Add(processControl);
             leftColumn.Controls.Add(dataControl);
             leftColumn.Controls.Add(levelSelector);
-            positionBox = new GroupBox { Text = "Position", Size = new Size(285, 138), Margin = new Padding(0, 3, 0, 0), Enabled = false };
+            positionBox = new GroupBox { Text = "Position", Size = new Size(285, 138), Margin = Padding.Empty, Enabled = false };
             positionControl.Location = new Point(7, 19);
             positionControl.Margin = Padding.Empty;
             positionBox.Controls.Add(positionControl);
@@ -75,32 +83,65 @@ namespace Crash.Helper
             cameraControl.Margin = Padding.Empty;
             cameraBox.Controls.Add(cameraControl);
             rightColumn.Controls.Add(cameraBox);
-            var settingsRow = new Panel { Height = settingsButton.PreferredSize.Height, Width = levelSelector.LaunchButtonRight, Margin = new Padding(levelSelector.Margin.Left, 3, levelSelector.Margin.Right, 3) };
+            var settingsRow = new Panel { Height = Math.Max(settingsButton.PreferredSize.Height, advancedButton.PreferredSize.Height), Width = levelSelector.Width, Margin = new Padding(levelSelector.Margin.Left, 3, levelSelector.Margin.Right, 3) };
             settingsButton.AutoSize = false;
             settingsButton.Size = settingsButton.PreferredSize;
-            settingsButton.Location = new Point(settingsRow.Width - settingsButton.Width, 0);
-            settingsButton.Anchor = AnchorStyles.Top | AnchorStyles.Right;
             settingsRow.Controls.Add(settingsButton);
+            settingsRow.Controls.Add(advancedButton);
+            settingsRow.Layout += (s, e) =>
+            {
+                int width = settingsButton.Width + 8 + advancedButton.Width;
+                settingsButton.Location = new Point((settingsRow.ClientSize.Width - width) / 2, 0);
+                advancedButton.Location = new Point(settingsButton.Right + 8, 0);
+            };
             leftColumn.Controls.Add(settingsRow);
-            levelSelector.Layout += (s, e) => settingsRow.Width = levelSelector.LaunchButtonRight;
+            levelSelector.Layout += (s, e) => settingsRow.Width = levelSelector.Width;
             flowLayoutPanel.Height--;
             refreshTimer = new Timer { Interval = 100 };
             refreshTimer.Tick += (s, e) => RefreshHelper();
+            advancedButton.CheckedChanged += (s, e) => ToggleAdvancedControls();
             processControl.Rescan();
+        }
+
+        private void ToggleAdvancedControls()
+        {
+            if (updatingAdvancedButton) return;
+            try
+            {
+                HelperSettings.SaveAdvancedControls(advancedButton.Checked);
+                settings.AdvancedControlsEnabled = advancedButton.Checked;
+            }
+            catch (Exception ex)
+            {
+                updatingAdvancedButton = true;
+                advancedButton.Checked = settings.AdvancedControlsEnabled;
+                updatingAdvancedButton = false;
+                HelperLog.Error("Save Advanced Controls", ex);
+                MessageBox.Show(this, "Could not save Advanced Controls.\n" + ex.Message, "Settings", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+            cameraControl.EndEditing();
+            processControl.Rescan();
+            SuspendLayout();
+            rightColumn.Visible = settings.AdvancedControlsEnabled;
+            ResumeLayout(true);
+            PerformLayout();
         }
 
         public void ApplyAvailability(bool helperEnabled, bool ready)
         {
-            if (levelLockCleanupPending || levelLockCleanupComplete) { helperEnabled = false; ready = false; }
-            ready = ready && memory.IsSupportedVersion;
+            bool canConfigure = !levelLockCleanupPending && !levelLockCleanupComplete;
+            ready = canConfigure && helperEnabled && ready && memory.IsSupportedVersion;
             dataControl.Enabled = ready;
-            positionBox.Enabled = ready;
-            positionControl.Enabled = ready;
+            bool advancedReady = ready && settings.AdvancedControlsEnabled;
+            positionBox.Enabled = advancedReady;
+            positionControl.Enabled = advancedReady;
             positionControl.RefreshValues();
-            cameraBox.Enabled = ready && memory.Profile?.Camera != null;
-            cameraControl.SetAvailability(ready ? memory.LoadMap.Process : null, ready ? memory.Profile?.Camera : null);
-            levelSelector.ApplyAvailability(helperEnabled, ready);
-            settingsButton.Enabled = helperEnabled;
+            cameraBox.Enabled = advancedReady && memory.Profile?.Camera != null;
+            cameraControl.SetAvailability(advancedReady ? memory.LoadMap.Process : null, advancedReady ? memory.Profile?.Camera : null);
+            levelSelector.ApplyAvailability(canConfigure, ready);
+            settingsButton.Enabled = canConfigure;
+            advancedButton.Enabled = canConfigure;
             hotkeyManager.SetReady(ready);
             if (ready) refreshTimer.Start();
             else refreshTimer.Stop();

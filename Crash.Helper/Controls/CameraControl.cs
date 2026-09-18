@@ -21,7 +21,7 @@ namespace Crash.Helper.Controls
         private Process process;
         private CameraMemoryProfile profile;
         private float[] values, saved;
-        private float xyzSpeed = 0.5f, yawPitchSpeed = 0.01f;
+        private float xyzSpeed = 30f, yawPitchSpeed = 0.03f;
         private int[] heldDirections = new int[5];
         private bool available, ready, changing, refreshing, suppressChanges, closing;
         private int generation;
@@ -60,8 +60,8 @@ namespace Crash.Helper.Controls
                 Controls.Add(label);
                 Controls.Add(editor);
             }
-            freezeXYZ = new CheckBox { Text = "Freeze XYZ", AutoSize = true, Left = 154, Top = 28 };
-            freezeYawPitch = new CheckBox { Text = "Freeze YawPitch", AutoSize = true, Left = 154, Top = 93 };
+            freezeXYZ = new CheckBox { Text = "Freeze XYZ", AutoSize = true, Left = 160, Top = 28 };
+            freezeYawPitch = new CheckBox { Text = "Freeze YawPitch", AutoSize = true, Left = 160, Top = 93 };
             freezeXYZ.CheckedChanged += OnFreezeChanged;
             freezeYawPitch.CheckedChanged += OnFreezeChanged;
             Controls.Add(freezeXYZ);
@@ -85,7 +85,7 @@ namespace Crash.Helper.Controls
         private TextBox CreateSpeedEditor(string title, int top, Func<float> get, Action<float> set)
         {
             Controls.Add(new Label { Text = title, AutoSize = true, Left = 12, Top = top + 4 });
-            var editor = new TextBox { Left = 120, Top = top, Width = 128, Text = get().ToString("R", CultureInfo.InvariantCulture), TextAlign = HorizontalAlignment.Right };
+            var editor = new TextBox { Left = 120, Top = top, Width = 80, Text = get().ToString("R", CultureInfo.InvariantCulture), TextAlign = HorizontalAlignment.Right };
             editor.Enter += (s, e) => EditingChanged?.Invoke(true);
             editor.MouseDown += (s, e) => EditingChanged?.Invoke(true);
             editor.Leave += (s, e) =>
@@ -235,7 +235,8 @@ namespace Crash.Helper.Controls
         internal void ToggleFreeze(bool rotation)
         {
             var checkbox = rotation ? freezeYawPitch : freezeXYZ;
-            if (checkbox.Enabled) checkbox.Checked = !checkbox.Checked;
+            // Shared hotkeys may toggle both freeze groups before the first async update completes.
+            if (available && ready && !closing) checkbox.Checked = !checkbox.Checked;
         }
 
         internal async void SaveCamera()

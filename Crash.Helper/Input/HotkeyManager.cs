@@ -64,7 +64,6 @@ namespace Crash.Helper.Input
 
         public bool TrySetBinding(int index, uint key, KeyModifiers modifiers)
         {
-            if (key != 0 && Hotkeys.Where((h, i) => i != index).Any(h => h.Key == key && h.Modifier == modifiers)) return false;
             var hotkey = Hotkeys[index];
             hotkey.Key = key;
             hotkey.Modifier = modifiers;
@@ -100,20 +99,23 @@ namespace Crash.Helper.Input
         private void OnKeyPressed(uint key, KeyModifiers modifiers)
         {
             if (!IsActive) return;
-            var hotkey = Hotkeys.FirstOrDefault(h => h.Key == key && h.Modifier == modifiers);
-            if (hotkey == null) return;
-            if (hotkey.RepeatWhileHeld)
+            var matches = Hotkeys.Where(h => h.Key != 0 && h.Key == key && h.Modifier == modifiers).ToArray();
+            if (matches.Length == 0) return;
+            foreach (var hotkey in matches.Where(h => h.RepeatWhileHeld))
             {
                 heldActions.Add(hotkey);
                 repeatTimer.Start();
-                if (hotkey.CameraAxis >= 0) { PublishMovement(); return; }
             }
+            PublishMovement();
             int pendingGeneration = generation;
             // Memory operations run later on the UI thread, outside the keyboard hook.
             dispatch(() =>
             {
-                if (disposed || pendingGeneration != generation || !IsActive || !ready || editing || !Enabled || !gameAvailable()) return;
-                hotkey.Callback();
+                foreach (var hotkey in matches.Where(h => !h.RepeatWhileHeld || h.CameraAxis < 0))
+                {
+                    if (disposed || pendingGeneration != generation || !IsActive || !ready || editing || !Enabled || !gameAvailable()) return;
+                    hotkey.Callback();
+                }
             });
         }
 
