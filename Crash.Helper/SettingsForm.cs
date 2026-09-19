@@ -25,8 +25,10 @@ namespace Crash.Helper
             draft = settings.Clone();
             Text = "Crash Helper Settings";
             StartPosition = FormStartPosition.CenterParent;
-            ClientSize = new Size(480, Math.Min(410, Screen.PrimaryScreen.WorkingArea.Height - 80));
+            ClientSize = new Size(480, Math.Min(620, Screen.PrimaryScreen.WorkingArea.Height - 80));
             FormBorderStyle = FormBorderStyle.Sizable;
+            // The Framework size grip misreads negative monitor coordinates; keep native border resizing.
+            SizeGripStyle = SizeGripStyle.Hide;
             MinimumSize = new Size(400, 260);
             MaximizeBox = true;
             MinimizeBox = false;

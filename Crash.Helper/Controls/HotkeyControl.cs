@@ -99,7 +99,7 @@ namespace Crash.Helper.Controls
         {
             var property = typeof(HelperSettings).GetProperty(setting);
             var label = new Label { Text = title, AutoSize = true, Anchor = AnchorStyles.Left };
-            var editor = new TextBox { Width = 170, Text = ((float)property.GetValue(draft)).ToString("R", CultureInfo.InvariantCulture), Tag = label };
+            var editor = new TextBox { Width = 170, TextAlign = HorizontalAlignment.Right, Text = ((float)property.GetValue(draft)).ToString("R", CultureInfo.InvariantCulture), Tag = label };
             editor.Enter += (s, e) => manager.SetEditing(true);
             editor.Leave += (s, e) => { editor.Select(0, 0); manager.SetEditing(false); };
             editor.KeyDown += (s, e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; ValidateSpeeds(); } };
