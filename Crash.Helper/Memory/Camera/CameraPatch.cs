@@ -160,7 +160,7 @@ namespace Crash.Helper.Memory.Camera
             bool followPitch = false, double mouseYaw = 0, double mousePitch = 0)
         {
             if (!installed || HasExited) return;
-            if ((mouseYaw != 0 || mousePitch != 0) && IsPauseMenuOpen()) mouseYaw = mousePitch = 0;
+            if (IsPauseMenuOpen()) return;
             // Freeze removes the game writers. Movement must not suspend the entire game each frame.
             WriteValuesCore(null, true, current => CameraMovement.Delta(directions, xyzSpeed, rotationSpeed, seconds,
                 current[3], current[4], followPitch, mouseYaw, mousePitch));
@@ -181,13 +181,14 @@ namespace Crash.Helper.Memory.Camera
             }
             catch (Win32Exception ex)
             {
-                HelperLog.Error("Read pause menu for mouse control", ex);
+                HelperLog.Error("Read pause menu for camera input", ex);
                 return true;
             }
         }
 
         private void WriteValuesCore(float?[] values, bool relative, Func<float[], float?[]> calculate = null)
         {
+            if (profile.Loading != null && LoadingMemory.Read(memory.Process, profile.Loading, moduleBase)) return;
             long address = BitConverter.ToInt64(memory.Read(pointerStorage, 8), 0);
             var current = ReadValues();
             if (current == null || BitConverter.ToInt64(memory.Read(pointerStorage, 8), 0) != address) return;

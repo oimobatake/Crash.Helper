@@ -161,6 +161,14 @@
     </Compile>
     <Compile Include="Memory\Position\PositionPatch.cs" />
     <Compile Include="Memory\Position\PositionPatchService.cs" />
+    <Compile Include="Memory\Position\PositionMotionService.cs" />
+    <Compile Include="Memory\LoadingMemory.cs" />
+    <Compile Include="Memory\FadePatch.cs" />
+    <Compile Include="Memory\FadeMemory.cs" />
+    <Compile Include="Memory\FadePatchService.cs" />
+    <Compile Include="Controls\OthersControl.cs">
+      <SubType>Component</SubType>
+    </Compile>
     <Compile Include="Controls\GameFlagControl.cs">
       <SubType>UserControl</SubType>
     </Compile>
@@ -211,6 +219,9 @@
       <DependentUpon>Resources.resx</DependentUpon>
       <DesignTime>True</DesignTime>
     </Compile>
+    <EmbeddedResource Include="SettingsForm.resx">
+      <DependentUpon>SettingsForm.cs</DependentUpon>
+    </EmbeddedResource>
     <None Include="Crash.Helper_TemporaryKey.pfx" />
     <None Include="Properties\Settings.settings">
       <Generator>SettingsSingleFileGenerator</Generator>

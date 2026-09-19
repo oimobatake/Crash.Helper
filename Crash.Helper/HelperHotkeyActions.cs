@@ -6,7 +6,7 @@ namespace Crash.Helper
 {
     internal static class HelperHotkeyActions
     {
-        public static IReadOnlyList<Hotkey> Create(CrashMemory memory, DataControl data, LevelSelectorControl levels, PositionControl position, CameraControl camera)
+        public static IReadOnlyList<Hotkey> Create(CrashMemory memory, DataControl data, LevelSelectorControl levels, PositionControl position, CameraControl camera, OthersControl others)
         {
             var hotkeys = new List<Hotkey>
             {
@@ -34,6 +34,7 @@ namespace Crash.Helper
                 new Hotkey("Position XYZ Speed x2", KeyModifiers.None, 0, () => { }) { RepeatWhileHeld = true, PositionSpeedBoost = true },
                 new Hotkey("Position Save", KeyModifiers.None, 0, position.SavePosition),
                 new Hotkey("Position TP", KeyModifiers.None, 0, position.Teleport),
+                new Hotkey("Toggle position input", KeyModifiers.None, 0, position.ToggleMovement),
                 new Hotkey("Control XYZ", KeyModifiers.None, 0, () => camera.ToggleFreeze(false)),
                 new Hotkey("Control YawPitch", KeyModifiers.None, 0, () => camera.ToggleFreeze(true)),
                 CameraMovement("Forward", 1, 1),
@@ -48,10 +49,12 @@ namespace Crash.Helper
                 CameraMovement("Pitch (Down)", 4, 1),
                 new Hotkey("XYZ Speed x2", KeyModifiers.None, 0, () => { }) { RepeatWhileHeld = true, CameraSpeedBoost = true },
                 new Hotkey("Camera Save", KeyModifiers.None, 0, camera.SaveCamera),
-                new Hotkey("Camera TP", KeyModifiers.None, 0, camera.Teleport)
+                new Hotkey("Camera TP", KeyModifiers.None, 0, camera.Teleport),
+                new Hotkey("Toggle camera input", KeyModifiers.None, 0, camera.ToggleMovement)
             };
             for (int i = 0; i < hotkeys.Count; i++)
-                hotkeys[i].Group = i < 6 ? "Data" : i < 12 ? "Level" : i < 24 ? "Position" : "Camera";
+                hotkeys[i].Group = i < 6 ? "Data" : i < 12 ? "Level" : i < 25 ? "Position" : "Camera";
+            hotkeys.Add(new Hotkey("Disable fade write", KeyModifiers.None, 0, others.ToggleFade) { Group = "Others" });
             return hotkeys;
         }
 

@@ -15,10 +15,13 @@ namespace Crash.Helper
         private readonly LevelSelectorControl levelSelector;
         private readonly PositionControl positionControl;
         private readonly GroupBox positionBox;
+        private readonly OthersControl othersControl;
+        private bool advancedAvailable;
         private readonly CameraControl cameraControl;
         private readonly GroupBox cameraBox;
         private readonly ProcessControl processControl;
         private readonly Timer refreshTimer;
+        private readonly Timer loadingTimer = new Timer { Interval = 33 };
         private readonly HelperSettings settings;
         private readonly Button settingsButton;
         private readonly CheckBox advancedButton;
@@ -46,10 +49,13 @@ namespace Crash.Helper
             launcher = new SteamGameLauncher(settings);
             levelSelector.LaunchRequested += LaunchGame;
             positionControl = new PositionControl(memory) { Enabled = false };
-            cameraControl = new CameraControl();
-            hotkeyManager = new HotkeyManager(HelperHotkeyActions.Create(memory, dataControl, levelSelector, positionControl, cameraControl), settings,
+            cameraControl = new CameraControl { IsLoading = () => memory.IsLoading };
+            othersControl = new OthersControl();
+            othersControl.FadeWriteDisabledChanged += positionControl.SetFadeWriteDisabled;
+            hotkeyManager = new HotkeyManager(HelperHotkeyActions.Create(memory, dataControl, levelSelector, positionControl, cameraControl, othersControl), settings,
                 () => memory.ProcessHooked, action => { if (!IsDisposed && IsHandleCreated) BeginInvoke(action); },
                 () => ForegroundApplication.IsGameOrHelper(memory.LoadMap.Process));
+            hotkeyManager.AdvancedInputBlocked = () => LoadingMemory.Read(memory.LoadMap.Process, memory.Profile?.Camera?.PauseMenu);
             cameraControl.EditingChanged += hotkeyManager.SetEditing;
             positionControl.EditingChanged += hotkeyManager.SetEditing;
             hotkeyManager.PositionMovementChanged += positionControl.SetMovement;
@@ -90,6 +96,9 @@ namespace Crash.Helper
             cameraControl.SizeChanged += (s, e) => cameraBox.Height = cameraControl.Height + 26;
             cameraBox.Height = cameraControl.Height + 26;
             rightColumn.Controls.Add(cameraBox);
+            rightColumn.Controls.Add(othersControl);
+            positionControl.InputStateChanged += RefreshAdvancedGroups;
+            cameraControl.InputStateChanged += RefreshAdvancedGroups;
             var settingsRow = new Panel { Height = Math.Max(settingsButton.PreferredSize.Height, advancedButton.PreferredSize.Height), Width = levelSelector.Width, Margin = new Padding(levelSelector.Margin.Left, 3, levelSelector.Margin.Right, 3) };
             settingsButton.AutoSize = false;
             settingsButton.Size = settingsButton.PreferredSize;
@@ -106,6 +115,7 @@ namespace Crash.Helper
             flowLayoutPanel.Height--;
             refreshTimer = new Timer { Interval = 100 };
             refreshTimer.Tick += (s, e) => RefreshHelper();
+            loadingTimer.Tick += (s, e) => RefreshLoading();
             advancedButton.CheckedChanged += (s, e) => ToggleAdvancedControls();
             hotkeyManager.StatusChanged += (s, e) => RefreshCameraInput();
             RefreshCameraInput();
@@ -118,6 +128,20 @@ namespace Crash.Helper
             cameraControl.SetInputEnabled(hotkeyManager.CanUseCameraInput);
             positionControl.ApplySettings(settings, cameraControl.GetViewOrientation);
             positionControl.SetInputEnabled(hotkeyManager.CanUseCameraInput);
+        }
+
+        private void RefreshAdvancedGroups()
+        {
+            positionBox.Enabled = advancedAvailable && !positionControl.InputDisabled;
+            cameraBox.Enabled = advancedAvailable && memory.Profile?.Camera != null && !cameraControl.InputDisabled;
+        }
+
+        private void RefreshLoading()
+        {
+            bool loading = memory.IsLoading;
+            positionControl.SetLoading(loading);
+            positionControl.SetFadeBlocked(FadeMemory.SuspendPositionFreeze(memory.PositionX.Process, memory.Profile));
+            cameraControl.SetLoading(loading);
         }
 
         private void ToggleAdvancedControls()
@@ -151,10 +175,14 @@ namespace Crash.Helper
             ready = canConfigure && helperEnabled && ready && memory.IsSupportedVersion;
             dataControl.Enabled = ready;
             bool advancedReady = ready && settings.AdvancedControlsEnabled;
-            positionBox.Enabled = advancedReady;
+            if (advancedReady) { RefreshLoading(); loadingTimer.Start(); }
+            else loadingTimer.Stop();
+            advancedAvailable = advancedReady;
+            positionControl.SetAvailability(advancedReady);
             positionControl.Enabled = advancedReady;
             positionControl.RefreshValues();
-            cameraBox.Enabled = advancedReady && memory.Profile?.Camera != null;
+            RefreshAdvancedGroups();
+            othersControl.SetAvailability(advancedReady ? memory.LoadMap.Process : null, advancedReady ? memory.Profile : null);
             cameraControl.SetAvailability(advancedReady ? memory.LoadMap.Process : null, advancedReady ? memory.Profile?.Camera : null);
             levelSelector.ApplyAvailability(canConfigure, ready);
             settingsButton.Enabled = canConfigure;
@@ -191,7 +219,7 @@ namespace Crash.Helper
                 ApplyAvailability(false, false);
                 try
                 {
-                    await System.Threading.Tasks.Task.WhenAll(cameraControl.ShutdownAsync(), positionControl.ShutdownAsync(), dataControl.ShutdownLevelLockAsync());
+                    await System.Threading.Tasks.Task.WhenAll(othersControl.ShutdownAsync(), cameraControl.ShutdownAsync(), positionControl.ShutdownAsync(), dataControl.ShutdownLevelLockAsync());
                     levelLockCleanupComplete = true;
                 }
                 catch (Exception ex)
@@ -206,6 +234,7 @@ namespace Crash.Helper
             }
             ApplyAvailability(false, false);
             refreshTimer.Dispose();
+            loadingTimer.Dispose();
 
             hotkeyManager.Dispose();
         }

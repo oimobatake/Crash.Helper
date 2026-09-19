@@ -11,8 +11,12 @@ namespace Crash.Helper.Memory
         internal int[] CurrentLevel { get; private set; }
         internal int[] LoadMap { get; private set; }
         internal int[] SecretLevel { get; private set; }
+        internal int[] Fade { get; private set; }
+        internal int[] Loading { get; private set; }
         internal int[][] Position { get; private set; }
         internal int PositionCodeOffset { get; private set; }
+        internal int FadeCodeOffset { get; private set; }
+        internal byte[] FadeOriginal { get; private set; }
         internal int[][] Flags { get; private set; }
         internal byte?[] LevelLockPattern { get; private set; }
         internal Camera.CameraMemoryProfile Camera { get; private set; }
@@ -20,8 +24,11 @@ namespace Crash.Helper.Memory
         internal static readonly GameMemoryProfile Steam = new GameMemoryProfile
         {
             Name = "Steam", ModuleSize = 30883840,
+            Fade = new[] { 0x01A8FEB8, 0x374 },
+            Loading = new[] { 0x01A8FEB8, 0xA0, 0x22C },
             Camera = Memory.Camera.CameraMemoryProfile.Steam,
             PositionCodeOffset = 0x12C9578,
+            FadeCodeOffset = 0x11D6EF, FadeOriginal = new byte[] { 0x0F, 0x29, 0x41, 0x10 },
             Lives = new[] { 0x01AA27C8, 0x10 },
             Masks = new[] { 0x01A69A98, 0x30, 0x1E0 },
             CurrentLevel = new[] { 0x01A5C6E0 },
@@ -41,8 +48,11 @@ namespace Crash.Helper.Memory
         internal static readonly GameMemoryProfile Xbox = new GameMemoryProfile
         {
             Name = "Xbox(PC)", ModuleSize = 30633984,
+            Fade = new[] { 0x01AB9C20, 0x374 },
+            Loading = new[] { 0x01AB7AE0, 0xA0, 0x22C },
             Camera = Memory.Camera.CameraMemoryProfile.Xbox,
             PositionCodeOffset = 0x12E2818,
+            FadeCodeOffset = 0x10C47A, FadeOriginal = new byte[] { 0x0F, 0x11, 0x41, 0x10 },
             Lives = new[] { 0x01AC9C00, 0x10 },
             Masks = new[] { 0x01A93118, 0x30, 0x1B8 },
             CurrentLevel = new[] { 0x01A84000 },

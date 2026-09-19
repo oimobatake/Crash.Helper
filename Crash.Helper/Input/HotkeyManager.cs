@@ -31,6 +31,8 @@ namespace Crash.Helper.Input
         public string Status { get; private set; }
         public bool IsActive { get; private set; }
         internal bool CanUseCameraInput => !disposed && ready && !editing && Enabled && gameAvailable() && foregroundAllowed();
+        internal Func<bool> AdvancedInputBlocked { get; set; } = () => false;
+        private bool Allows(Hotkey action) => (action.Group != "Position" && action.Group != "Camera") || !AdvancedInputBlocked();
         public event EventHandler StatusChanged;
         public bool Enabled
         {
@@ -117,7 +119,7 @@ namespace Crash.Helper.Input
         private void OnKeyPressed(uint key, KeyModifiers modifiers)
         {
             if (!IsActive || !CanUseCameraInput) return;
-            var matches = Hotkeys.Where(h => h.Key != 0 && h.Key == key && MatchesModifiers(h, modifiers)).ToArray();
+            var matches = Hotkeys.Where(h => h.Key != 0 && h.Key == key && MatchesModifiers(h, modifiers) && Allows(h)).ToArray();
             if (matches.Length == 0) return;
             foreach (var hotkey in matches.Where(h => h.RepeatWhileHeld))
             {
@@ -132,7 +134,7 @@ namespace Crash.Helper.Input
                 foreach (var hotkey in matches.Where(h => !h.CameraSpeedBoost && !h.PositionSpeedBoost && (!h.RepeatWhileHeld || (h.CameraAxis < 0 && h.PositionAxis < 0))))
                 {
                     if (pendingGeneration != generation || !IsActive || !CanUseCameraInput) return;
-                    hotkey.Callback();
+                    if (Allows(hotkey)) hotkey.Callback();
                 }
             });
         }
@@ -156,7 +158,7 @@ namespace Crash.Helper.Input
             var modifiers = listener.HeldModifiers;
             foreach (var action in heldActions.ToArray())
             {
-                if (!listener.IsHeld(action.Key) || !MatchesModifiers(action, modifiers)) heldActions.Remove(action);
+                if (!Allows(action) || !listener.IsHeld(action.Key) || !MatchesModifiers(action, modifiers)) heldActions.Remove(action);
                 else if (action.CameraAxis < 0 && action.PositionAxis < 0 && !action.CameraSpeedBoost && !action.PositionSpeedBoost) action.Callback();
             }
             PublishMovement();

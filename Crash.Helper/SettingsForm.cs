@@ -15,6 +15,7 @@ namespace Crash.Helper
         private readonly TextBox path;
         private readonly Button save;
         private readonly TabControl tabs;
+        private readonly HotkeyControl hotkeys;
         private string pathBeforeEdit;
 
         internal SettingsForm(HelperSettings settings, HotkeyManager manager, CrashMemory memory, Func<bool> canEditGame, bool helperEnabled)
@@ -25,8 +26,9 @@ namespace Crash.Helper
             Text = "Crash Helper Settings";
             StartPosition = FormStartPosition.CenterParent;
             ClientSize = new Size(480, Math.Min(410, Screen.PrimaryScreen.WorkingArea.Height - 80));
-            FormBorderStyle = FormBorderStyle.FixedDialog;
-            MaximizeBox = false;
+            FormBorderStyle = FormBorderStyle.Sizable;
+            MinimumSize = new Size(400, 260);
+            MaximizeBox = true;
             MinimizeBox = false;
             tabs = new TabControl { Dock = DockStyle.Fill, TabIndex = 0 };
             var gamePage = new TabPage("GameFlag") { Padding = new Padding(10), AutoScroll = true };
@@ -42,7 +44,8 @@ namespace Crash.Helper
             pathRow.Controls.Add(path);
             pathRow.Controls.Add(browse);
             layout.Controls.Add(pathRow);
-            layout.Controls.Add(new HotkeyControl(manager, draft) { Enabled = helperEnabled });
+            hotkeys = new HotkeyControl(manager, draft) { Enabled = helperEnabled };
+            layout.Controls.Add(hotkeys);
             helperPage.Controls.Add(layout);
             var footer = new Panel { Dock = DockStyle.Bottom, Height = 44, Padding = new Padding(8) };
             save = new Button { Text = "Save", Size = new Size(75, 25), Anchor = AnchorStyles.Top | AnchorStyles.Right };
@@ -87,6 +90,7 @@ namespace Crash.Helper
         private void SaveSettings()
         {
             FinishPathEdit();
+            if (!hotkeys.ValidateSpeeds()) return;
             try
             {
                 draft.Save();
@@ -99,6 +103,18 @@ namespace Crash.Helper
             {
                 MessageBox.Show(this, "Could not save settings: " + ex.Message, "Settings", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
+        }
+
+        private void InitializeComponent()
+        {
+            this.SuspendLayout();
+            // 
+            // SettingsForm
+            // 
+            this.ClientSize = new System.Drawing.Size(284, 261);
+            this.Name = "SettingsForm";
+            this.ResumeLayout(false);
+
         }
     }
 }

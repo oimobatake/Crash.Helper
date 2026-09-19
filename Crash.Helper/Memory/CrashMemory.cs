@@ -36,6 +36,7 @@ namespace Crash.Helper.Memory
         internal GameMemoryProfile Profile { get; private set; }
         public string VersionName => Profile?.Name ?? "Unknown";
         public bool IsSupportedVersion => Profile != null;
+        internal bool IsLoading => Profile == null || LoadingMemory.Read(LoadMap.Process, Profile.Loading);
 		//public GamePointer<byte> Restart { get; }
 
         protected override void OnHook(Process process)

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
 using System.Windows.Forms;
+using System.Globalization;
 using Crash.Helper.Input;
 
 namespace Crash.Helper.Controls
@@ -15,6 +16,7 @@ namespace Crash.Helper.Controls
         private readonly List<TextBox> editors = new List<TextBox>();
         private readonly List<GroupBox> bindingGroups = new List<GroupBox>();
         private readonly Label status;
+        private readonly Dictionary<string, TextBox> speedEditors = new Dictionary<string, TextBox>();
 
         internal HotkeyControl(HotkeyManager manager, HelperSettings draft)
         {
@@ -53,6 +55,8 @@ namespace Crash.Helper.Controls
                     group.Controls.Add(table);
                     groups.Controls.Add(group, 0, groups.Controls.Count);
                     row = 0;
+                    if (currentGroup == "Position")
+                        AddSpeedEditor(table, ref row, "XYZ Speed", nameof(HelperSettings.PositionXYZSpeed));
                     if (currentGroup == "Camera")
                     {
                         var followPitch = new CheckBox { Text = "Move in the pitch direction", AutoSize = true, Checked = draft.CameraMoveWithPitch };
@@ -64,6 +68,10 @@ namespace Crash.Helper.Controls
                         table.Controls.Add(followPitch, 0, row++); table.SetColumnSpan(followPitch, 3);
                         table.Controls.Add(mouse, 0, row++); table.SetColumnSpan(mouse, 3);
                         table.Controls.Add(invert, 0, row++); table.SetColumnSpan(invert, 3);
+                        AddSpeedEditor(table, ref row, "XYZ Speed", nameof(HelperSettings.CameraXYZSpeed));
+                        AddSpeedEditor(table, ref row, "YawPitch Speed", nameof(HelperSettings.CameraYawPitchSpeed));
+                        AddSpeedEditor(table, ref row, "Mouse X sensitivity", nameof(HelperSettings.CameraMouseXSensitivity));
+                        AddSpeedEditor(table, ref row, "Mouse Y sensitivity", nameof(HelperSettings.CameraMouseYSensitivity));
                     }
                 }
                 int index = i;
@@ -84,6 +92,34 @@ namespace Crash.Helper.Controls
             Controls.Add(box);
             manager.StatusChanged += OnStatusChanged;
             OnStatusChanged(this, EventArgs.Empty);
+
+        }
+
+        private void AddSpeedEditor(TableLayoutPanel table, ref int row, string title, string setting)
+        {
+            var property = typeof(HelperSettings).GetProperty(setting);
+            var label = new Label { Text = title, AutoSize = true, Anchor = AnchorStyles.Left };
+            var editor = new TextBox { Width = 170, Text = ((float)property.GetValue(draft)).ToString("R", CultureInfo.InvariantCulture), Tag = label };
+            editor.Enter += (s, e) => manager.SetEditing(true);
+            editor.Leave += (s, e) => { editor.Select(0, 0); manager.SetEditing(false); };
+            editor.KeyDown += (s, e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; ValidateSpeeds(); } };
+            speedEditors.Add(setting, editor);
+            table.Controls.Add(label, 0, row); table.Controls.Add(editor, 1, row++);
+        }
+
+        internal bool ValidateSpeeds()
+        {
+            foreach (var entry in speedEditors)
+            {
+                float value;
+                if (!float.TryParse(entry.Value.Text.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out value) || float.IsNaN(value) || value < 0 || value > 1000)
+                {
+                    MessageBox.Show(this, "Enter a finite number between 0 and 1000 for " + ((Label)entry.Value.Tag).Text + ".", "Settings", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    entry.Value.Focus(); return false;
+                }
+                typeof(HelperSettings).GetProperty(entry.Key).SetValue(draft, value);
+            }
+            return true;
         }
 
         private void OnStatusChanged(object sender, EventArgs e)
