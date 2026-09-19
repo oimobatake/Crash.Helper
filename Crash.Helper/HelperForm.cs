@@ -51,6 +51,9 @@ namespace Crash.Helper
                 () => memory.ProcessHooked, action => { if (!IsDisposed && IsHandleCreated) BeginInvoke(action); },
                 () => ForegroundApplication.IsGameOrHelper(memory.LoadMap.Process));
             cameraControl.EditingChanged += hotkeyManager.SetEditing;
+            positionControl.EditingChanged += hotkeyManager.SetEditing;
+            hotkeyManager.PositionMovementChanged += positionControl.SetMovement;
+            hotkeyManager.PositionSpeedBoostChanged += positionControl.SetSpeedBoost;
             hotkeyManager.CameraMovementChanged += cameraControl.SetMovement;
             hotkeyManager.CameraSpeedBoostChanged += cameraControl.SetSpeedBoost;
             Deactivate += (s, e) => cameraControl.EndEditing();
@@ -75,7 +78,7 @@ namespace Crash.Helper
             leftColumn.Controls.Add(processControl);
             leftColumn.Controls.Add(dataControl);
             leftColumn.Controls.Add(levelSelector);
-            positionBox = new GroupBox { Text = "Position", Size = new Size(285, 138), Margin = Padding.Empty, Enabled = false };
+            positionBox = new GroupBox { Text = "Position", Size = new Size(285, positionControl.Height + 26), Margin = Padding.Empty, Enabled = false };
             positionControl.Location = new Point(7, 19);
             positionControl.Margin = Padding.Empty;
             positionBox.Controls.Add(positionControl);
@@ -113,6 +116,8 @@ namespace Crash.Helper
         {
             cameraControl.ApplySettings(settings, hotkeyManager.Hotkeys);
             cameraControl.SetInputEnabled(hotkeyManager.CanUseCameraInput);
+            positionControl.ApplySettings(settings, cameraControl.GetViewOrientation);
+            positionControl.SetInputEnabled(hotkeyManager.CanUseCameraInput);
         }
 
         private void ToggleAdvancedControls()
@@ -186,7 +191,7 @@ namespace Crash.Helper
                 ApplyAvailability(false, false);
                 try
                 {
-                    await System.Threading.Tasks.Task.WhenAll(cameraControl.ShutdownAsync(), dataControl.ShutdownLevelLockAsync());
+                    await System.Threading.Tasks.Task.WhenAll(cameraControl.ShutdownAsync(), positionControl.ShutdownAsync(), dataControl.ShutdownLevelLockAsync());
                     levelLockCleanupComplete = true;
                 }
                 catch (Exception ex)

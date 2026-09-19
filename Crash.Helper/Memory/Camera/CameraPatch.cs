@@ -86,8 +86,9 @@ namespace Crash.Helper.Memory.Camera
 
         private void RequireBytes(long address, byte[] expected)
         {
-            if (!memory.Read(address, expected.Length).SequenceEqual(expected))
-                throw new InvalidOperationException("Camera instructions do not match. Check the game version and disable other camera tools.");
+            var actual = memory.Read(address, expected.Length);
+            if (!actual.SequenceEqual(expected))
+                throw new InvalidOperationException($"Camera instructions do not match at module+0x{address - moduleBase:X}. Expected {BitConverter.ToString(expected)}, found {BitConverter.ToString(actual)}. Check the game version and disable other camera tools.");
         }
 
         private void RelocateCapture(bool installing)

@@ -23,5 +23,8 @@ namespace Crash.Helper.Memory.Camera
         internal static readonly CameraMemoryProfile Steam = new CameraMemoryProfile(
             new byte?[] { 0x89, 0x41, 0x18, 0x0F, 0x10, 0x42, 0x1C, 0x0F, 0x11, 0x41, 0x1C, 0xF2, 0x0F, 0x10, 0x4A, 0x2C },
             0x3370D3, 0x3370DB, new[] { 0, 4, 8, 0x14, 0x10 }, new[] { 0x01A5B010, 0x100 });
+
+        internal static readonly CameraMemoryProfile Xbox = new CameraMemoryProfile(
+            Steam.CapturePattern, 0x31FFD3, 0x31FFDB, Steam.ValueOffsets, new[] { 0x01A81A08, 0x100 });
     }
 }

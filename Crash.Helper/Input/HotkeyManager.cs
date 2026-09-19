@@ -16,8 +16,12 @@ namespace Crash.Helper.Input
         private readonly System.Windows.Forms.Timer repeatTimer = new System.Windows.Forms.Timer { Interval = 8 };
         private readonly HashSet<Hotkey> heldActions = new HashSet<Hotkey>();
         private int[] movement = new int[5];
+        private int[] positionMovement = new int[3];
+        public event Action<int[]> PositionMovementChanged;
         public event Action<int[]> CameraMovementChanged;
         public event Action<bool> CameraSpeedBoostChanged;
+        public event Action<bool> PositionSpeedBoostChanged;
+        private bool positionSpeedBoost;
         private bool speedBoost;
         private bool ready;
         private bool editing;
@@ -125,7 +129,7 @@ namespace Crash.Helper.Input
             // Memory operations run later on the UI thread, outside the keyboard hook.
             dispatch(() =>
             {
-                foreach (var hotkey in matches.Where(h => !h.CameraSpeedBoost && (!h.RepeatWhileHeld || h.CameraAxis < 0)))
+                foreach (var hotkey in matches.Where(h => !h.CameraSpeedBoost && !h.PositionSpeedBoost && (!h.RepeatWhileHeld || (h.CameraAxis < 0 && h.PositionAxis < 0))))
                 {
                     if (pendingGeneration != generation || !IsActive || !CanUseCameraInput) return;
                     hotkey.Callback();
@@ -149,11 +153,11 @@ namespace Crash.Helper.Input
                 repeatTimer.Stop();
                 return;
             }
-            var modifiers = KeyboardHotkeyListener.CurrentModifiers;
+            var modifiers = listener.HeldModifiers;
             foreach (var action in heldActions.ToArray())
             {
                 if (!listener.IsHeld(action.Key) || !MatchesModifiers(action, modifiers)) heldActions.Remove(action);
-                else if (action.CameraAxis < 0 && !action.CameraSpeedBoost) action.Callback();
+                else if (action.CameraAxis < 0 && action.PositionAxis < 0 && !action.CameraSpeedBoost && !action.PositionSpeedBoost) action.Callback();
             }
             PublishMovement();
             if (heldActions.Count == 0) repeatTimer.Stop();
@@ -161,6 +165,21 @@ namespace Crash.Helper.Input
 
         private void PublishMovement()
         {
+            bool nextPositionBoost = heldActions.Any(action => action.PositionSpeedBoost);
+            if (positionSpeedBoost != nextPositionBoost)
+            {
+                positionSpeedBoost = nextPositionBoost;
+                PositionSpeedBoostChanged?.Invoke(positionSpeedBoost);
+            }
+            var nextPosition = new int[3];
+            foreach (var action in heldActions)
+                if (action.PositionAxis >= 0 && action.PositionAxis < 3) nextPosition[action.PositionAxis] += action.PositionDirection;
+            for (int i = 0; i < 3; i++) nextPosition[i] = Math.Sign(nextPosition[i]);
+            if (!nextPosition.SequenceEqual(positionMovement))
+            {
+                positionMovement = nextPosition;
+                PositionMovementChanged?.Invoke((int[])nextPosition.Clone());
+            }
             bool nextBoost = heldActions.Any(action => action.CameraSpeedBoost);
             if (speedBoost != nextBoost) { speedBoost = nextBoost; CameraSpeedBoostChanged?.Invoke(speedBoost); }
             var next = new int[5];

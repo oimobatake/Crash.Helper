@@ -18,8 +18,14 @@ namespace Crash.Helper.Input
         public event Action<uint, KeyModifiers> KeyPressed;
         public event Action<uint> KeyReleased;
 
-        internal bool IsHeld(uint key) => pressedKeys.Any(physical => KeyIdentity.Normalize(physical) == key) &&
-            (key == (uint)Keys.LWin ? GetAsyncKeyState((int)Keys.LWin) < 0 || GetAsyncKeyState((int)Keys.RWin) < 0 : GetAsyncKeyState(KeyIdentity.VirtualKey(key)) < 0);
+        // Hook notifications arrive before GetAsyncKeyState reflects the current input.
+        // Use one event-based state for both held keys and their modifiers.
+        internal bool IsHeld(uint key) => pressedKeys.Any(physical => KeyIdentity.Normalize(physical) == key);
+        internal KeyModifiers HeldModifiers =>
+            (IsHeld((uint)Keys.ControlKey) ? KeyModifiers.Control : KeyModifiers.None) |
+            (IsHeld((uint)Keys.Menu) ? KeyModifiers.Alt : KeyModifiers.None) |
+            (IsHeld((uint)Keys.ShiftKey) ? KeyModifiers.Shift : KeyModifiers.None) |
+            (IsHeld((uint)Keys.LWin) ? KeyModifiers.Win : KeyModifiers.None);
 
         public KeyboardHotkeyListener() { callback = OnKeyboardInput; }
 
@@ -82,7 +88,7 @@ namespace Crash.Helper.Input
                         uint logical = KeyIdentity.Normalize(key);
                         bool wasHeld = pressedKeys.Any(physical => KeyIdentity.Normalize(physical) == logical);
                         if (pressedKeys.Add(key) && !wasHeld)
-                            KeyPressed?.Invoke(logical, KeyIdentity.ModifiersForKey(logical, CurrentModifiers));
+                            KeyPressed?.Invoke(logical, KeyIdentity.ModifiersForKey(logical, HeldModifiers));
                     }
                 }
                 catch (Exception ex) { System.Diagnostics.Trace.WriteLine(ex); }

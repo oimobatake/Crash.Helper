@@ -26,7 +26,7 @@ namespace Crash.Helper.Controls
         private Process process;
         private CameraMemoryProfile profile;
         private float[] values, saved;
-        private float xyzSpeed = 30f, yawPitchSpeed = 0.03f;
+        private float xyzSpeed = 30.0f, yawPitchSpeed = 0.03f;
         private float mouseXSensitivity = 0.002f, mouseYSensitivity = 0.002f;
         private bool followPitch = true, mouseControl, invertMouseY, rotationHotkeys, inputEnabled;
         private bool speedBoost;
@@ -116,7 +116,7 @@ namespace Crash.Helper.Controls
                 float value;
                 if (float.TryParse(editor.Text.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out value) && value >= 0 && value <= 1000)
                 {
-                    try { settings.SaveCameraValue(settingName, value); set(value); }
+                    try { settings.SaveMovementValue(settingName, value); set(value); }
                     catch (Exception ex) { HelperLog.Error("Save camera setting", ex); }
                 }
                 else HelperLog.Error("Edit camera speed", new ArgumentException("Speed must be a number between 0 and 1000."));
@@ -292,6 +292,9 @@ namespace Crash.Helper.Controls
             UpdateMovement();
         }
 
+        internal float[] GetViewOrientation() => available && ready && !changing && !closing && values != null
+            ? new[] { values[3], values[4] } : null;
+
         private void UpdateMovement()
         {
             var directions = new int[5];
@@ -362,8 +365,8 @@ namespace Crash.Helper.Controls
                 if (!visible) continue;
                 editor.Top = top;
                 ((Label)editor.Tag).Top = top + 4;
-                // Give the longer sensitivity labels room while retaining the existing speed field widths.
-                editor.Left = editor == mouseXEditor || editor == mouseYEditor ? 150 : 120;
+                // Align the speed and sensitivity fields while leaving room for their labels.
+                editor.Left = 150;
                 top += 26;
             }
             saveButton.Top = teleportButton.Top = top + 6;

@@ -27,6 +27,7 @@ namespace Crash.Helper
         [DataMember] public bool CameraMoveWithPitch { get; set; } = true;
         [DataMember] public bool CameraMouseControl { get; set; }
         [DataMember] public bool CameraInvertMouseY { get; set; }
+        [DataMember] public float PositionXYZSpeed { get; set; } = 0.8f;
         [DataMember] public float CameraXYZSpeed { get; set; } = 30f;
         [DataMember] public float CameraYawPitchSpeed { get; set; } = 0.03f;
         [DataMember] public float CameraMouseXSensitivity { get; set; } = 0.002f;
@@ -48,6 +49,7 @@ namespace Crash.Helper
             CameraMoveWithPitch = source.CameraMoveWithPitch;
             CameraMouseControl = source.CameraMouseControl;
             CameraInvertMouseY = source.CameraInvertMouseY;
+            PositionXYZSpeed = source.PositionXYZSpeed;
             CameraXYZSpeed = source.CameraXYZSpeed;
             CameraYawPitchSpeed = source.CameraYawPitchSpeed;
             CameraMouseXSensitivity = source.CameraMouseXSensitivity;
@@ -65,10 +67,11 @@ namespace Crash.Helper
                 var settings = (HelperSettings)new DataContractJsonSerializer(typeof(HelperSettings)).ReadObject(stream);
                 if (settings == null) throw new InvalidDataException("Settings are empty.");
                 if (settings.Hotkeys == null) settings.Hotkeys = new Dictionary<string, HotkeyBinding>();
-                if (!IsCameraValueValid(settings.CameraXYZSpeed)) settings.CameraXYZSpeed = 30f;
-                if (!IsCameraValueValid(settings.CameraYawPitchSpeed)) settings.CameraYawPitchSpeed = 0.03f;
-                if (!IsCameraValueValid(settings.CameraMouseXSensitivity)) settings.CameraMouseXSensitivity = 0.002f;
-                if (!IsCameraValueValid(settings.CameraMouseYSensitivity)) settings.CameraMouseYSensitivity = 0.002f;
+                if (!IsMovementValueValid(settings.CameraXYZSpeed)) settings.CameraXYZSpeed = 30f;
+                if (!IsMovementValueValid(settings.PositionXYZSpeed)) settings.PositionXYZSpeed = 0.8f;
+                if (!IsMovementValueValid(settings.CameraYawPitchSpeed)) settings.CameraYawPitchSpeed = 0.03f;
+                if (!IsMovementValueValid(settings.CameraMouseXSensitivity)) settings.CameraMouseXSensitivity = 0.002f;
+                if (!IsMovementValueValid(settings.CameraMouseYSensitivity)) settings.CameraMouseYSensitivity = 0.002f;
                 if (string.IsNullOrWhiteSpace(settings.SteamPath)) settings.SteamPath = new HelperSettings().SteamPath;
                 return settings;
             }
@@ -85,6 +88,7 @@ namespace Crash.Helper
             // A file created by the Advanced Controls button can contain only its own setting.
             HotkeysEnabled = true;
             CameraMoveWithPitch = true;
+            PositionXYZSpeed = 0.8f;
             CameraXYZSpeed = 30f;
             CameraYawPitchSpeed = 0.03f;
             CameraMouseXSensitivity = CameraMouseYSensitivity = 0.002f;
@@ -95,14 +99,14 @@ namespace Crash.Helper
             SaveSingleSetting(nameof(AdvancedControlsEnabled), "boolean", enabled ? "true" : "false");
         }
 
-        private static bool IsCameraValueValid(float value) => !float.IsNaN(value) && value >= 0 && value <= 1000;
+        private static bool IsMovementValueValid(float value) => !float.IsNaN(value) && value >= 0 && value <= 1000;
 
-        public void SaveCameraValue(string name, float value)
+        public void SaveMovementValue(string name, float value)
         {
-            if (!IsCameraValueValid(value)) throw new ArgumentOutOfRangeException(nameof(value));
+            if (!IsMovementValueValid(value)) throw new ArgumentOutOfRangeException(nameof(value));
             if (name != nameof(CameraXYZSpeed) && name != nameof(CameraYawPitchSpeed) &&
-                name != nameof(CameraMouseXSensitivity) && name != nameof(CameraMouseYSensitivity))
-                throw new ArgumentException("Unknown camera setting.", nameof(name));
+                name != nameof(CameraMouseXSensitivity) && name != nameof(CameraMouseYSensitivity) && name != nameof(PositionXYZSpeed))
+                throw new ArgumentException("Unknown movement setting.", nameof(name));
             SaveSingleSetting(name, "number", value.ToString("R", CultureInfo.InvariantCulture));
             // Apply the live value only after the single-property save succeeds.
             switch (name)
@@ -111,6 +115,7 @@ namespace Crash.Helper
                 case nameof(CameraYawPitchSpeed): CameraYawPitchSpeed = value; break;
                 case nameof(CameraMouseXSensitivity): CameraMouseXSensitivity = value; break;
                 case nameof(CameraMouseYSensitivity): CameraMouseYSensitivity = value; break;
+                case nameof(PositionXYZSpeed): PositionXYZSpeed = value; break;
             }
         }
 

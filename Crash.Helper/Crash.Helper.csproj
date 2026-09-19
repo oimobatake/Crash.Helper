@@ -159,6 +159,8 @@
     <Compile Include="Controls\PositionControl.cs">
       <SubType>UserControl</SubType>
     </Compile>
+    <Compile Include="Memory\Position\PositionPatch.cs" />
+    <Compile Include="Memory\Position\PositionPatchService.cs" />
     <Compile Include="Controls\GameFlagControl.cs">
       <SubType>UserControl</SubType>
     </Compile>
