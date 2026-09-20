@@ -213,7 +213,7 @@ namespace Crash.Helper.Controls
         {
             var checkbox = rotation ? freezeYawPitch : freezeXYZ;
             // Shared hotkeys may toggle both freeze groups before the first async update completes.
-            if (available && ready && !closing && !loading && !IsLoading()) checkbox.Checked = !checkbox.Checked;
+            if (available && ready && !closing && !loading && !movementDisabled && !IsLoading()) checkbox.Checked = !checkbox.Checked;
         }
 
         internal async void SaveCamera()
