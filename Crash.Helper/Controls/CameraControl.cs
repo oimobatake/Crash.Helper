@@ -250,6 +250,17 @@ namespace Crash.Helper.Controls
             return available && ready && !changing && !closing && !loading && current != null ? new[] { current[3], current[4] } : null;
         }
 
+        internal void ResetControls()
+        {
+            movementDisabled = false;
+            heldDirections = new int[5];
+            speedBoost = false;
+            suppressChanges = true;
+            freezeXYZ.Checked = freezeYawPitch.Checked = false;
+            suppressChanges = false;
+            Configure(); InputStateChanged?.Invoke();
+        }
+
         internal void SetLoading(bool value)
         {
             if (loading == value || closing) return;

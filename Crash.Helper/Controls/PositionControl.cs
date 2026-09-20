@@ -167,6 +167,16 @@ namespace Crash.Helper.Controls
             catch (Exception ex) { HelperLog.Error("Write player position", ex); }
         }
 
+        internal void ResetControls()
+        {
+            motion.ResetForLoading();
+            movementDisabled = false;
+            heldDirections = new int[3];
+            speedBoost = false;
+            foreach (var box in freezeCheckboxes) box.Checked = false;
+            UpdateState(); InputStateChanged?.Invoke();
+        }
+
         internal void SetFadeWriteDisabled(bool value)
         {
             fadeWriteDisabled = value;

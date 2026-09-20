@@ -163,6 +163,12 @@ namespace Crash.Helper
             }
             cameraControl.EndEditing();
             processControl.Rescan();
+            if (!settings.AdvancedControlsEnabled)
+            {
+                positionControl.ResetControls();
+                cameraControl.ResetControls();
+                othersControl.ResetControls();
+            }
             SuspendLayout();
             rightColumn.Visible = settings.AdvancedControlsEnabled;
             ResumeLayout(true);

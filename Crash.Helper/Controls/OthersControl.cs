@@ -34,6 +34,8 @@ namespace Crash.Helper.Controls
             Configure();
         }
 
+        internal void ResetControls() => disableFade.Checked = false;
+
         internal void ToggleFade()
         {
             if (Enabled && !closing) disableFade.Checked = !disableFade.Checked;
