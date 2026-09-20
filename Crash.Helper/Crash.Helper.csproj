@@ -290,6 +290,9 @@
     <EmbeddedResource Include="LevelImage\L000_None.png">
       <LogicalName>Crash.Helper.LevelImage.L000_None.png</LogicalName>
     </EmbeddedResource>
+	<EmbeddedResource Include="LevelImage\L100_TheWumpaIslands.png">
+	  <LogicalName>Crash.Helper.LevelImage.L100_TheWumpaIslands.png</LogicalName>
+	</EmbeddedResource> 
     <EmbeddedResource Include="LevelImage\L101_NSanityBeach.png">
       <LogicalName>Crash.Helper.LevelImage.L101_NSanityBeach.png</LogicalName>
     </EmbeddedResource>
@@ -374,7 +377,10 @@
     <EmbeddedResource Include="LevelImage\L128_StormyAscent.png">
       <LogicalName>Crash.Helper.LevelImage.L128_StormyAscent.png</LogicalName>
     </EmbeddedResource>
-    <EmbeddedResource Include="LevelImage\L201_TurtleWoods.png">
+	<EmbeddedResource Include="LevelImage\L200_TheWarpRoom.png">
+	  <LogicalName>Crash.Helper.LevelImage.L200_TheWarpRoom.png</LogicalName>
+	</EmbeddedResource>
+	<EmbeddedResource Include="LevelImage\L201_TurtleWoods.png">
       <LogicalName>Crash.Helper.LevelImage.L201_TurtleWoods.png</LogicalName>
     </EmbeddedResource>
     <EmbeddedResource Include="LevelImage\L202_SnowGo.png">
@@ -455,7 +461,10 @@
     <EmbeddedResource Include="LevelImage\L227_TotallyFly.png">
       <LogicalName>Crash.Helper.LevelImage.L227_TotallyFly.png</LogicalName>
     </EmbeddedResource>
-    <EmbeddedResource Include="LevelImage\L301_ToadVillage.png">
+	<EmbeddedResource Include="LevelImage\L300_TheTimeTwister.png">
+	  <LogicalName>Crash.Helper.LevelImage.L300_TheTimeTwister.png</LogicalName>
+	</EmbeddedResource>
+	<EmbeddedResource Include="LevelImage\L301_ToadVillage.png">
       <LogicalName>Crash.Helper.LevelImage.L301_ToadVillage.png</LogicalName>
     </EmbeddedResource>
     <EmbeddedResource Include="LevelImage\L302_UnderPressure.png">

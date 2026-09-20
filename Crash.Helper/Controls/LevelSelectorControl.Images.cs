@@ -10,7 +10,7 @@ namespace Crash.Helper.Controls
         // Explicit filenames also cover spelling differences between map names and artwork.
         private static readonly Dictionary<string, string> LevelImages = new Dictionary<string, string>
         {
-            ["Crash 1 - The Wumpa Islands"] = "L000_None.png",
+            ["Crash 1 - The Wumpa Islands"] = "L100_TheWumpaIslands.png",
             ["Crash 1 - N. Sanity Beach"] = "L101_NSanityBeach.png",
             ["Crash 1 - Jungle Rollers"] = "L102_JungleRollers.png",
             ["Crash 1 - The Great Gate"] = "L103_TheGreatGate.png",
@@ -45,7 +45,7 @@ namespace Crash.Helper.Controls
             ["Crash 1 - The Great Hall"] = "L127_TheGreatHall.png",
             ["Crash 1 - Dr. Neo Cortex"] = "B106_DrNeoCortex.png",
             ["Crash 1 - Stormy Ascent"] = "L128_StormyAscent.png",
-            ["Crash 2 - The Warp Room"] = "L000_None.png",
+            ["Crash 2 - The Warp Room"] = "L200_TheWarpRoom.png",
             ["Crash 2 - Turtle Woods"] = "L201_TurtleWoods.png",
             ["Crash 2 - Snow Go"] = "L202_SnowGo.png",
             ["Crash 2 - Hang Eight"] = "L203_HangEight.png",
@@ -78,7 +78,7 @@ namespace Crash.Helper.Controls
             ["Crash 2 - Dr. Neo Cortex"] = "B205_DrNeoCortex.png",
             ["Crash 2 - Totally Bear"] = "L226_TotallyBear.png",
             ["Crash 2 - Totally Fly"] = "L227_TotallyFly.png",
-            ["Crash 3 - The Time Twister"] = "L000_None.png",
+            ["Crash 3 - The Time Twister"] = "L300_TheTimeTwister.png",
             ["Crash 3 - Toad Village"] = "L301_ToadVillage.png",
             ["Crash 3 - Under Pressure"] = "L302_UnderPressure.png",
             ["Crash 3 - Orient Express"] = "L303_OrientExpress.png",
