@@ -8,7 +8,7 @@ using Crash.Helper.Memory;
 
 namespace Crash.Helper.Controls
 {
-    public class LevelSelectorControl : UserControl
+    public partial class LevelSelectorControl : UserControl
     {
         private ComboBox combo;
         private Button lockButton;
@@ -244,6 +244,7 @@ namespace Crash.Helper.Controls
             this.dataControl = dataControl;
 
             this.AutoSize = true;
+            this.AutoSizeMode = AutoSizeMode.GrowAndShrink;
             this.MinimumSize = new Size(285, 137);
             this.Margin = new Padding(0, 5, 0, 0);
             var levelBox = new GroupBox { Text = "Level", Size = new Size(285, 137) };
@@ -278,6 +279,7 @@ namespace Crash.Helper.Controls
             levelBox.Controls.Add(launchButton);
             dataControl.AttachLevelControls(levelBox, combo);
             this.Controls.Add(levelBox);
+            InitializeLevelImage(levelBox);
 
             ApplyAvailability(true, false);
         }

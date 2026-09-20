@@ -46,6 +46,9 @@ namespace Crash.Helper
             pathRow.Controls.Add(path);
             pathRow.Controls.Add(browse);
             layout.Controls.Add(pathRow);
+            var levelImage = new CheckBox { Text = "Level Image", AutoSize = true, Checked = draft.LevelImageEnabled };
+            levelImage.CheckedChanged += (s, e) => draft.LevelImageEnabled = levelImage.Checked;
+            layout.Controls.Add(levelImage);
             hotkeys = new HotkeyControl(manager, draft) { Enabled = helperEnabled };
             layout.Controls.Add(hotkeys);
             helperPage.Controls.Add(layout);

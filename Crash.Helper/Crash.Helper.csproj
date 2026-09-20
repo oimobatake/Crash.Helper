@@ -118,6 +118,10 @@
     <Compile Include="Controls\HotkeyControl.Designer.cs">
       <DependentUpon>HotkeyControl.cs</DependentUpon>
     </Compile>
+    <Compile Include="Controls\LevelSelectorControl.Images.cs">
+      <DependentUpon>LevelSelectorControl.cs</DependentUpon>
+      <SubType>UserControl</SubType>
+    </Compile>
     <Compile Include="Controls\LevelSelectorControl.cs">
       <SubType>UserControl</SubType>
     </Compile>
@@ -235,6 +239,315 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />
+    <EmbeddedResource Include="LevelImage\B101_PapuPapu.png">
+      <LogicalName>Crash.Helper.LevelImage.B101_PapuPapu.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\B102_RipperRoo.png">
+      <LogicalName>Crash.Helper.LevelImage.B102_RipperRoo.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\B103_KoalaKong.png">
+      <LogicalName>Crash.Helper.LevelImage.B103_KoalaKong.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\B104_PinestripeProtoroo.png">
+      <LogicalName>Crash.Helper.LevelImage.B104_PinestripeProtoroo.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\B105_DrNitrusBrio.png">
+      <LogicalName>Crash.Helper.LevelImage.B105_DrNitrusBrio.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\B106_DrNeoCortex.png">
+      <LogicalName>Crash.Helper.LevelImage.B106_DrNeoCortex.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\B201_RipperRoo.png">
+      <LogicalName>Crash.Helper.LevelImage.B201_RipperRoo.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\B202_KomodoBros.png">
+      <LogicalName>Crash.Helper.LevelImage.B202_KomodoBros.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\B203_TinyTiger.png">
+      <LogicalName>Crash.Helper.LevelImage.B203_TinyTiger.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\B204_NGin.png">
+      <LogicalName>Crash.Helper.LevelImage.B204_NGin.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\B205_DrNeoCortex.png">
+      <LogicalName>Crash.Helper.LevelImage.B205_DrNeoCortex.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\B301_TinyTiger.png">
+      <LogicalName>Crash.Helper.LevelImage.B301_TinyTiger.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\B302_Dingodile.png">
+      <LogicalName>Crash.Helper.LevelImage.B302_Dingodile.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\B303_NTropy.png">
+      <LogicalName>Crash.Helper.LevelImage.B303_NTropy.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\B304_NGin.png">
+      <LogicalName>Crash.Helper.LevelImage.B304_NGin.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\B305_DrNeoCortex.png">
+      <LogicalName>Crash.Helper.LevelImage.B305_DrNeoCortex.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L000_None.png">
+      <LogicalName>Crash.Helper.LevelImage.L000_None.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L101_NSanityBeach.png">
+      <LogicalName>Crash.Helper.LevelImage.L101_NSanityBeach.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L102_JungleRollers.png">
+      <LogicalName>Crash.Helper.LevelImage.L102_JungleRollers.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L103_TheGreatGate.png">
+      <LogicalName>Crash.Helper.LevelImage.L103_TheGreatGate.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L104_Boulders.png">
+      <LogicalName>Crash.Helper.LevelImage.L104_Boulders.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L105_Upstream.png">
+      <LogicalName>Crash.Helper.LevelImage.L105_Upstream.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L106_RollingStones.png">
+      <LogicalName>Crash.Helper.LevelImage.L106_RollingStones.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L107_HogWild.png">
+      <LogicalName>Crash.Helper.LevelImage.L107_HogWild.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L108_NativeFortress.png">
+      <LogicalName>Crash.Helper.LevelImage.L108_NativeFortress.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L109_UpTheCreek.png">
+      <LogicalName>Crash.Helper.LevelImage.L109_UpTheCreek.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L110_TheLostCity.png">
+      <LogicalName>Crash.Helper.LevelImage.L110_TheLostCity.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L111_TempleRuins.png">
+      <LogicalName>Crash.Helper.LevelImage.L111_TempleRuins.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L112_RoadToNowhere.png">
+      <LogicalName>Crash.Helper.LevelImage.L112_RoadToNowhere.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L113_BoulderDash.png">
+      <LogicalName>Crash.Helper.LevelImage.L113_BoulderDash.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L114_WholeHog.png">
+      <LogicalName>Crash.Helper.LevelImage.L114_WholeHog.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L115_SunsetVista.png">
+      <LogicalName>Crash.Helper.LevelImage.L115_SunsetVista.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L116_HeavyMachinery.png">
+      <LogicalName>Crash.Helper.LevelImage.L116_HeavyMachinery.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L117_CortexPower.png">
+      <LogicalName>Crash.Helper.LevelImage.L117_CortexPower.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L118_GeneratorRoom.png">
+      <LogicalName>Crash.Helper.LevelImage.L118_GeneratorRoom.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L119_ToxicWaste.png">
+      <LogicalName>Crash.Helper.LevelImage.L119_ToxicWaste.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L120_TheHighRoad.png">
+      <LogicalName>Crash.Helper.LevelImage.L120_TheHighRoad.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L121_SlipperyClimb.png">
+      <LogicalName>Crash.Helper.LevelImage.L121_SlipperyClimb.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L122_LightsOut.png">
+      <LogicalName>Crash.Helper.LevelImage.L122_LightsOut.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L123_FumblingInTheDark.png">
+      <LogicalName>Crash.Helper.LevelImage.L123_FumblingInTheDark.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L124_JawsOfDarkness.png">
+      <LogicalName>Crash.Helper.LevelImage.L124_JawsOfDarkness.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L125_CastleMachinery.png">
+      <LogicalName>Crash.Helper.LevelImage.L125_CastleMachinery.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L126_TheLab.png">
+      <LogicalName>Crash.Helper.LevelImage.L126_TheLab.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L127_TheGreatHall.png">
+      <LogicalName>Crash.Helper.LevelImage.L127_TheGreatHall.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L128_StormyAscent.png">
+      <LogicalName>Crash.Helper.LevelImage.L128_StormyAscent.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L201_TurtleWoods.png">
+      <LogicalName>Crash.Helper.LevelImage.L201_TurtleWoods.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L202_SnowGo.png">
+      <LogicalName>Crash.Helper.LevelImage.L202_SnowGo.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L203_HangEight.png">
+      <LogicalName>Crash.Helper.LevelImage.L203_HangEight.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L204_ThePits.png">
+      <LogicalName>Crash.Helper.LevelImage.L204_ThePits.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L205_CrashDash.png">
+      <LogicalName>Crash.Helper.LevelImage.L205_CrashDash.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L206_SnowBiz.png">
+      <LogicalName>Crash.Helper.LevelImage.L206_SnowBiz.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L207_AirCrash.png">
+      <LogicalName>Crash.Helper.LevelImage.L207_AirCrash.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L208_BearIt.png">
+      <LogicalName>Crash.Helper.LevelImage.L208_BearIt.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L209_CrashCrush.png">
+      <LogicalName>Crash.Helper.LevelImage.L209_CrashCrush.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L210_TheEelDeal.png">
+      <LogicalName>Crash.Helper.LevelImage.L210_TheEelDeal.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L211_PlantFood.png">
+      <LogicalName>Crash.Helper.LevelImage.L211_PlantFood.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L212_SewerOrLater.png">
+      <LogicalName>Crash.Helper.LevelImage.L212_SewerOrLater.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L213_BearDown.png">
+      <LogicalName>Crash.Helper.LevelImage.L213_BearDown.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L214_RoadToRuin.png">
+      <LogicalName>Crash.Helper.LevelImage.L214_RoadToRuin.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L215_UnBearable.png">
+      <LogicalName>Crash.Helper.LevelImage.L215_UnBearable.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L216_HanginOut.png">
+      <LogicalName>Crash.Helper.LevelImage.L216_HanginOut.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L217_DigginIt.png">
+      <LogicalName>Crash.Helper.LevelImage.L217_DigginIt.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L218_ColdHardCrash.png">
+      <LogicalName>Crash.Helper.LevelImage.L218_ColdHardCrash.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L219_Ruination.png">
+      <LogicalName>Crash.Helper.LevelImage.L219_Ruination.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L220_BeeHaving.png">
+      <LogicalName>Crash.Helper.LevelImage.L220_BeeHaving.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L221_PistonItAway.png">
+      <LogicalName>Crash.Helper.LevelImage.L221_PistonItAway.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L222_RockIt.png">
+      <LogicalName>Crash.Helper.LevelImage.L222_RockIt.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L223_NightFight.png">
+      <LogicalName>Crash.Helper.LevelImage.L223_NightFight.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L224_PackAttack.png">
+      <LogicalName>Crash.Helper.LevelImage.L224_PackAttack.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L225_SpacedOut.png">
+      <LogicalName>Crash.Helper.LevelImage.L225_SpacedOut.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L226_TotallyBear.png">
+      <LogicalName>Crash.Helper.LevelImage.L226_TotallyBear.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L227_TotallyFly.png">
+      <LogicalName>Crash.Helper.LevelImage.L227_TotallyFly.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L301_ToadVillage.png">
+      <LogicalName>Crash.Helper.LevelImage.L301_ToadVillage.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L302_UnderPressure.png">
+      <LogicalName>Crash.Helper.LevelImage.L302_UnderPressure.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L303_OrientExpress.png">
+      <LogicalName>Crash.Helper.LevelImage.L303_OrientExpress.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L304_BoneYard.png">
+      <LogicalName>Crash.Helper.LevelImage.L304_BoneYard.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L305_MakinWaves.png">
+      <LogicalName>Crash.Helper.LevelImage.L305_MakinWaves.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L306_GeeWiz.png">
+      <LogicalName>Crash.Helper.LevelImage.L306_GeeWiz.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L307_HangemHigh.png">
+      <LogicalName>Crash.Helper.LevelImage.L307_HangemHigh.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L308_HogRide.png">
+      <LogicalName>Crash.Helper.LevelImage.L308_HogRide.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L309_TombTime.png">
+      <LogicalName>Crash.Helper.LevelImage.L309_TombTime.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L310_MidnightRun.png">
+      <LogicalName>Crash.Helper.LevelImage.L310_MidnightRun.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L311_DinoMight.png">
+      <LogicalName>Crash.Helper.LevelImage.L311_DinoMight.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L312_DeepTrouble.png">
+      <LogicalName>Crash.Helper.LevelImage.L312_DeepTrouble.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L313_HighTime.png">
+      <LogicalName>Crash.Helper.LevelImage.L313_HighTime.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L314_RoadCrash.png">
+      <LogicalName>Crash.Helper.LevelImage.L314_RoadCrash.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L315_DoubleHeader.png">
+      <LogicalName>Crash.Helper.LevelImage.L315_DoubleHeader.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L316_Sphyynxinator.png">
+      <LogicalName>Crash.Helper.LevelImage.L316_Sphyynxinator.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L317_ByeByeBlimps.png">
+      <LogicalName>Crash.Helper.LevelImage.L317_ByeByeBlimps.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L318_TellNoTales.png">
+      <LogicalName>Crash.Helper.LevelImage.L318_TellNoTales.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L319_FutureFrenzy.png">
+      <LogicalName>Crash.Helper.LevelImage.L319_FutureFrenzy.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L320_TombWader.png">
+      <LogicalName>Crash.Helper.LevelImage.L320_TombWader.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L321_GoneTomorrow.png">
+      <LogicalName>Crash.Helper.LevelImage.L321_GoneTomorrow.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L322_OrangeAsphalt.png">
+      <LogicalName>Crash.Helper.LevelImage.L322_OrangeAsphalt.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L323_FlamingPassion.png">
+      <LogicalName>Crash.Helper.LevelImage.L323_FlamingPassion.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L324_MadBombers.png">
+      <LogicalName>Crash.Helper.LevelImage.L324_MadBombers.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L325_BugLite.png">
+      <LogicalName>Crash.Helper.LevelImage.L325_BugLite.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L326_SkiCrazed.png">
+      <LogicalName>Crash.Helper.LevelImage.L326_SkiCrazed.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L328_Area51.png">
+      <LogicalName>Crash.Helper.LevelImage.L328_Area51.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L330_RingsOfPower.png">
+      <LogicalName>Crash.Helper.LevelImage.L330_RingsOfPower.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L331_HotCoco.png">
+      <LogicalName>Crash.Helper.LevelImage.L331_HotCoco.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L332_Eggipus.png">
+      <LogicalName>Crash.Helper.LevelImage.L332_Eggipus.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LevelImage\L333_FutureTense.png">
+      <LogicalName>Crash.Helper.LevelImage.L333_FutureTense.png</LogicalName>
+    </EmbeddedResource>
   </ItemGroup>
   <ItemGroup>
     <BootstrapperPackage Include=".NETFramework,Version=v4.6.1">
