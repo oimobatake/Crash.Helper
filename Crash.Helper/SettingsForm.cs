@@ -32,6 +32,8 @@ namespace Crash.Helper
             MinimumSize = new Size(400, 260);
             MaximizeBox = true;
             MinimizeBox = false;
+            ShowIcon = false;
+            ShowInTaskbar = false;
             tabs = new TabControl { Dock = DockStyle.Fill, TabIndex = 0 };
             var gamePage = new TabPage("GameFlag") { Padding = new Padding(10), AutoScroll = true };
             var helperPage = new TabPage("CrashHelper") { Padding = new Padding(8), AutoScroll = true };
