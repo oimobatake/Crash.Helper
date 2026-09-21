@@ -48,7 +48,7 @@ namespace Crash.Helper.Memory
         internal static readonly GameMemoryProfile Xbox = new GameMemoryProfile
         {
             Name = "Xbox(PC)", ModuleSize = 30633984,
-            Fade = new[] { 0x01AB9C20, 0x374 },
+            Fade = new[] { 0x01AB7AE0, 0x374 },
             Loading = new[] { 0x01AB7AE0, 0xA0, 0x22C },
             Camera = Memory.Camera.CameraMemoryProfile.Xbox,
             PositionCodeOffset = 0x12E2818,
