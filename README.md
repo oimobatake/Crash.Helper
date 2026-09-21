@@ -1,6 +1,6 @@
 # Crash.Helper
 
-CrashHelper is a Windows companion app for Crash Bandicoot N. Sane Trilogy.  
+CrashHelper is a speedrun practice tool for Crash Bandicoot N. Sane Trilogy.  
 It lets you adjust lives and masks, repeat levels, return to saved positions, and control the camera while the game is running.  
 Use it to practice difficult sections, explore levels, or set up camera angles.
 
@@ -97,7 +97,3 @@ Available actions include lives and masks, level selection and locking, player m
 Shortcuts require the helper to be enabled and connected to a recognized game build. They work while the game or helper is active and pause while you edit input fields. Mouse camera control requires the game to be active.
 
 Preferences and shortcut bindings are stored in `CrashHelper_Settings.json` beside the executable. This file stores helper settings, not a game save or a saved position/camera snapshot.
-
-## Updates
-
-CrashHelper checks for a newer GitHub release when it starts and offers an update when a compatible download is available. You choose whether to install it.
