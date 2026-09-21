@@ -93,7 +93,7 @@ namespace Crash.Helper.Controls
             try
             {
                 await levelLock.SetAsync(startFreeze ? process : null, startFreeze ? mapValue : null);
-                if (revision != levelLockRevision || IsDisposed || levelLockShutdown != null || !Enabled || !memory.ProcessHooked) return;
+                if (revision != levelLockRevision || IsDisposed || levelLockShutdown != null || updateSuspended || !Enabled || !memory.ProcessHooked) return;
                 mapLockActive = startFreeze;
                 UpdateSecretLevel();
                 // Apply the selected map once; subsequent writes are intercepted inside the game.

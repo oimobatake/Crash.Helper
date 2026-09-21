@@ -31,6 +31,7 @@ namespace Crash.Helper
         private bool levelLockCleanupComplete;
         private bool levelLockCleanupPending;
         private bool updatingAdvancedButton;
+        internal bool UpdateClosePending => levelLockCleanupPending || levelLockCleanupComplete;
 
         public HelperForm() : this(new CrashMemory()) { }
 
@@ -141,6 +142,7 @@ namespace Crash.Helper
         private void RefreshLoading()
         {
             bool loading = memory.IsLoading;
+            if (UpdateSuspended) { updateLoadingSeen |= loading; return; }
             positionControl.SetLoading(loading);
             positionControl.SetFadeBlocked(FadeMemory.SuspendPositionFreeze(memory.PositionX.Process, memory.Profile));
             cameraControl.SetLoading(loading);
@@ -179,6 +181,7 @@ namespace Crash.Helper
 
         public void ApplyAvailability(bool helperEnabled, bool ready)
         {
+            if (UpdateSuspended) return;
             bool canConfigure = !levelLockCleanupPending && !levelLockCleanupComplete;
             ready = canConfigure && helperEnabled && ready && memory.IsSupportedVersion;
             dataControl.Enabled = ready;
@@ -212,6 +215,7 @@ namespace Crash.Helper
 
         private void RefreshHelper()
         {
+            if (UpdateSuspended) return;
             if (!memory.HookProcess()) { processControl.OnUnhook(); return; }
             memory.Refresh();
             positionControl.RefreshValues();

@@ -27,6 +27,8 @@ namespace Crash.Helper.Controls
         private CrashMemory memory;
 
         private int storedLives = 1;
+        private volatile bool updateSuspended;
+        private bool resumingUpdate;
         private sealed class MaskFreezeState
         {
             public int StoredMasks { get; private set; } = 0;
@@ -463,7 +465,7 @@ namespace Crash.Helper.Controls
 
         private void dataBox_EnabledChanged(object sender, EventArgs e)
         {
-            if (memory == null) return;
+            if (memory == null || updateSuspended) return;
 
             if (Enabled)
             {
@@ -472,7 +474,7 @@ namespace Crash.Helper.Controls
                     SyncStoredMasksWithCurrent();
                 }
 
-                RefreshLives();
+                RefreshLives(resumingUpdate && freezeLivesCheckbox.Checked ? storedLives : -1);
                 RefreshMasks();
                 RefreshLevelDisplay();
 
@@ -552,6 +554,36 @@ namespace Crash.Helper.Controls
             _ = ShutdownLevelLockAsync();
             StopRestart();
             secretLevelTimer?.Dispose();
+        }
+
+        internal async Task SuspendForUpdateAsync()
+        {
+            updateSuspended = true;
+            ++levelLockRevision;
+            mapLockActive = false;
+            secretLevelTimer.Stop();
+            var lives = livesFreezeTimer; livesFreezeTimer = null;
+            var masks = masksFreezeTimer; masksFreezeTimer = null;
+            var restart = restartTimer; restartTimer = null;
+            await Task.WhenAll(DrainTimerAsync(lives), DrainTimerAsync(masks), DrainTimerAsync(restart), levelLock.SetAsync(null, null));
+        }
+
+        private static Task DrainTimerAsync(System.Threading.Timer timer)
+        {
+            if (timer == null) return Task.CompletedTask;
+            return Task.Run(() =>
+            {
+                using (var drained = new ManualResetEvent(false))
+                    if (timer.Dispose(drained)) drained.WaitOne();
+            });
+        }
+
+        internal void ResumeAfterUpdate()
+        {
+            updateSuspended = false;
+            resumingUpdate = true;
+            try { dataBox_EnabledChanged(this, EventArgs.Empty); }
+            finally { resumingUpdate = false; }
         }
     }
 }

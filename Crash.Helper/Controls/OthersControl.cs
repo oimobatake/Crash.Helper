@@ -14,6 +14,7 @@ namespace Crash.Helper.Controls
         private Process process;
         private GameMemoryProfile profile;
         private bool closing;
+        private bool updateSuspended;
         internal event Action<bool> FadeWriteDisabledChanged;
 
         internal OthersControl()
@@ -43,7 +44,7 @@ namespace Crash.Helper.Controls
 
         private async void Configure()
         {
-            if (closing) return;
+            if (closing || updateSuspended) return;
             try { await service.ConfigureAsync(process, profile, Enabled && disableFade.Checked); }
             catch (Exception ex) { HelperLog.Error("Configure fade instructions", ex); }
         }
@@ -53,6 +54,14 @@ namespace Crash.Helper.Controls
             closing = true;
             return service.ConfigureAsync(null, null, false);
         }
+
+        internal Task SuspendForUpdateAsync()
+        {
+            updateSuspended = true;
+            return service.ConfigureAsync(null, null, false);
+        }
+
+        internal void ResumeAfterUpdate() { updateSuspended = false; Configure(); }
 
         protected override void Dispose(bool disposing)
         {

@@ -30,12 +30,13 @@ namespace Crash.Helper.Controls
         private int patchOffset;
         private bool loading, movementDisabled, fadeBlocked, fadeWriteDisabled;
         private bool available;
+        private bool updateSuspended;
         internal bool InputDisabled => movementDisabled || loading || fadeBlocked || fadeWriteDisabled;
         internal event Action InputStateChanged;
 
         internal void SetAvailability(bool value) { available = value; UpdateState(); }
         internal bool CanAdjustSpeed => CanEdit && freezeCheckboxes.Any(box => box.Checked);
-        private bool CanEdit => available && memory.ProcessHooked && !closing && !InputDisabled && !FadeMemory.SuspendPositionFreeze(memory.PositionX.Process, memory.Profile);
+        private bool CanEdit => !updateSuspended && available && memory.ProcessHooked && !closing && !InputDisabled && !FadeMemory.SuspendPositionFreeze(memory.PositionX.Process, memory.Profile);
         internal event Action<bool> EditingChanged;
 
         public PositionControl(CrashMemory memory)
@@ -138,7 +139,7 @@ namespace Crash.Helper.Controls
 
         private void UpdateState()
         {
-            bool connected = available && memory.ProcessHooked && !closing;
+            bool connected = !updateSuspended && available && memory.ProcessHooked && !closing;
             bool writable = connected && !loading && !fadeBlocked && !fadeWriteDisabled && !memory.IsLoading;
             foreach (var editor in editors) if (editor != null) editor.Enabled = CanEdit;
             foreach (var checkbox in freezeCheckboxes) if (checkbox != null) checkbox.Enabled = writable;
@@ -153,7 +154,7 @@ namespace Crash.Helper.Controls
             if (closing) return;
             try
             {
-                motion.Configure(memory.PositionX.Process, memory.Profile, available && memory.ProcessHooked,
+                motion.Configure(memory.PositionX.Process, memory.Profile, !updateSuspended && available && memory.ProcessHooked,
                     freezeCheckboxes.Select(box => box != null && box.Checked).ToArray(), inputEnabled && !movementDisabled,
                     heldDirections, (settings?.PositionXYZSpeed ?? 0.8f) * (speedBoost ? 2 : 1), viewOrientation);
             }
@@ -242,6 +243,16 @@ namespace Crash.Helper.Controls
             await motion.ShutdownAsync();
             await patchService.ConfigureAsync(null, 0, false);
         }
+
+        internal Task SuspendForUpdateAsync()
+        {
+            updateSuspended = true;
+            PublishMotion();
+            patchProcess = null; patchOffset = 0; requestedPatch = false;
+            return patchService.ConfigureAsync(null, 0, false);
+        }
+
+        internal void ResumeAfterUpdate() { updateSuspended = false; UpdateState(); }
 
         protected override void Dispose(bool disposing)
         {

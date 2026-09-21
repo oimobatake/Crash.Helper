@@ -36,6 +36,7 @@ namespace Crash.Helper.Controls
         private int[] heldDirections = new int[5];
         private bool available, ready, changing, refreshing, suppressChanges, closing;
         private int generation;
+        private bool updateSuspended;
 
         internal event Action<bool> EditingChanged;
 
@@ -128,6 +129,7 @@ namespace Crash.Helper.Controls
 
         private async void Configure()
         {
+            if (updateSuspended) return;
             int version = ++generation;
             changing = true;
             refreshTimer.Stop();
@@ -161,7 +163,7 @@ namespace Crash.Helper.Controls
             }
         }
 
-        private bool CanWrite(int axis) => available && ready && !changing && !closing && !loading && !IsLoading() && !movementDisabled && values != null &&
+        private bool CanWrite(int axis) => !updateSuspended && available && ready && !changing && !closing && !loading && !IsLoading() && !movementDisabled && values != null &&
             (axis < 3 ? freezeXYZ.Checked : freezeYawPitch.Checked);
 
         private void UpdateState()
@@ -286,7 +288,7 @@ namespace Crash.Helper.Controls
         private void UpdateMovement()
         {
             var directions = new int[5];
-            if (inputEnabled && available && ready && !changing && !closing && !loading && !movementDisabled)
+            if (!updateSuspended && inputEnabled && available && ready && !changing && !closing && !loading && !movementDisabled)
                 for (int i = 0; i < directions.Length; i++)
                     if (i < 3 ? freezeXYZ.Checked : freezeYawPitch.Checked) directions[i] = heldDirections[i];
             bool useMouse = inputEnabled && mouseControl && CanWrite(3);
@@ -339,6 +341,17 @@ namespace Crash.Helper.Controls
             UpdateState();
             await service.ShutdownAsync();
         }
+
+        internal Task SuspendForUpdateAsync()
+        {
+            updateSuspended = true;
+            ++generation;
+            refreshTimer.Stop();
+            UpdateMovement();
+            return service.ConfigureAsync(null, null, false, false);
+        }
+
+        internal void ResumeAfterUpdate() { updateSuspended = false; Configure(); }
 
         protected override void Dispose(bool disposing)
         {

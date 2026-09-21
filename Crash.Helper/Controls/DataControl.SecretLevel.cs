@@ -24,7 +24,7 @@ namespace Crash.Helper.Controls
         private void UpdateSecretLevel()
         {
             if (secretLevelCheckbox == null || secretLevelTimer == null) return;
-            bool active = Enabled && memory != null && memory.ProcessHooked && memory.IsSupportedVersion && freezeMapEnabled && mapLockActive;
+            bool active = !updateSuspended && Enabled && memory != null && memory.ProcessHooked && memory.IsSupportedVersion && freezeMapEnabled && mapLockActive;
             var level = active ? GetLevelDisplayName(storedMap) : null;
             secretLevelCheckbox.Enabled = active && SecretLevelRules.GetValue(level, true) != SecretLevelRules.GetValue(level, false);
             if (!active) { secretLevelTimer.Stop(); return; }

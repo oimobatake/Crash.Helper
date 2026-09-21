@@ -64,6 +64,7 @@ namespace Crash.Helper.Controls
 
         public void Rescan(bool skipFirstCheck = false)
 		{
+            if (parent.UpdateSuspended) return;
 			if (!helperCheckbox.Checked) { UpdateVersionLabel(); parent.ApplyAvailability(false, false); return; }
             if (!skipFirstCheck && memory.HookProcess())
 			{
@@ -154,6 +155,7 @@ namespace Crash.Helper.Controls
 			launchConfirmTimer.Interval = LaunchConfirmIntervalMs;
 			launchConfirmTimer.Tick += (sender, e) =>
 			{
+                if (parent.UpdateSuspended) return;
 				try
 				{
 					if (!reenableHelperAfterLaunch)
