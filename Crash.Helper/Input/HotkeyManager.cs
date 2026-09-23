@@ -32,7 +32,23 @@ namespace Crash.Helper.Input
         public bool IsActive { get; private set; }
         internal bool CanUseCameraInput => !disposed && ready && !editing && Enabled && gameAvailable() && foregroundAllowed();
         internal Func<bool> AdvancedInputBlocked { get; set; } = () => false;
-        private bool Allows(Hotkey action) => (action.Group != "Position" && action.Group != "Camera") || !AdvancedInputBlocked();
+        private bool Allows(Hotkey action)
+        {
+            if ((action.Group != "Position" && action.Group != "Camera") || !AdvancedInputBlocked()) return true;
+            // Saving, teleporting and toggling input remain available in the pause menu.
+            switch (action.Label)
+            {
+                case "Position Save":
+                case "Position TP":
+                case "Camera Save":
+                case "Camera TP":
+                case "Toggle position input":
+                case "Toggle camera input":
+                    return true;
+                default:
+                    return false;
+            }
+        }
         public event EventHandler StatusChanged;
         public bool Enabled
         {
