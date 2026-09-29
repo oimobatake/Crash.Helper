@@ -96,7 +96,6 @@ namespace Crash.Helper.Updates
                 File.Replace(candidate, target, backup);
                 replaced = true;
                 restart(target);
-                // Keep the previous executable available if the new application cannot start normally.
             }
             catch
             {
@@ -107,6 +106,9 @@ namespace Crash.Helper.Updates
             {
                 try { File.Delete(candidate); } catch { }
             }
+            // Cleanup failure must not roll back an application that has already started.
+            try { File.Delete(backup); }
+            catch (Exception ex) { HelperLog.Error("Remove update backup", ex); }
         }
 
         private static void Restart(string path, bool recovery)
