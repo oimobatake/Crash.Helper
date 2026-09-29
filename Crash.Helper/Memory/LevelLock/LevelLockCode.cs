@@ -12,8 +12,8 @@ namespace Crash.Helper.Memory.LevelLock
         {
             if (string.IsNullOrWhiteSpace(name) || name.IndexOf('\0') >= 0) throw new ArgumentException("A level name is required.");
             var encoded = Encoding.UTF8.GetBytes(name);
-            if (encoded.Length >= 64) throw new ArgumentException("The level name must fit in 63 UTF-8 bytes.");
-            var buffer = new byte[64];
+            if (encoded.Length >= 72) throw new ArgumentException("The level name must fit in 71 UTF-8 bytes.");
+            var buffer = new byte[72];
             Buffer.BlockCopy(encoded, 0, buffer, 0, encoded.Length);
             return buffer;
         }
@@ -42,7 +42,7 @@ namespace Crash.Helper.Memory.LevelLock
             emit(new byte[] { 0x48, 0x83, 0xC0, 0x18, 0x49, 0x39, 0xC0 }); skip(0x85); // add rax,18; cmp r8,rax
             emit(new byte[] { 0x48, 0x85, 0xD2 }); skip(0x84); // test rdx,rdx
             emit(new byte[] { 0x4D, 0x8B, 0x52, 0x08 }); // mov r10,[r10+8]: immutable name snapshot
-            for (byte offset = 0; offset < 64; offset += 8)
+            for (byte offset = 0; offset < 72; offset += 8)
             {
                 emit(new byte[] { 0x49, 0x8B, 0x42, offset }); // mov rax,[r10+offset]
                 emit(new byte[] { 0x48, 0x89, 0x42, offset }); // mov [rdx+offset],rax
