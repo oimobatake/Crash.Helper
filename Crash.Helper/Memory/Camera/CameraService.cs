@@ -151,7 +151,7 @@ namespace Crash.Helper.Memory.Camera
                             try { patch.Enable(xyz, yawPitch, request.Token); break; }
                             catch (CameraSignatureNotFoundException ex)
                             {
-                                HelperLog.Error("Waiting for camera code", ex);
+                                Trace.WriteLine("Waiting for camera code: " + ex);
                                 await Task.Delay(1000, request.Token).ConfigureAwait(false);
                                 if (patch.HasExited) return;
                             }
