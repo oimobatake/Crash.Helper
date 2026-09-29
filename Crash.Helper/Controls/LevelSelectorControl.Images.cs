@@ -86,7 +86,7 @@ namespace Crash.Helper.Controls
             ["Crash 3 - Makin' Waves"] = "L305_MakinWaves.png",
             ["Crash 3 - Tiny Tiger"] = "B301_TinyTiger.png",
             ["Crash 3 - Gee Wiz"] = "L306_GeeWiz.png",
-            ["Crash 3 - Hang'em High"] = "L307_HangemHigh.png",
+            ["Crash 3 - Hang 'Em High"] = "L307_HangemHigh.png",
             ["Crash 3 - Hog Ride"] = "L308_HogRide.png",
             ["Crash 3 - Tomb Time"] = "L309_TombTime.png",
             ["Crash 3 - Midnight Run"] = "L310_MidnightRun.png",
