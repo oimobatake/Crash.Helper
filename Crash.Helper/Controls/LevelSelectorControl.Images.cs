@@ -173,6 +173,7 @@ namespace Crash.Helper.Controls
         {
             if (disposing && levelImage != null)
             {
+                if (dataControl != null) dataControl.CurrentLevelFrozen -= OnCurrentLevelFrozen;
                 var image = levelImage.Image;
                 levelImage.Image = null;
                 image?.Dispose();

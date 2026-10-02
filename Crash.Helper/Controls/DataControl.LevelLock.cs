@@ -13,6 +13,7 @@ namespace Crash.Helper.Controls
         private Task levelLockShutdown;
         private bool showCurrentLevel;
         private bool mapLockActive;
+        public event EventHandler<string> CurrentLevelFrozen;
 
         internal void AttachLevelControls(System.Windows.Forms.GroupBox levelBox, System.Windows.Forms.Control levelList)
         {
@@ -77,7 +78,10 @@ namespace Crash.Helper.Controls
             nowMapLabels.Text = GetLevelDisplayName(map);
         }
 
-        public async void SetMapLock(string mapValue, string mapKey, bool startFreeze = true)
+        public void SetMapLock(string mapValue, string mapKey, bool startFreeze = true)
+            => SetMapLockAsync(mapValue, mapKey, startFreeze, false);
+
+        private async void SetMapLockAsync(string mapValue, string mapKey, bool startFreeze, bool currentLevel)
         {
             if (levelLockShutdown != null || !Enabled || memory == null || !memory.ProcessHooked || !memory.IsSupportedVersion || string.IsNullOrEmpty(mapValue)) return;
             mapValue = GetMapCommand(mapValue);
@@ -99,6 +103,7 @@ namespace Crash.Helper.Controls
                 // Apply the selected map once; subsequent writes are intercepted inside the game.
                 memory.LoadMap.Write(mapValue);
                 ShowMapLock(mapKey, startFreeze, startFreeze ? Color.DodgerBlue : Color.Black);
+                if (startFreeze && currentLevel && !string.IsNullOrEmpty(mapKey)) CurrentLevelFrozen?.Invoke(this, mapKey);
             }
             catch (OperationCanceledException) { }
             catch (Exception ex) { ReportLevelLockFailure(revision, ex); }

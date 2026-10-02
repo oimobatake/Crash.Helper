@@ -139,7 +139,7 @@ namespace Crash.Helper.Controls
             {
                 // The current level is a path, while the hook expects a loadmap command.
                 var mapVal = GetMapCommand(memory.CurrentLevel.Read());
-                if (!string.IsNullOrEmpty(mapVal)) SetMapLock(mapVal, GetLevelDisplayName(mapVal), true);
+                if (!string.IsNullOrEmpty(mapVal)) SetMapLockAsync(mapVal, GetLevelDisplayName(mapVal), true, true);
                 else ShowMapLock(nowMapLabels.Text, false, Color.Black);
             }
             else
@@ -370,7 +370,6 @@ namespace Crash.Helper.Controls
 
             maskFreezeState.SyncRuntimeMasks(currentMasks);
             UpdateMasksUi(currentMasks);
-            masksLabel.ForeColor = Color.DodgerBlue;
         }
 
         /*
@@ -454,6 +453,9 @@ namespace Crash.Helper.Controls
             SafeAction(() =>
             {
                 masksLabel.Text = "Masks: " + masks;
+                masksLabel.ForeColor = freezeMasksCheckbox.Checked
+                    ? (maskFreezeState.DeathSuspended ? SystemColors.GrayText : Color.DodgerBlue)
+                    : Color.Black;
                 masksDownButton.Enabled = !MaskInputBlocked && masks > 0;
                 masksUpButton.Enabled = !MaskInputBlocked && masks < 2;
             });
@@ -513,7 +515,6 @@ namespace Crash.Helper.Controls
                 {
                     // 再フック時は直前の保持値を再適用する
                     FreezeMasks();
-                    masksLabel.ForeColor = Color.DodgerBlue;
                     damageMaskformCheckbox.Enabled = true;
                     StartMasksFreeze();
                 }

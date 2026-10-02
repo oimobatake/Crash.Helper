@@ -47,6 +47,8 @@ namespace Crash.Helper
             this.memory = memory ?? throw new ArgumentNullException(nameof(memory));
             dataControl = new DataControl(memory);
             levelSelector = new LevelSelectorControl(dataControl);
+            levelSelector.SelectLevel(settings.StartupLevel);
+            levelSelector.SelectCurrentLevelOnFreeze = settings.SelectCurrentLevelOnFreeze;
             levelSelector.SetLevelImageVisible(settings.LevelImageEnabled);
             launcher = new SteamGameLauncher(settings);
             levelSelector.LaunchRequested += LaunchGame;
@@ -71,6 +73,7 @@ namespace Crash.Helper
             {
                 using (var window = new SettingsForm(settings, hotkeyManager, memory, () => dataControl.Enabled, processControl.HelperEnabled)) window.ShowDialog(this);
                 levelSelector.SetLevelImageVisible(settings.LevelImageEnabled);
+                levelSelector.SelectCurrentLevelOnFreeze = settings.SelectCurrentLevelOnFreeze;
                 hotkeyManager.SetEditing(false);
             };
             advancedButton = new CheckBox

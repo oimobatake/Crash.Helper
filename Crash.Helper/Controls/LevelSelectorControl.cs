@@ -15,6 +15,9 @@ namespace Crash.Helper.Controls
         private Button stopButton;
         private Button launchButton;
         private DataControl dataControl;
+        private bool updatingSelection;
+        internal bool SelectCurrentLevelOnFreeze { get; set; }
+        internal static string[] GetOrderedLevels() => LevelOrder.ToArray();
 
         private static readonly List<string> LevelOrder = new List<string>
         {
@@ -255,7 +258,7 @@ namespace Crash.Helper.Controls
             combo.SelectedIndexChanged += (s, e) => {
                 try
                 {
-                    if (dataControl != null && dataControl.Enabled && dataControl.IsMapFrozen)
+                    if (!updatingSelection && dataControl != null && dataControl.Enabled && dataControl.IsMapFrozen)
                     {
                         // if map freeze is active, selecting a new level should apply and re-freeze it
                         SetSelectedLevel(true);
@@ -282,6 +285,22 @@ namespace Crash.Helper.Controls
             InitializeLevelImage(levelBox);
 
             ApplyAvailability(true, false);
+            dataControl.CurrentLevelFrozen += OnCurrentLevelFrozen;
+        }
+
+        private void OnCurrentLevelFrozen(object sender, string level)
+        {
+            if (SelectCurrentLevelOnFreeze) SelectLevel(level);
+        }
+
+        internal void SelectLevel(string level)
+        {
+            int index = combo.Items.IndexOf(level ?? string.Empty);
+            if (index < 0) return;
+            // Programmatic selection must not start a second lock or write a loadmap command.
+            updatingSelection = true;
+            try { combo.SelectedIndex = index; }
+            finally { updatingSelection = false; }
         }
 
         public event Action<string> LaunchRequested;

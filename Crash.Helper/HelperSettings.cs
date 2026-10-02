@@ -20,10 +20,13 @@ namespace Crash.Helper
     [DataContract]
     public sealed class HelperSettings
     {
+        public const string DefaultStartupLevel = "Crash 1 - The Wumpa Islands";
         public static string FilePath => Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "CrashHelper_Settings.json");
         [DataMember] public string SteamPath { get; set; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "Steam", "steam.exe");
         [DataMember] public bool HotkeysEnabled { get; set; } = true;
         [DataMember] public bool LevelImageEnabled { get; set; } = true;
+        [DataMember] public bool SelectCurrentLevelOnFreeze { get; set; }
+        [DataMember] public string StartupLevel { get; set; } = DefaultStartupLevel;
         [DataMember] public bool AdvancedControlsEnabled { get; set; }
         [DataMember] public bool CameraMoveWithPitch { get; set; } = true;
         [DataMember] public bool CameraMouseControl { get; set; }
@@ -48,6 +51,8 @@ namespace Crash.Helper
             HotkeysEnabled = source.HotkeysEnabled;
             AdvancedControlsEnabled = source.AdvancedControlsEnabled;
             LevelImageEnabled = source.LevelImageEnabled;
+            SelectCurrentLevelOnFreeze = source.SelectCurrentLevelOnFreeze;
+            StartupLevel = source.StartupLevel;
             CameraMoveWithPitch = source.CameraMoveWithPitch;
             CameraMouseControl = source.CameraMouseControl;
             CameraInvertMouseY = source.CameraInvertMouseY;
@@ -69,6 +74,8 @@ namespace Crash.Helper
                 var settings = (HelperSettings)new DataContractJsonSerializer(typeof(HelperSettings)).ReadObject(stream);
                 if (settings == null) throw new InvalidDataException("Settings are empty.");
                 if (settings.Hotkeys == null) settings.Hotkeys = new Dictionary<string, HotkeyBinding>();
+                if (!Controls.LevelSelectorControl.Levels.ContainsKey(settings.StartupLevel ?? string.Empty))
+                    settings.StartupLevel = DefaultStartupLevel;
                 if (!IsMovementValueValid(settings.CameraXYZSpeed)) settings.CameraXYZSpeed = 30f;
                 if (!IsMovementValueValid(settings.PositionXYZSpeed)) settings.PositionXYZSpeed = 0.8f;
                 if (!IsMovementValueValid(settings.CameraYawPitchSpeed)) settings.CameraYawPitchSpeed = 0.03f;
@@ -90,6 +97,7 @@ namespace Crash.Helper
             // A file created by the Advanced Controls button can contain only its own setting.
             HotkeysEnabled = true;
             LevelImageEnabled = true;
+            StartupLevel = DefaultStartupLevel;
             CameraMoveWithPitch = true;
             PositionXYZSpeed = 0.8f;
             CameraXYZSpeed = 30f;
