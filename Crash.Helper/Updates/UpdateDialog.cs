@@ -23,18 +23,25 @@ namespace Crash.Helper.Updates
             ShowInTaskbar = false;
             StartPosition = FormStartPosition.CenterParent;
             TopMost = true;
-            message = new Label { AutoSize = false, Dock = DockStyle.Fill, Padding = new Padding(20), TextAlign = ContentAlignment.MiddleLeft,
+            message = new Label { AutoSize = false, Location = Point.Empty, Padding = new Padding(20), TextAlign = ContentAlignment.MiddleLeft,
                 Text = "A new version of Crash Helper is available. Would you like to update?" };
-            buttons = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 45, FlowDirection = FlowDirection.RightToLeft, Padding = new Padding(8) };
-            no = new Button { Text = "No", DialogResult = DialogResult.No, Width = 85 };
-            yes = new Button { Text = "Yes", Width = 85 };
+            buttons = new FlowLayoutPanel { AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, WrapContents = false,
+                Anchor = AnchorStyles.Bottom | AnchorStyles.Right, FlowDirection = FlowDirection.RightToLeft };
+            no = new Button { Text = "No", DialogResult = DialogResult.No, Width = 85, TabIndex = 1 };
+            yes = new Button { Text = "Yes", Width = 85, TabIndex = 0 };
             buttons.Controls.Add(no);
             buttons.Controls.Add(yes);
             Controls.Add(message);
             Controls.Add(buttons);
+            buttons.BringToFront();
+            Layout += (s, e) =>
+            {
+                buttons.Location = new Point(ClientSize.Width - buttons.Width - 12, ClientSize.Height - buttons.Height - 12);
+                message.Size = new Size(ClientSize.Width, buttons.Visible ? Math.Max(0, buttons.Top) : ClientSize.Height);
+            };
             AcceptButton = yes;
             CancelButton = no;
-            Shown += (s, e) => { Activate(); BringToFront(); };
+            Shown += (s, e) => { Activate(); BringToFront(); if (!busy) yes.Select(); };
             yes.Click += async (s, e) =>
             {
                 ShowProgress();

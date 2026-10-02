@@ -8,6 +8,7 @@ namespace Crash.Helper.Memory
         internal int ModuleSize { get; private set; }
         internal int[] Lives { get; private set; }
         internal int[] Masks { get; private set; }
+        internal int[] DeathFlag { get; private set; }
         internal int[] CurrentLevel { get; private set; }
         internal int[] LoadMap { get; private set; }
         internal int[] SecretLevel { get; private set; }
@@ -31,6 +32,7 @@ namespace Crash.Helper.Memory
             FadeCodeOffset = 0x11D6EF, FadeOriginal = new byte[] { 0x0F, 0x29, 0x41, 0x10 },
             Lives = new[] { 0x01AA27C8, 0x10 },
             Masks = new[] { 0x01A69A98, 0x30, 0x1E0 },
+            DeathFlag = new[] { 0x01A69A98, 0x30, 0x15C0 },
             CurrentLevel = new[] { 0x01A5C6E0 },
             LoadMap = new[] { 0x01A5C6D8, 0x18 },
             SecretLevel = new[] { 0x01A69A98, 0x30, 0x1740 },
@@ -55,6 +57,7 @@ namespace Crash.Helper.Memory
             FadeCodeOffset = 0x10C47A, FadeOriginal = new byte[] { 0x0F, 0x11, 0x41, 0x10 },
             Lives = new[] { 0x01AC9C00, 0x10 },
             Masks = new[] { 0x01A93118, 0x30, 0x1B8 },
+            DeathFlag = new[] { 0x01AD1288, 0x28, 0x18, 0x88, 0x40, 0x18, 0x30, 0x10 },
             CurrentLevel = new[] { 0x01A84000 },
             LoadMap = new[] { 0x01A83FF8, 0x18 },
             SecretLevel = new[] { 0x01A93118, 0x30, 0x1718 },

@@ -34,6 +34,10 @@ namespace Crash.Helper.Controls
             public int StoredMasks { get; private set; } = 0;
             public int RuntimeMasks { get; private set; } = 0;
             public bool IsMaskFormOnDamage { get; set; } = false;
+            private int? masksBeforeDeath;
+            public bool DeathSuspended => masksBeforeDeath.HasValue;
+
+            public void ResetDeathSuspension() => masksBeforeDeath = null;
 
             public void SetStoredMasks(int value)
             {
@@ -42,8 +46,20 @@ namespace Crash.Helper.Controls
                 StoredMasks = value;
             }
 
-            public int ResolveTargetMasks(int currentMasks)
+            public int? ResolveTargetMasks(int currentMasks, bool isDead)
             {
+                if (isDead)
+                {
+                    if (DeathSuspended) return null;
+                    masksBeforeDeath = StoredMasks;
+                    return 0;
+                }
+                if (DeathSuspended)
+                {
+                    StoredMasks = masksBeforeDeath.Value;
+                    ResetDeathSuspension();
+                    return StoredMasks;
+                }
                 if (IsMaskFormOnDamage)
                 {
                     if (currentMasks == 0)
@@ -80,7 +96,7 @@ namespace Crash.Helper.Controls
         public int StoredMasks
         {
             get { return maskFreezeState.StoredMasks; }
-            set { maskFreezeState.SetStoredMasks(value); }
+            set { if (!MaskInputBlocked) maskFreezeState.SetStoredMasks(value); }
         }
         private string storedMap = null;
 
@@ -234,6 +250,7 @@ namespace Crash.Helper.Controls
             else
             {
                 StopMasksFreeze();
+                maskFreezeState.ResetDeathSuspension();
                 masksLabel.ForeColor = Color.Black;
                 SafeAction(() =>
                 {
@@ -246,6 +263,7 @@ namespace Crash.Helper.Controls
                     finally { suppressDamageMaskFormCheckboxEvent = false; }
                 });
                 maskFreezeState.IsMaskFormOnDamage = false;
+                if (memory != null) RefreshMasks();
             }
         }
 
@@ -253,7 +271,7 @@ namespace Crash.Helper.Controls
         {
             if (memory == null || !memory.ProcessHooked) return;
 
-            StoredMasks = memory.Masks.Read();
+            maskFreezeState.SetStoredMasks(memory.Masks.Read());
         }
 
         private void damageMaskformCheckbox_CheckedChanged(object sender, EventArgs e)
@@ -271,21 +289,21 @@ namespace Crash.Helper.Controls
 
         private void masksUpButton_Click(object sender, EventArgs e)
         {
-            int newMasks = memory.Masks.Read() + 1;
-
-            StoredMasks = newMasks;
-
-            memory.Masks.Write(StoredMasks);
-            RefreshMasks(StoredMasks);
+            ChangeMasks(1);
         }
 
         private void masksDownButton_Click(object sender, EventArgs e)
         {
-            int newMasks = memory.Masks.Read() - 1;
+            ChangeMasks(-1);
+        }
 
-            StoredMasks = newMasks;
+        private bool MaskInputBlocked => freezeMasksCheckbox != null && freezeMasksCheckbox.Checked &&
+            (maskFreezeState.DeathSuspended || (memory != null && memory.IsDead));
 
-            memory.Masks.Write(StoredMasks);
+        public void ChangeMasks(int amount)
+        {
+            if (memory == null || !Enabled || updateSuspended || !memory.ProcessHooked || MaskInputBlocked) return;
+            StoredMasks = memory.Masks.Read() + amount;
             RefreshMasks(StoredMasks);
         }
 
@@ -339,15 +357,15 @@ namespace Crash.Helper.Controls
 
         private void FreezeMasks()
         {
-            if (memory == null || !Enabled || !memory.ProcessHooked) return;
+            if (memory == null || !Enabled || updateSuspended || !memory.ProcessHooked || !freezeMasksCheckbox.Checked) return;
 
             int currentMasks = memory.Masks.Read();
-            int targetMasks = maskFreezeState.ResolveTargetMasks(currentMasks);
+            int? targetMasks = maskFreezeState.ResolveTargetMasks(currentMasks, memory.IsDead);
 
-            if (currentMasks != targetMasks)
+            if (targetMasks.HasValue && currentMasks != targetMasks.Value)
             {
-                memory.Masks.Write(targetMasks);
-                currentMasks = targetMasks;
+                memory.Masks.Write(targetMasks.Value);
+                currentMasks = targetMasks.Value;
             }
 
             maskFreezeState.SyncRuntimeMasks(currentMasks);
@@ -387,7 +405,8 @@ namespace Crash.Helper.Controls
             StopMasksFreeze();
             masksFreezeTimer = new System.Threading.Timer(_ =>
             {
-                FreezeMasks();
+                // Serialize death transitions and button/hotkey edits on the UI thread.
+                SafeAction(FreezeMasks);
             }, null, 0, 10);
         }
 
@@ -416,6 +435,7 @@ namespace Crash.Helper.Controls
 
         private void RefreshMasks(int newMasks = -1)
         {
+            if (newMasks != -1 && MaskInputBlocked) return;
             int masks = newMasks != -1 ? newMasks : memory.Masks.Read();
 
             maskFreezeState.SyncRuntimeMasks(masks);
@@ -434,8 +454,8 @@ namespace Crash.Helper.Controls
             SafeAction(() =>
             {
                 masksLabel.Text = "Masks: " + masks;
-                masksDownButton.Enabled = masks > 0;
-                masksUpButton.Enabled = masks < 2;
+                masksDownButton.Enabled = !MaskInputBlocked && masks > 0;
+                masksUpButton.Enabled = !MaskInputBlocked && masks < 2;
             });
         }
 
