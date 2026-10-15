@@ -24,8 +24,9 @@ namespace Crash.Helper.Memory.Camera
         private volatile float deadzone, speed;
         private volatile bool orbit;
         private volatile double[] requestedAngles, orbitAngles;
+        private volatile float orbitDistance = -1;
         private readonly object stepSync = new object();
-        private double stepYaw, stepPitch;
+        private double stepYaw, stepPitch, stepDistance, requestedDistance = double.NaN;
 
         internal void Reset(float scale) => state = new State(scale);
 
@@ -45,7 +46,8 @@ namespace Crash.Helper.Memory.Camera
             orbit = enabled;
             requestedAngles = null;
             orbitAngles = null;
-            lock (stepSync) stepYaw = stepPitch = 0;
+            orbitDistance = -1;
+            lock (stepSync) { stepYaw = stepPitch = stepDistance = 0; requestedDistance = double.NaN; }
             // Recapture the follow offset or orbit distance from the current camera.
             state = new State(state.Scale);
         }
@@ -63,6 +65,20 @@ namespace Crash.Helper.Memory.Camera
                 stepPitch += pitchDegrees * Math.PI / 180;
             }
         }
+
+        // Distances are in player units, so they stay readable whatever Follow scale is.
+        internal void RequestOrbitDistance(double distance)
+        {
+            lock (stepSync) { requestedDistance = distance; stepDistance = 0; }
+        }
+
+        internal void StepOrbitDistance(double distance)
+        {
+            lock (stepSync) stepDistance += distance;
+        }
+
+        // Current distance from the player in player units, or a negative value before the first orbit update.
+        internal float OrbitDistance => orbitDistance;
 
         // Current orbit yaw and pitch in degrees, or null before the first orbit update.
         internal double[] OrbitDegrees
@@ -141,6 +157,11 @@ namespace Crash.Helper.Memory.Camera
                 current.OrbitYaw += stepYaw;
                 current.OrbitPitch += stepPitch;
                 stepYaw = stepPitch = 0;
+                // Keep at least one camera unit so the look-at direction stays defined.
+                if (!double.IsNaN(requestedDistance)) current.Distance = Math.Max(1, requestedDistance * current.Scale);
+                current.Distance = Math.Max(1, current.Distance + stepDistance * current.Scale);
+                requestedDistance = double.NaN;
+                stepDistance = 0;
             }
             // Match CameraMovement: speeds are per 30 ms, and mouse deltas are per event.
             double step = Math.Max(0, Math.Min(seconds, 0.05)) / 0.03;
@@ -150,6 +171,7 @@ namespace Crash.Helper.Memory.Camera
             current.OrbitYaw = Wrap(current.OrbitYaw);
             current.OrbitPitch = Wrap(current.OrbitPitch);
             orbitAngles = new[] { current.OrbitYaw, current.OrbitPitch };
+            orbitDistance = (float)(current.Distance / Math.Max(current.Scale, 0.0001f));
 
             // The view points along (cos pitch cos yaw, cos pitch sin yaw, -sin pitch); positive pitch looks down.
             double cp = Math.Cos(current.OrbitPitch);

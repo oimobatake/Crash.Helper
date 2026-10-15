@@ -17,9 +17,10 @@ namespace Crash.Helper.Controls
         private readonly TextBox[] editors = new TextBox[5];
         private readonly string[] axes = { "X", "Y", "Z", "Yaw", "Pitch" };
         private readonly CheckBox freezeXYZ, freezeYawPitch, followPlayer, orbitPlayer;
-        private readonly TextBox[] orbitEditors = new TextBox[2];
-        private readonly Button[] orbitStepButtons = new Button[4];
-        private const double OrbitStepDegrees = 5;
+        // Orbit H, Orbit V, and Zoom (distance from the player in player units).
+        private readonly TextBox[] orbitEditors = new TextBox[3];
+        private readonly Button[] orbitStepButtons = new Button[6];
+        private const double OrbitStepDegrees = 5, OrbitStepDistance = 1;
         private readonly MouseCameraListener mouse = new MouseCameraListener();
         private readonly Button saveButton, teleportButton;
         private readonly ToolTip toolTip = new ToolTip();
@@ -50,7 +51,7 @@ namespace Crash.Helper.Controls
 
         internal CameraControl()
         {
-            Size = new Size(270, 248);
+            Size = new Size(270, 274);
             for (int i = 0; i < editors.Length; i++)
             {
                 int axis = i;
@@ -98,7 +99,7 @@ namespace Crash.Helper.Controls
             toolTip.SetToolTip(teleportButton, "Restore saved camera values for the enabled Control groups.");
             Controls.Add(saveButton);
             Controls.Add(teleportButton);
-            string[] orbitAxes = { "Orbit H", "Orbit V" };
+            string[] orbitAxes = { "Orbit H", "Orbit V", "Zoom" };
             for (int i = 0; i < orbitEditors.Length; i++)
             {
                 int axis = i;
@@ -106,13 +107,17 @@ namespace Crash.Helper.Controls
                 var editor = new TextBox { Left = 68, Top = 194 + i * 26, Width = 80, Text = "-", TextAlign = HorizontalAlignment.Right };
                 for (int j = 0; j < 2; j++)
                 {
-                    double step = j == 0 ? -OrbitStepDegrees : OrbitStepDegrees;
-                    var button = new Button { Text = (step < 0 ? "-" : "+") + OrbitStepDegrees + "\u00B0", Left = 154 + j * 46, Top = 193 + i * 26, Width = 44 };
+                    bool zoom = axis == 2;
+                    double size = zoom ? OrbitStepDistance : OrbitStepDegrees;
+                    double step = j == 0 ? -size : size;
+                    var button = new Button { Text = (step < 0 ? "-" : "+") + size + (zoom ? "" : "\u00B0"), Left = 154 + j * 46, Top = 193 + i * 26, Width = 44 };
                     button.Click += (s, e) =>
                     {
                         if (!OrbitActive) return;
-                        service.StepOrbitAngles(axis == 0 ? step : 0, axis == 1 ? step : 0);
+                        if (zoom) service.StepOrbitDistance(step);
+                        else service.StepOrbitAngles(axis == 0 ? step : 0, axis == 1 ? step : 0);
                     };
+                    if (zoom) toolTip.SetToolTip(button, step < 0 ? "Move the camera closer to the player." : "Move the camera away from the player.");
                     orbitStepButtons[i * 2 + j] = button;
                     Controls.Add(button);
                 }
@@ -127,7 +132,13 @@ namespace Crash.Helper.Controls
                     double value;
                     if (!double.TryParse(editor.Text.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out value) || double.IsNaN(value) || double.IsInfinity(value))
                     {
-                        HelperLog.Error("Edit camera orbit", new ArgumentException("Enter a finite number of degrees for " + orbitAxes[axis] + "."));
+                        HelperLog.Error("Edit camera orbit", new ArgumentException("Enter a finite number for " + orbitAxes[axis] + "."));
+                        EndEditing();
+                        return;
+                    }
+                    if (axis == 2)
+                    {
+                        if (value > 0) service.RequestOrbitDistance(value);
                         EndEditing();
                         return;
                     }
@@ -218,6 +229,12 @@ namespace Crash.Helper.Controls
 
         private void UpdateOrbitEditor(int axis)
         {
+            if (axis == 2)
+            {
+                float distance = OrbitActive ? service.OrbitDistance : -1;
+                orbitEditors[axis].Text = distance < 0 ? "-" : distance.ToString("F2", CultureInfo.InvariantCulture);
+                return;
+            }
             var angles = OrbitActive ? service.OrbitDegrees : null;
             orbitEditors[axis].Text = angles == null ? "-" : angles[axis].ToString("F1", CultureInfo.InvariantCulture);
         }
@@ -314,6 +331,14 @@ namespace Crash.Helper.Controls
         internal void ToggleFollow()
         {
             if (available && ready && !closing && !loading && !IsLoading()) followPlayer.Checked = !followPlayer.Checked;
+        }
+
+        // Hotkey counterpart of the -/+ buttons: axis 0 = Orbit H, 1 = Orbit V, 2 = Zoom.
+        internal void StepOrbit(int axis, int direction)
+        {
+            if (!OrbitActive || IsLoading()) return;
+            if (axis == 2) service.StepOrbitDistance(direction * OrbitStepDistance);
+            else service.StepOrbitAngles(axis == 0 ? direction * OrbitStepDegrees : 0, axis == 1 ? direction * OrbitStepDegrees : 0);
         }
 
         internal void ToggleOrbit()

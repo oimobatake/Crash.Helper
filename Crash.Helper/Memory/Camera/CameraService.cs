@@ -78,6 +78,12 @@ namespace Crash.Helper.Memory.Camera
 
         internal double[] OrbitDegrees => follow.OrbitDegrees;
 
+        internal void RequestOrbitDistance(double distance) => follow.RequestOrbitDistance(distance);
+
+        internal void StepOrbitDistance(double distance) => follow.StepOrbitDistance(distance);
+
+        internal float OrbitDistance => follow.OrbitDistance;
+
         internal void AddMouseMovement(double yaw, double pitch)
         {
             lock (sync)
