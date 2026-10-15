@@ -202,7 +202,9 @@ namespace Crash.Helper.Memory.Camera
             for (int i = 0; i < 5; i++)
             {
                 if (!values[i].HasValue || !(i < 3 ? freezePosition : freezeRotation)) continue;
+                float previous = current[i];
                 current[i] = relative ? current[i] + values[i].Value : values[i].Value;
+                if (i == 4 && relative) current[i] = CameraMovement.ClampPitch(current[i], previous);
                 if (!IsFinite(current[i])) throw new ArgumentOutOfRangeException(nameof(values), "Camera values must be finite.");
             }
             // Write each frozen group together instead of issuing independent per-axis updates.

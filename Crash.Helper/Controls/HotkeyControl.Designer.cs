@@ -4,7 +4,7 @@ namespace Crash.Helper.Controls
     {
         protected override void Dispose(bool disposing)
         {
-            if (disposing) manager.StatusChanged -= OnStatusChanged;
+            if (disposing) { manager.StatusChanged -= OnStatusChanged; manager.GamepadButtonsChanged -= OnGamepadButtonsChanged; }
             base.Dispose(disposing);
         }
     }

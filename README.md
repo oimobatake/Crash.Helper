@@ -69,7 +69,7 @@ The Camera panel lets you arrange a view independently of the game's normal came
 - `Control YawPitch` gives you control over its horizontal and vertical viewing angles.
 - `Follow player` keeps the camera at its current offset from the player and turns on `Control XYZ`. Movement shortcuts adjust the offset while following.
 - Edit values and press Enter, or use assigned movement and rotation shortcuts.
-- Enable `Mouse control` in Settings to look around with the mouse. Separate X/Y sensitivity and inverted Y options are available.
+- Enable `Mouse control` in Settings to look around with the mouse. Separate X/Y sensitivity and inverted X/Y options are available. Pitch stops just short of straight up or down so the view never flips.
 - Choose whether camera movement follows its pitch, and adjust movement and rotation speeds.
 - Click `Save` to remember a view and `TP` to restore it. Only the enabled Control groups are restored.
 
@@ -95,6 +95,8 @@ Open [Settings] -> [CrashHelper] to assign shortcuts. Select a shortcut field an
 
 Available actions include lives and masks, level selection and locking, player movement and teleporting, camera movement and saved views, input toggles, and fade control.
 
-Shortcuts require the helper to be enabled and connected to a recognized game build. They work while the game or helper is active and pause while you edit input fields. Mouse camera control requires the game to be active.
+To bind a controller, click a binding box and press a button or hold a combination, then release. Xbox (XInput), DualShock 4 and DualSense controllers are supported, including triggers (`LT/L2`, `RT/R2`) and stick directions (`LeftStickUp` and so on), which count as pressed past about 60% tilt. A binding can have both a key and a controller combination; `Reset` clears both. The game also receives controller presses, so combinations such as `Back+DPadUp` avoid unwanted in-game actions.
+
+Shortcuts require the helper to be enabled and connected to a recognized game build. They work while the game or helper is active and pause while you edit input fields. Mouse camera control requires the game to be active. While `Orbit player` is on, the mouse wheel zooms in and out.
 
 Preferences and shortcut bindings are stored in `CrashHelper_Settings.json` beside the executable. This file stores helper settings, not a game save or a saved position/camera snapshot.

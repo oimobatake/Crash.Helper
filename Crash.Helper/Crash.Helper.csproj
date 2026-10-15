@@ -195,6 +195,7 @@
     <Compile Include="Input\IGamepadListener.cs" />
     <Compile Include="Input\WinRTGamepadListener.cs" />
     <Compile Include="Input\XInputListener.cs" />
+    <Compile Include="Input\PlayStationListener.cs" />
     <Compile Include="Memory\CrashMemory.cs" />
     <Compile Include="Memory\GameMemory.cs" />
     <Compile Include="Memory\GamePointer.cs" />

@@ -17,12 +17,14 @@ namespace Crash.Helper.Controls
         private readonly List<GroupBox> bindingGroups = new List<GroupBox>();
         private readonly Label status;
         private readonly Dictionary<string, TextBox> speedEditors = new Dictionary<string, TextBox>();
+        private int gamepadEditor = -1;
+        private uint gamepadChord;
 
         internal HotkeyControl(HotkeyManager manager, HelperSettings draft)
         {
             this.manager = manager;
             this.draft = draft;
-            bindings = manager.Hotkeys.Select(key => new Hotkey(key.Label, draft.Hotkeys[key.Label].Modifiers, draft.Hotkeys[key.Label].Key, key.Callback) { Group = key.Group }).ToList();
+            bindings = manager.Hotkeys.Select(key => new Hotkey(key.Label, draft.Hotkeys[key.Label].Modifiers, draft.Hotkeys[key.Label].Key, key.Callback) { Group = key.Group, GamepadMask = draft.Hotkeys[key.Label].Gamepad }).ToList();
             AutoSize = true;
             MinimumSize = new Size(424, 0);
             var box = new GroupBox { Text = "Hotkeys", AutoSize = true, Dock = DockStyle.Top, Padding = new Padding(10) };
@@ -61,12 +63,15 @@ namespace Crash.Helper.Controls
                     {
                         var followPitch = new CheckBox { Text = "Move in the pitch direction", AutoSize = true, Checked = draft.CameraMoveWithPitch };
                         var mouse = new CheckBox { Text = "Mouse control", AutoSize = true, Checked = draft.CameraMouseControl };
+                        var invertX = new CheckBox { Text = "Invert mouse X", AutoSize = true, Checked = draft.CameraInvertMouseX };
                         var invert = new CheckBox { Text = "Invert mouse Y", AutoSize = true, Checked = draft.CameraInvertMouseY };
+                        invertX.CheckedChanged += (s, e) => draft.CameraInvertMouseX = invertX.Checked;
                         followPitch.CheckedChanged += (s, e) => draft.CameraMoveWithPitch = followPitch.Checked;
                         mouse.CheckedChanged += (s, e) => draft.CameraMouseControl = mouse.Checked;
                         invert.CheckedChanged += (s, e) => draft.CameraInvertMouseY = invert.Checked;
                         table.Controls.Add(followPitch, 0, row++); table.SetColumnSpan(followPitch, 3);
                         table.Controls.Add(mouse, 0, row++); table.SetColumnSpan(mouse, 3);
+                        table.Controls.Add(invertX, 0, row++); table.SetColumnSpan(invertX, 3);
                         table.Controls.Add(invert, 0, row++); table.SetColumnSpan(invert, 3);
                         AddSpeedEditor(table, ref row, "XYZ Speed", nameof(HelperSettings.CameraXYZSpeed));
                         AddSpeedEditor(table, ref row, "YawPitch Speed", nameof(HelperSettings.CameraYawPitchSpeed));
@@ -79,12 +84,12 @@ namespace Crash.Helper.Controls
                 }
                 int index = i;
                 var editor = new HotkeyTextBox { ReadOnly = true, Width = 170, Text = bindings[i].ToString(), ShortcutsEnabled = false };
-                editor.Enter += (s, e) => manager.SetEditing(true);
-                editor.Leave += (s, e) => { editor.Text = bindings[index].ToString(); editor.Select(0, 0); manager.SetEditing(false); };
+                editor.Enter += (s, e) => { gamepadEditor = index; gamepadChord = 0; manager.SetEditing(true); };
+                editor.Leave += (s, e) => { if (gamepadEditor == index) gamepadEditor = -1; editor.Text = bindings[index].ToString(); editor.Select(0, 0); manager.SetEditing(false); };
                 editor.PreviewKeyDown += (s, e) => e.IsInputKey = true;
                 editor.KeyDown += (s, e) => CaptureBinding(index, e);
                 var reset = new Button { Text = "Reset", AutoSize = true };
-                reset.Click += (s, e) => SetBinding(index, 0, KeyModifiers.None);
+                reset.Click += (s, e) => { SetBinding(index, 0, KeyModifiers.None); SetGamepadBinding(index, 0); };
                 editors.Add(editor);
                 table.Controls.Add(new Label { Text = bindings[i].Label, AutoSize = true, Anchor = AnchorStyles.Left }, 0, row);
                 table.Controls.Add(editor, 1, row);
@@ -94,6 +99,7 @@ namespace Crash.Helper.Controls
             box.Controls.Add(groups);
             Controls.Add(box);
             manager.StatusChanged += OnStatusChanged;
+            manager.GamepadButtonsChanged += OnGamepadButtonsChanged;
             OnStatusChanged(this, EventArgs.Empty);
 
         }
@@ -150,7 +156,26 @@ namespace Crash.Helper.Controls
         {
             bindings[index].Key = key;
             bindings[index].Modifier = modifiers;
-            draft.Hotkeys[bindings[index].Label] = new HotkeyBinding { Key = key, Modifiers = modifiers };
+            draft.Hotkeys[bindings[index].Label] = new HotkeyBinding { Key = key, Modifiers = modifiers, Gamepad = bindings[index].GamepadMask ?? 0 };
+            editors[index].Text = bindings[index].ToString();
+        }
+
+        // Press a button or a combination on the controller while a binding box is focused.
+        // The binding is set when every button has been released, so combinations can be held together.
+        private void OnGamepadButtonsChanged(uint buttons)
+        {
+            if (gamepadEditor < 0 || !editors[gamepadEditor].Focused) { gamepadChord = 0; return; }
+            gamepadChord |= buttons;
+            if (buttons != 0 || gamepadChord == 0) return;
+            SetGamepadBinding(gamepadEditor, gamepadChord);
+            gamepadChord = 0;
+        }
+
+        private void SetGamepadBinding(int index, uint mask)
+        {
+            bindings[index].GamepadMask = mask;
+            var binding = draft.Hotkeys[bindings[index].Label];
+            draft.Hotkeys[bindings[index].Label] = new HotkeyBinding { Key = binding.Key, Modifiers = binding.Modifiers, Gamepad = mask };
             editors[index].Text = bindings[index].ToString();
         }
     }

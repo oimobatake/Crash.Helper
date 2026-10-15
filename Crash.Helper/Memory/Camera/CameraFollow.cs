@@ -150,7 +150,7 @@ namespace Crash.Helper.Memory.Camera
             {
                 requestedAngles = null;
                 if (!double.IsNaN(requested[0])) current.OrbitYaw = requested[0];
-                if (!double.IsNaN(requested[1])) current.OrbitPitch = requested[1];
+                if (!double.IsNaN(requested[1])) current.OrbitPitch = SignedAngle(requested[1]);
             }
             lock (stepSync)
             {
@@ -169,8 +169,9 @@ namespace Crash.Helper.Memory.Camera
             current.OrbitPitch += (directions[2] + directions[4]) * rotationSpeed * step + mousePitch;
             current.Distance = Math.Max(1, current.Distance - directions[1] * xyzSpeed * step);
             current.OrbitYaw = Wrap(current.OrbitYaw);
-            current.OrbitPitch = Wrap(current.OrbitPitch);
-            orbitAngles = new[] { current.OrbitYaw, current.OrbitPitch };
+            // Clamp instead of wrapping: crossing straight up or down flips the yaw and reverses the controls.
+            current.OrbitPitch = Math.Max(-CameraMovement.PitchLimit, Math.Min(CameraMovement.PitchLimit, current.OrbitPitch));
+            orbitAngles = new[] { current.OrbitYaw, Wrap(current.OrbitPitch) };
             orbitDistance = (float)(current.Distance / Math.Max(current.Scale, 0.0001f));
 
             // The view points along (cos pitch cos yaw, cos pitch sin yaw, -sin pitch); positive pitch looks down.
@@ -217,6 +218,13 @@ namespace Crash.Helper.Memory.Camera
         {
             float rate = speed;
             return rate <= 0 ? 1 : 1 - Math.Exp(-rate * Math.Max(0, Math.Min(seconds, 0.1)));
+        }
+
+        // Maps an angle to (-pi, pi], so 350 degrees means 10 degrees upward.
+        private static double SignedAngle(double angle)
+        {
+            angle = Wrap(angle);
+            return angle > Math.PI ? angle - TwoPi : angle;
         }
 
         private static double Wrap(double angle)

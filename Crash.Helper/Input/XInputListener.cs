@@ -4,7 +4,9 @@ using System.Threading;
 
 namespace Crash.Helper.Input
 {
-    public enum GamepadButton : ushort
+    // Low 16 bits match XInput wButtons. Higher bits are analog inputs read as buttons
+    // and PlayStation-only buttons, so every controller shares one binding mask.
+    public enum GamepadButton : uint
     {
         DPadUp = 0x0001,
         DPadDown = 0x0002,
@@ -16,10 +18,72 @@ namespace Crash.Helper.Input
         RightThumb = 0x0080,
         LeftShoulder = 0x0100,
         RightShoulder = 0x0200,
+        Guide = 0x0400,
+        Touchpad = 0x0800,
         A = 0x1000,
         B = 0x2000,
         X = 0x4000,
-        Y = 0x8000
+        Y = 0x8000,
+        LeftTrigger = 0x10000,
+        RightTrigger = 0x20000,
+        LeftStickUp = 0x40000,
+        LeftStickDown = 0x80000,
+        LeftStickLeft = 0x100000,
+        LeftStickRight = 0x200000,
+        RightStickUp = 0x400000,
+        RightStickDown = 0x800000,
+        RightStickLeft = 0x1000000,
+        RightStickRight = 0x2000000
+    }
+
+    public static class GamepadInput
+    {
+        // Analog inputs count as pressed past these points so resting sticks and light trigger touches are ignored.
+        public const int TriggerThreshold = 64;   // of 255
+        public const double StickThreshold = 0.6; // of full tilt
+
+        public static uint Analog(int leftTrigger, int rightTrigger, double lx, double ly, double rx, double ry)
+        {
+            uint mask = 0;
+            if (leftTrigger > TriggerThreshold) mask |= (uint)GamepadButton.LeftTrigger;
+            if (rightTrigger > TriggerThreshold) mask |= (uint)GamepadButton.RightTrigger;
+            mask |= Stick(lx, ly, GamepadButton.LeftStickUp, GamepadButton.LeftStickDown, GamepadButton.LeftStickLeft, GamepadButton.LeftStickRight);
+            mask |= Stick(rx, ry, GamepadButton.RightStickUp, GamepadButton.RightStickDown, GamepadButton.RightStickLeft, GamepadButton.RightStickRight);
+            return mask;
+        }
+
+        // x and y are -1..1 with positive y pointing up.
+        private static uint Stick(double x, double y, GamepadButton up, GamepadButton down, GamepadButton left, GamepadButton right)
+        {
+            uint mask = 0;
+            if (y > StickThreshold) mask |= (uint)up;
+            if (y < -StickThreshold) mask |= (uint)down;
+            if (x < -StickThreshold) mask |= (uint)left;
+            if (x > StickThreshold) mask |= (uint)right;
+            return mask;
+        }
+
+        // Xbox and PlayStation names together, so a binding reads the same for either controller.
+        public static string Name(GamepadButton button)
+        {
+            switch (button)
+            {
+                case GamepadButton.A: return "A/Cross";
+                case GamepadButton.B: return "B/Circle";
+                case GamepadButton.X: return "X/Square";
+                case GamepadButton.Y: return "Y/Triangle";
+                case GamepadButton.LeftShoulder: return "LB/L1";
+                case GamepadButton.RightShoulder: return "RB/R1";
+                case GamepadButton.LeftTrigger: return "LT/L2";
+                case GamepadButton.RightTrigger: return "RT/R2";
+                case GamepadButton.LeftThumb: return "LS/L3";
+                case GamepadButton.RightThumb: return "RS/R3";
+                case GamepadButton.Back: return "Back/Share";
+                case GamepadButton.Start: return "Start/Options";
+                case GamepadButton.Guide: return "PS";
+                default: return button.ToString();
+            }
+        }
     }
 
     public class GamepadButtonEventArgs : EventArgs
@@ -68,10 +132,12 @@ namespace Crash.Helper.Input
         }
 
         private Timer pollTimer;
-        private readonly ushort[] prevButtons = new ushort[4];
+        private readonly uint[] prevButtons = new uint[4];
 
         public event EventHandler<GamepadButtonEventArgs> ButtonPressed;
         public event EventHandler<GamepadButtonEventArgs> ButtonReleased;
+        // Raised on the poll thread with the full button mask of one controller when it changes.
+        public event Action<int, uint> StateChanged;
 
         public XInputListener(int pollIntervalMs = 20)
         {
@@ -121,45 +187,19 @@ namespace Crash.Helper.Input
                 {
                     XINPUT_STATE st = new XINPUT_STATE();
                     uint res = XInputGetStateFunc != null ? XInputGetStateFunc(i, out st) : 0xFFFFFFFF;
-                    if (res == 0)
+                    // A disconnected controller must not leave its buttons held.
+                    uint buttons = res != 0 ? 0 : st.Gamepad.wButtons | GamepadInput.Analog(st.Gamepad.bLeftTrigger, st.Gamepad.bRightTrigger,
+                        st.Gamepad.sThumbLX / 32767.0, st.Gamepad.sThumbLY / 32767.0, st.Gamepad.sThumbRX / 32767.0, st.Gamepad.sThumbRY / 32767.0);
+                    uint prev = prevButtons[i];
+                    if (buttons == prev) continue;
+                    prevButtons[i] = buttons;
+                    uint pressed = buttons & ~prev, released = prev & ~buttons;
+                    foreach (GamepadButton b in Enum.GetValues(typeof(GamepadButton)))
                     {
-                        ushort buttons = st.Gamepad.wButtons;
-                        ushort prev = prevButtons[i];
-
-                        ushort changed = (ushort)(buttons ^ prev);
-                        if (changed != 0)
-                        {
-                            ushort pressed = (ushort)(changed & buttons);
-                            ushort released = (ushort)(changed & ~buttons);
-
-                            if (pressed != 0)
-                            {
-                                foreach (GamepadButton b in Enum.GetValues(typeof(GamepadButton)))
-                                {
-                                    ushort mask = (ushort)b;
-                                    if ((pressed & mask) != 0)
-                                    {
-                                        ButtonPressed?.Invoke(this, new GamepadButtonEventArgs((int)i, b));
-                                    }
-                                }
-                            }
-
-                            if (released != 0)
-                            {
-                                foreach (GamepadButton b in Enum.GetValues(typeof(GamepadButton)))
-                                {
-                                    ushort mask = (ushort)b;
-                                    if ((released & mask) != 0)
-                                    {
-                                        ButtonReleased?.Invoke(this, new GamepadButtonEventArgs((int)i, b));
-                                    }
-                                }
-                            }
-
-                        }
-
-                        prevButtons[i] = buttons;
+                        if ((pressed & (uint)b) != 0) ButtonPressed?.Invoke(this, new GamepadButtonEventArgs((int)i, b));
+                        if ((released & (uint)b) != 0) ButtonReleased?.Invoke(this, new GamepadButtonEventArgs((int)i, b));
                     }
+                    StateChanged?.Invoke((int)i, buttons);
                 }
             }
             catch

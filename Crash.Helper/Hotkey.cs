@@ -34,7 +34,7 @@ namespace Crash.Helper
 		public uint Key { get; set; }
 
         // bitmask of GamepadButton values (wButtons). Use null when no binding.
-        public ushort? GamepadMask { get; set; }
+        public uint? GamepadMask { get; set; }
 
 		public int ID { get; set; }
 		
@@ -95,10 +95,10 @@ namespace Crash.Helper
                 var names = new List<string>();
                 foreach (GamepadButton b in Enum.GetValues(typeof(GamepadButton)))
                 {
-                    ushort mask = (ushort)b;
+                    uint mask = (uint)b;
                     if ((GamepadMask.Value & mask) != 0)
                     {
-                        names.Add(b.ToString());
+                        names.Add(GamepadInput.Name(b));
                     }
                 }
                 if (names.Count > 0)

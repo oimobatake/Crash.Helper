@@ -15,6 +15,8 @@ namespace Crash.Helper
     {
         [DataMember] public uint Key { get; set; }
         [DataMember] public KeyModifiers Modifiers { get; set; }
+        // XInput button mask (GamepadButton values); zero means no controller binding.
+        [DataMember] public uint Gamepad { get; set; }
     }
 
     [DataContract]
@@ -37,6 +39,7 @@ namespace Crash.Helper
         [DataMember] public bool AdvancedControlsEnabled { get; set; }
         [DataMember] public bool CameraMoveWithPitch { get; set; } = true;
         [DataMember] public bool CameraMouseControl { get; set; }
+        [DataMember] public bool CameraInvertMouseX { get; set; }
         [DataMember] public bool CameraInvertMouseY { get; set; }
         [DataMember] public float PositionXYZSpeed { get; set; } = 0.8f;
         [DataMember] public float CameraXYZSpeed { get; set; } = 30f;
@@ -65,6 +68,7 @@ namespace Crash.Helper
             StartupLevel = source.StartupLevel;
             CameraMoveWithPitch = source.CameraMoveWithPitch;
             CameraMouseControl = source.CameraMouseControl;
+            CameraInvertMouseX = source.CameraInvertMouseX;
             CameraInvertMouseY = source.CameraInvertMouseY;
             PositionXYZSpeed = source.PositionXYZSpeed;
             CameraXYZSpeed = source.CameraXYZSpeed;
@@ -76,7 +80,7 @@ namespace Crash.Helper
             CameraFollowSpeed = source.CameraFollowSpeed;
             Hotkeys = new Dictionary<string, HotkeyBinding>();
             foreach (var entry in source.Hotkeys)
-                Hotkeys[entry.Key] = new HotkeyBinding { Key = entry.Value.Key, Modifiers = entry.Value.Modifiers };
+                Hotkeys[entry.Key] = new HotkeyBinding { Key = entry.Value.Key, Modifiers = entry.Value.Modifiers, Gamepad = entry.Value.Gamepad };
         }
 
         public static HelperSettings Load()

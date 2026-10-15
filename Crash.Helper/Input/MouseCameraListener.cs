@@ -11,6 +11,8 @@ namespace Crash.Helper.Input
         private int processId;
         private bool registered;
         internal event Action<int, int> Moved;
+        // Wheel delta in notches; positive is away from the user.
+        internal event Action<double> Wheel;
 
         internal bool IsTargetForeground
         {
@@ -62,6 +64,8 @@ namespace Crash.Helper.Input
                                 int offset = (int)headerSize;
                                 if ((Marshal.ReadInt16(buffer, offset) & 1) == 0) // Relative mouse motion only.
                                     Moved?.Invoke(Marshal.ReadInt32(buffer, offset + 12), Marshal.ReadInt32(buffer, offset + 16));
+                                if ((Marshal.ReadInt16(buffer, offset + 4) & 0x0400) != 0) // RI_MOUSE_WHEEL
+                                    Wheel?.Invoke(Marshal.ReadInt16(buffer, offset + 6) / 120.0);
                             }
                         }
                         finally { Marshal.FreeHGlobal(buffer); }

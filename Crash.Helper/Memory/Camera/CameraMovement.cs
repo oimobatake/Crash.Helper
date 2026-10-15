@@ -4,6 +4,14 @@ namespace Crash.Helper.Memory.Camera
 {
     internal static class CameraMovement
     {
+        // Past straight up or down the view turns upside down and yaw input reverses.
+        internal const double PitchLimit = 89 * Math.PI / 180;
+
+        // Stops relative pitch changes at the limit. A value already outside it, such as one
+        // the game set, may still move back toward the range but never further out.
+        internal static float ClampPitch(float value, float previous) =>
+            (float)Math.Max(Math.Min(-PitchLimit, previous), Math.Min(Math.Max(PitchLimit, previous), value));
+
         // Preserve the previous XYZ speed scale (units per 30 ms) while using elapsed time.
         // Normalize XYZ together so two- and three-axis movement has the same total speed.
         internal static float?[] Delta(int[] directions, float xyzSpeed, float rotationSpeed, double seconds, float yaw,

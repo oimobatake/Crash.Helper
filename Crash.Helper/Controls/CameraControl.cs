@@ -33,7 +33,7 @@ namespace Crash.Helper.Controls
         private float followScale = HelperSettings.DefaultCameraFollowScale;
         private float followDeadzone = HelperSettings.DefaultCameraFollowVerticalDeadzone;
         private float followSpeed = HelperSettings.DefaultCameraFollowSpeed;
-        private bool followPitch = true, mouseControl, invertMouseY, inputEnabled;
+        private bool followPitch = true, mouseControl, invertMouseX, invertMouseY, inputEnabled;
         private bool speedBoost, loading, movementDisabled;
         internal Func<bool> IsLoading { get; set; } = () => false;
         // Called on the camera worker. Returns null while the player position cannot be read.
@@ -92,6 +92,7 @@ namespace Crash.Helper.Controls
             Controls.Add(freezeYawPitch);
             Controls.Add(followPlayer);
             mouse.Moved += OnMouseMovement;
+            mouse.Wheel += OnMouseWheel;
             saveButton = new Button { Text = "Save", Left = 52, Top = 138, Width = 80 };
             teleportButton = new Button { Text = "TP", Left = 137, Top = 138, Width = 80 };
             saveButton.Click += (s, e) => SaveCamera();
@@ -434,7 +435,8 @@ namespace Crash.Helper.Controls
             bool useMouse = inputEnabled && mouseControl && CanWrite(3);
             try
             {
-                if (useMouse) mouse.Start(process.Id);
+                // Orbit zoom uses the wheel even when mouse look is off.
+                if (useMouse || (inputEnabled && !movementDisabled && OrbitActive)) mouse.Start(process.Id);
                 else mouse.Stop();
             }
             catch (Exception ex) { useMouse = false; HelperLog.Error("Configure mouse input", ex); }
@@ -446,6 +448,7 @@ namespace Crash.Helper.Controls
             this.settings = settings;
             followPitch = settings.CameraMoveWithPitch;
             mouseControl = settings.CameraMouseControl;
+            invertMouseX = settings.CameraInvertMouseX;
             invertMouseY = settings.CameraInvertMouseY;
             xyzSpeed = settings.CameraXYZSpeed;
             yawPitchSpeed = settings.CameraYawPitchSpeed;
@@ -469,11 +472,18 @@ namespace Crash.Helper.Controls
             UpdateMovement();
         }
 
+        private void OnMouseWheel(double notches)
+        {
+            // Wheel forward zooms in, matching common orbit cameras.
+            if (!inputEnabled || movementDisabled || !OrbitActive || IsLoading() || !mouse.IsTargetForeground) return;
+            service.StepOrbitDistance(-notches * OrbitStepDistance);
+        }
+
         private void OnMouseMovement(int x, int y)
         {
             if (!inputEnabled || !mouseControl || !CanWrite(3) || !mouse.IsTargetForeground) return;
             UpdateMovement();
-            service.AddMouseMovement(-x * (double)mouseXSensitivity, y * (double)mouseYSensitivity * (invertMouseY ? -1 : 1));
+            service.AddMouseMovement(-x * (double)mouseXSensitivity * (invertMouseX ? -1 : 1), y * (double)mouseYSensitivity * (invertMouseY ? -1 : 1));
         }
 
         internal async Task ShutdownAsync()
