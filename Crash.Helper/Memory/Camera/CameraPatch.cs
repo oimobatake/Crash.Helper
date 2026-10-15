@@ -124,15 +124,25 @@ namespace Crash.Helper.Memory.Camera
 
         internal float[] ReadValues()
         {
+            long address;
+            byte[] snapshot;
+            return ReadSnapshot(out address, out snapshot);
+        }
+
+        private float[] ReadSnapshot(out long address, out byte[] snapshot)
+        {
+            address = 0;
+            snapshot = null;
             if (!installed || HasExited) return null;
             try
             {
-                long address = BitConverter.ToInt64(memory.Read(pointerStorage, 8), 0);
+                address = BitConverter.ToInt64(memory.Read(pointerStorage, 8), 0);
                 if (address <= 0) return null;
                 int length = profile.ValueOffsets.Max() + sizeof(float);
-                var bytes = memory.Read(address, length);
+                snapshot = memory.Read(address, length);
                 if (BitConverter.ToInt64(memory.Read(pointerStorage, 8), 0) != address) return null;
-                var values = profile.ValueOffsets.Select(offset => BitConverter.ToSingle(bytes, offset)).ToArray();
+                var values = new float[5];
+                for (int i = 0; i < values.Length; i++) values[i] = BitConverter.ToSingle(snapshot, profile.ValueOffsets[i]);
                 return values.All(IsFinite) ? values : null;
             }
             catch (Win32Exception) { return null; } // The camera can be replaced during a level transition.
@@ -196,8 +206,9 @@ namespace Crash.Helper.Memory.Camera
         private void WriteValuesCore(float?[] values, bool relative, Func<float[], float?[]> calculate = null)
         {
             if (profile.Loading != null && LoadingMemory.Read(memory.Process, profile.Loading, moduleBase)) return;
-            long address = BitConverter.ToInt64(memory.Read(pointerStorage, 8), 0);
-            var current = ReadValues();
+            long address;
+            byte[] snapshot;
+            var current = ReadSnapshot(out address, out snapshot);
             if (current == null || BitConverter.ToInt64(memory.Read(pointerStorage, 8), 0) != address) return;
             if (calculate != null) values = calculate(current);
             for (int i = 0; i < 5; i++)
@@ -208,14 +219,23 @@ namespace Crash.Helper.Memory.Camera
                 if (i == 4 && relative) current[i] = CameraMovement.ClampPitch(current[i], previous);
                 if (!IsFinite(current[i])) throw new ArgumentOutOfRangeException(nameof(values), "Camera values must be finite.");
             }
-            // Write each frozen group together instead of issuing independent per-axis updates.
-            if (freezePosition && values.Take(3).Any(value => value.HasValue))
+            bool writePosition = freezePosition && (values[0].HasValue || values[1].HasValue || values[2].HasValue);
+            bool writeRotation = freezeRotation && (values[3].HasValue || values[4].HasValue);
+            if (writePosition && writeRotation)
+            {
+                // Submit one pose rather than exposing new XYZ with the old yaw/pitch.
+                // Preserve the unowned field at +0x0C from the same snapshot.
+                for (int i = 0; i < current.Length; i++) BitConverter.GetBytes(current[i]).CopyTo(snapshot, profile.ValueOffsets[i]);
+                memory.Write(address, snapshot);
+                return;
+            }
+            if (writePosition)
             {
                 var bytes = new byte[12];
                 for (int i = 0; i < 3; i++) BitConverter.GetBytes(current[i]).CopyTo(bytes, profile.ValueOffsets[i]);
                 memory.Write(address, bytes);
             }
-            if (freezeRotation && values.Skip(3).Any(value => value.HasValue))
+            if (writeRotation)
             {
                 var bytes = new byte[8];
                 for (int i = 3; i < 5; i++) BitConverter.GetBytes(current[i]).CopyTo(bytes, profile.ValueOffsets[i] - 0x10);

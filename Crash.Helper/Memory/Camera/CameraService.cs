@@ -74,6 +74,16 @@ namespace Crash.Helper.Memory.Camera
 
         internal void RequestOrbitAngles(double yawDegrees, double pitchDegrees) => follow.RequestOrbitAngles(yawDegrees, pitchDegrees);
 
+        internal void SetOrbitMovement(int[] directions, double horizontalSpeed, double verticalSpeed, double zoomSpeed)
+        {
+            lock (sync)
+            {
+                if (stopping || disposed) return;
+                if (follow.SetOrbitMovement(directions[0] * horizontalSpeed, directions[1] * verticalSpeed, directions[2] * zoomSpeed))
+                    motionChanged.Set();
+            }
+        }
+
         internal void StepOrbitAngles(double yawDegrees, double pitchDegrees) => follow.StepOrbitAngles(yawDegrees, pitchDegrees);
 
         internal double[] OrbitDegrees => follow.OrbitDegrees;
@@ -107,7 +117,7 @@ namespace Crash.Helper.Memory.Camera
                 {
                     int[] input;
                     float xyz, rotation;
-                    bool pitch, moving;
+                    bool pitch, moving, hasMouse;
                     Func<float[]> source;
                     float scale;
                     lock (sync)
@@ -119,7 +129,8 @@ namespace Crash.Helper.Memory.Camera
                         pitch = followPitch;
                         source = followSource;
                         scale = followScale;
-                        moving = source != null || input.Any(value => value != 0) || pendingMouseYaw != 0 || pendingMousePitch != 0;
+                        hasMouse = pendingMouseYaw != 0 || pendingMousePitch != 0;
+                        moving = source != null || input.Any(value => value != 0) || hasMouse;
                     }
                     if (!moving)
                     {
@@ -131,9 +142,9 @@ namespace Crash.Helper.Memory.Camera
                     }
                     if (!preciseTimer) preciseTimer = timeBeginPeriod(1) == 0;
                     double now = clock.Elapsed.TotalSeconds;
-                    if (now < nextUpdate)
+                    if (now < nextUpdate && !hasMouse)
                     {
-                        // UI refresh and mouse events must not interrupt the motion cadence.
+                        // Timed motion keeps its cadence; mouse input is applied as soon as it arrives.
                         motionChanged.WaitOne(Math.Max(1, (int)Math.Ceiling((nextUpdate - now) * 1000)));
                         continue;
                     }
@@ -173,7 +184,12 @@ namespace Crash.Helper.Memory.Camera
                         }
                         finally { gate.Release(); }
                     }
-                    else nextUpdate = clock.Elapsed.TotalSeconds + 0.001;
+                    else
+                    {
+                        // Keep elapsed time and pending mouse deltas while another memory operation runs.
+                        nextUpdate = clock.Elapsed.TotalSeconds + 0.001;
+                        Thread.Sleep(1);
+                    }
                     // Following keeps the loop running, so back off instead of retrying a failure every frame.
                     if (failed) { motionChanged.WaitOne(500); previous = nextUpdate = clock.Elapsed.TotalSeconds; }
                 }

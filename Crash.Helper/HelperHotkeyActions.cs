@@ -69,7 +69,7 @@ namespace Crash.Helper
         private static Hotkey OrbitMovement(CameraControl camera, string name, int axis, int direction) =>
             new Hotkey(name, KeyModifiers.None, 0, () => camera.StepOrbit(axis, direction))
             {
-                RepeatWhileHeld = true, RepeatIntervalMilliseconds = 50
+                RepeatWhileHeld = true, OrbitAxis = axis, OrbitDirection = direction
             };
 
         private static Hotkey CameraMovement(string name, int axis, int direction)

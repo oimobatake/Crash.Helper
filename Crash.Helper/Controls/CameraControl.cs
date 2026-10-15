@@ -43,6 +43,7 @@ namespace Crash.Helper.Controls
         internal bool CanAdjustMouseSensitivity => CanWrite(3);
         private HelperSettings settings;
         private int[] heldDirections = new int[5];
+        private int[] heldOrbitDirections = new int[3];
         private bool available, ready, changing, refreshing, suppressChanges, closing;
         private int generation;
         private bool updateSuspended;
@@ -172,6 +173,7 @@ namespace Crash.Helper.Controls
             ready = false;
             values = null;
             heldDirections = new int[5];
+            heldOrbitDirections = new int[3];
             suppressChanges = true;
             freezeXYZ.Checked = freezeYawPitch.Checked = followPlayer.Checked = orbitPlayer.Checked = false;
             suppressChanges = false;
@@ -409,6 +411,12 @@ namespace Crash.Helper.Controls
             UpdateMovement();
         }
 
+        internal void SetOrbitMovement(int[] directions)
+        {
+            heldOrbitDirections = (int[])directions.Clone();
+            UpdateMovement();
+        }
+
         internal float[] GetViewOrientation()
         {
             var current = values;
@@ -419,6 +427,7 @@ namespace Crash.Helper.Controls
         {
             movementDisabled = false;
             heldDirections = new int[5];
+            heldOrbitDirections = new int[3];
             speedBoost = false;
             suppressChanges = true;
             freezeXYZ.Checked = freezeYawPitch.Checked = followPlayer.Checked = orbitPlayer.Checked = false;
@@ -453,6 +462,9 @@ namespace Crash.Helper.Controls
                     if (i < 3 ? freezeXYZ.Checked && !orbitPlayer.Checked : freezeYawPitch.Checked) directions[i] = heldDirections[i];
             service.SetFollow(FollowActive ? PlayerPosition : null, followScale, followDeadzone, followSpeed);
             service.SetOrbit(OrbitActive);
+            service.SetOrbitMovement(inputEnabled && CanToggleControls && OrbitActive ? heldOrbitDirections : new int[3],
+                orbitHorizontalStep / CameraFollow.OrbitStepSeconds, orbitVerticalStep / CameraFollow.OrbitStepSeconds,
+                OrbitStepDistance / CameraFollow.OrbitStepSeconds);
             bool useMouse = inputEnabled && mouseControl && CanWrite(3);
             try
             {

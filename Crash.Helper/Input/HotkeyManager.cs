@@ -25,9 +25,11 @@ namespace Crash.Helper.Input
         // Raised on the UI thread with the buttons held across all controllers, also while editing.
         public event Action<uint> GamepadButtonsChanged;
         private int[] movement = new int[5];
+        private int[] orbitMovement = new int[3];
         private int[] positionMovement = new int[3];
         public event Action<int[]> PositionMovementChanged;
         public event Action<int[]> CameraMovementChanged;
+        public event Action<int[]> OrbitMovementChanged;
         public event Action<bool> CameraSpeedBoostChanged;
         public event Action<bool> PositionSpeedBoostChanged;
         private bool positionSpeedBoost;
@@ -250,7 +252,7 @@ namespace Crash.Helper.Input
             foreach (var action in heldActions.ToArray())
             {
                 if (!Allows(action) || !IsHeld(action)) heldActions.Remove(action);
-                else if (action.CameraAxis < 0 && action.PositionAxis < 0 && !action.CameraSpeedBoost && !action.PositionSpeedBoost &&
+                else if (action.CameraAxis < 0 && action.PositionAxis < 0 && action.OrbitAxis < 0 && !action.CameraSpeedBoost && !action.PositionSpeedBoost &&
                     (!nextRepeat.TryGetValue(action, out long next) || repeatClock.ElapsedMilliseconds >= next))
                 {
                     nextRepeat[action] = repeatClock.ElapsedMilliseconds + action.RepeatIntervalMilliseconds;
@@ -280,6 +282,15 @@ namespace Crash.Helper.Input
             }
             bool nextBoost = heldActions.Any(action => action.CameraSpeedBoost);
             if (speedBoost != nextBoost) { speedBoost = nextBoost; CameraSpeedBoostChanged?.Invoke(speedBoost); }
+            var nextOrbit = new int[3];
+            foreach (var action in heldActions)
+                if (action.OrbitAxis >= 0 && action.OrbitAxis < 3) nextOrbit[action.OrbitAxis] += action.OrbitDirection;
+            for (int i = 0; i < nextOrbit.Length; i++) nextOrbit[i] = Math.Sign(nextOrbit[i]);
+            if (!nextOrbit.SequenceEqual(orbitMovement))
+            {
+                orbitMovement = nextOrbit;
+                OrbitMovementChanged?.Invoke((int[])nextOrbit.Clone());
+            }
             var next = new int[5];
             foreach (var action in heldActions)
                 if (action.CameraAxis >= 0 && action.CameraAxis < next.Length) next[action.CameraAxis] += action.CameraDirection;

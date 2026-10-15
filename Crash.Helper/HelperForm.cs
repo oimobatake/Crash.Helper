@@ -70,6 +70,7 @@ namespace Crash.Helper
             hotkeyManager.PositionMovementChanged += positionControl.SetMovement;
             hotkeyManager.PositionSpeedBoostChanged += positionControl.SetSpeedBoost;
             hotkeyManager.CameraMovementChanged += cameraControl.SetMovement;
+            hotkeyManager.OrbitMovementChanged += cameraControl.SetOrbitMovement;
             hotkeyManager.CameraSpeedBoostChanged += cameraControl.SetSpeedBoost;
             Deactivate += (s, e) => cameraControl.EndEditing();
             processControl = new ProcessControl(memory, this);

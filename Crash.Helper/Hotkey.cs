@@ -58,6 +58,8 @@ namespace Crash.Helper
         public int PositionDirection { get; set; }
         public int CameraAxis { get; set; } = -1;
         public int CameraDirection { get; set; }
+        public int OrbitAxis { get; set; } = -1;
+        public int OrbitDirection { get; set; }
 
 		public override string ToString()
 		{

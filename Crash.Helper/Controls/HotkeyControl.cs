@@ -42,9 +42,8 @@ namespace Crash.Helper.Controls
             AutoSize = true;
             AutoSizeMode = AutoSizeMode.GrowAndShrink;
             MinimumSize = new Size(580, 0);
-            var box = HoldLayout(new GroupBox { Text = "Hotkeys", AutoSize = true, Dock = DockStyle.Top, Padding = new Padding(10) });
-            var groups = HoldLayout(new TableLayoutPanel { AutoSize = true, ColumnCount = 1, Dock = DockStyle.Fill });
-            var header = HoldLayout(new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = Padding.Empty });
+            var groups = HoldLayout(new TableLayoutPanel { AutoSize = true, ColumnCount = 1, Dock = DockStyle.Top });
+            var header = HoldLayout(new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = Padding.Empty, Dock = DockStyle.Fill });
             var enabled = new CheckBox { Text = "Hotkeys enabled", Checked = draft.HotkeysEnabled, AutoSize = true };
             status = new Label { AutoSize = true, Anchor = AnchorStyles.Left, Margin = new Padding(6, 3, 3, 3) };
             enabled.CheckedChanged += (s, e) =>
@@ -101,7 +100,7 @@ namespace Crash.Helper.Controls
                 table.Controls.Add(new Label { Text = action.Label, AutoSize = true, Anchor = AnchorStyles.Left | AnchorStyles.Top, Margin = new Padding(3, 7, 3, 3) }, 0, row);
                 table.Controls.Add(inputs, 1, row++);
                 table.SetColumnSpan(inputs, 3);
-                var add = new Button { Text = "Add key", AutoSize = true, Enabled = binding.IsAssigned };
+                var add = new Button { Text = "Add", Width = 75, Enabled = binding.IsAssigned, ForeColor = Color.ForestGreen };
                 AddBindingRow(action.Label, binding, inputs, add);
                 if (binding.Alternatives != null)
                     foreach (var alternative in binding.Alternatives.Where(value => value != null)) AddBindingRow(action.Label, alternative, inputs, add);
@@ -115,8 +114,7 @@ namespace Crash.Helper.Controls
                     AddBindingRow(action.Label, alternative, inputs, add).Editor.Focus();
                 };
             }
-            box.Controls.Add(groups);
-            Controls.Add(box);
+            Controls.Add(groups);
             manager.StatusChanged += OnStatusChanged;
             manager.GamepadButtonsChanged += OnGamepadButtonsChanged;
             Disposed += (s, e) =>
@@ -230,7 +228,7 @@ namespace Crash.Helper.Controls
             table.Controls.Add(reset, 1, number);
             if (row.IsAlternative)
             {
-                row.Remove = new Button { Text = "Remove key", AutoSize = true };
+                row.Remove = new Button { Text = "Remove", Width = add.Width, ForeColor = Color.OrangeRed };
                 row.Remove.Click += (s, e) => RemoveBindingRow(row);
                 table.Controls.Add(row.Remove, 2, number);
             }

@@ -164,7 +164,9 @@
     <Compile Include="Controls\PositionControl.cs">
       <SubType>UserControl</SubType>
     </Compile>
-    <Compile Include="Controls\HoldButton.cs" />
+    <Compile Include="Controls\HoldButton.cs">
+      <SubType>Component</SubType>
+    </Compile>
     <Compile Include="Memory\Position\PositionPatch.cs" />
     <Compile Include="Memory\Position\PositionPatchService.cs" />
     <Compile Include="Memory\Position\PositionMotionService.cs" />

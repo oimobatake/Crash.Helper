@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 
 namespace Crash.Helper.Memory.Camera
 {
@@ -9,12 +10,15 @@ namespace Crash.Helper.Memory.Camera
     internal sealed class CameraFollow
     {
         private const double TwoPi = Math.PI * 2;
+        internal const double OrbitStepSeconds = 0.05;
 
         private sealed class State
         {
             internal readonly float Scale;
             internal float[] Offset;
             internal float TrackedZ;
+            internal double[] OrbitCenter;
+            internal float? WrittenYaw;
             // Orbit angles use the camera's yaw and pitch convention, in radians.
             internal double OrbitYaw, OrbitPitch, Distance = -1;
             internal State(float scale) { Scale = scale; }
@@ -27,6 +31,32 @@ namespace Crash.Helper.Memory.Camera
         private volatile float orbitDistance = -1;
         private readonly object stepSync = new object();
         private double stepYaw, stepPitch, stepDistance, requestedDistance = double.NaN;
+        private sealed class OrbitMotion
+        {
+            internal readonly double Yaw, Pitch, Distance, YawStart, PitchStart, DistanceStart;
+            internal OrbitMotion(double yaw, double pitch, double distance, OrbitMotion previous)
+            {
+                Yaw = yaw; Pitch = pitch; Distance = distance;
+                double start = Clock() + OrbitStepSeconds;
+                YawStart = previous != null && previous.Yaw == yaw ? previous.YawStart : start;
+                PitchStart = previous != null && previous.Pitch == pitch ? previous.PitchStart : start;
+                DistanceStart = previous != null && previous.Distance == distance ? previous.DistanceStart : start;
+            }
+            internal static double Clock() => Stopwatch.GetTimestamp() / (double)Stopwatch.Frequency;
+            internal static double Delta(double rate, double start, double now, double seconds) =>
+                rate * Math.Max(0, Math.Min(Math.Min(seconds, 0.05), now - start));
+        }
+        private volatile OrbitMotion motion = new OrbitMotion(0, 0, 0, null);
+
+        internal bool SetOrbitMovement(double yawDegreesPerSecond, double pitchDegreesPerSecond, double distancePerSecond)
+        {
+            var previous = motion;
+            double yaw = yawDegreesPerSecond * Math.PI / 180, pitch = pitchDegreesPerSecond * Math.PI / 180;
+            if (previous.Yaw == yaw && previous.Pitch == pitch && previous.Distance == distancePerSecond) return false;
+            // The initial press supplies one configured step. Continue smoothly after its first 50 ms.
+            motion = new OrbitMotion(yaw, pitch, distancePerSecond, previous);
+            return true;
+        }
 
         internal void Reset(float scale) => state = new State(scale);
 
@@ -142,14 +172,19 @@ namespace Crash.Helper.Memory.Camera
                 double dx = target[0] - camera[0], dy = target[1] - camera[1], dz = target[2] - camera[2];
                 double flat = Math.Sqrt(dx * dx + dy * dy);
                 current.Distance = Math.Max(1, Math.Sqrt(flat * flat + dz * dz));
-                current.OrbitYaw = Math.Atan2(dy, dx);
+                current.OrbitYaw = NearAngle(Math.Atan2(dy, dx), camera[3]);
                 current.OrbitPitch = Math.Atan2(-dz, flat);
             }
+            var movement = motion;
+            double now = OrbitMotion.Clock();
+            current.OrbitYaw += OrbitMotion.Delta(movement.Yaw, movement.YawStart, now, seconds);
+            current.OrbitPitch += OrbitMotion.Delta(movement.Pitch, movement.PitchStart, now, seconds);
+            current.Distance = Math.Max(1, current.Distance + OrbitMotion.Delta(movement.Distance, movement.DistanceStart, now, seconds) * current.Scale);
             var requested = requestedAngles;
             if (requested != null)
             {
                 requestedAngles = null;
-                if (!double.IsNaN(requested[0])) current.OrbitYaw = requested[0];
+                if (!double.IsNaN(requested[0])) current.OrbitYaw = NearAngle(requested[0], current.OrbitYaw);
                 if (!double.IsNaN(requested[1])) current.OrbitPitch = SignedAngle(requested[1]);
             }
             lock (stepSync)
@@ -168,41 +203,44 @@ namespace Crash.Helper.Memory.Camera
             current.OrbitYaw += (directions[0] + directions[3]) * rotationSpeed * step + mouseYaw;
             current.OrbitPitch += (directions[2] + directions[4]) * rotationSpeed * step + mousePitch;
             current.Distance = Math.Max(1, current.Distance - directions[1] * xyzSpeed * step);
-            current.OrbitYaw = Wrap(current.OrbitYaw);
             // Clamp instead of wrapping: crossing straight up or down flips the yaw and reverses the controls.
             current.OrbitPitch = Math.Max(-CameraMovement.PitchLimit, Math.Min(CameraMovement.PitchLimit, current.OrbitPitch));
-            orbitAngles = new[] { current.OrbitYaw, Wrap(current.OrbitPitch) };
+            orbitAngles = new[] { Wrap(current.OrbitYaw), Wrap(current.OrbitPitch) };
             orbitDistance = (float)(current.Distance / Math.Max(current.Scale, 0.0001f));
 
-            // The view points along (cos pitch cos yaw, cos pitch sin yaw, -sin pitch); positive pitch looks down.
-            double cp = Math.Cos(current.OrbitPitch);
-            var desired = new[]
-            {
-                target[0] - current.Distance * cp * Math.Cos(current.OrbitYaw),
-                target[1] - current.Distance * cp * Math.Sin(current.OrbitYaw),
-                target[2] + current.Distance * Math.Sin(current.OrbitPitch)
-            };
+            // Carry the previous orbit with the player instead of treating player movement
+            // as a change in orbit angle or distance. Reading the actual camera also honors TP/edits.
+            var center = current.OrbitCenter ?? target;
+            double dxOrbit = center[0] - camera[0], dyOrbit = center[1] - camera[1], dzOrbit = camera[2] - center[2];
+            double horizontal = Math.Sqrt(dxOrbit * dxOrbit + dyOrbit * dyOrbit);
+            double distance = Math.Sqrt(horizontal * horizontal + dzOrbit * dzOrbit);
+            double yaw = horizontal > 0.000001 ? NearAngle(Math.Atan2(dyOrbit, dxOrbit), camera[3]) : camera[3];
+            // Keep complete turns during fast input. Only an external yaw edit/TP should
+            // rebase the target onto the camera's new angle branch.
+            if (current.WrittenYaw.HasValue && Math.Abs(camera[3] - current.WrittenYaw.Value) > 0.01)
+                current.OrbitYaw = NearAngle(current.OrbitYaw, yaw);
+            double pitch = Math.Atan2(dzOrbit, horizontal);
             double blend = Blend(seconds);
-            var position = new double[3];
-            for (int i = 0; i < 3; i++)
-            {
-                position[i] = camera[i] + (desired[i] - camera[i]) * blend;
-                result[i] = (float)(position[i] - camera[i]);
-            }
-            // Look at the player from where the camera actually is, which keeps the view upright
-            // even when the vertical angle passes over the top.
-            double lx = target[0] - position[0], ly = target[1] - position[1], lz = target[2] - position[2];
-            double horizontal = Math.Sqrt(lx * lx + ly * ly);
-            if (horizontal > 0.001)
-            {
-                double yaw = Math.Atan2(ly, lx);
-                // Stay near the current value so the yaw does not jump by a full turn.
-                yaw += Math.Round((camera[3] - yaw) / TwoPi) * TwoPi;
-                result[3] = (float)(yaw - camera[3]);
-            }
-            result[4] = (float)(Math.Atan2(-lz, horizontal) - camera[4]);
+            yaw += (current.OrbitYaw - yaw) * blend;
+            pitch += (current.OrbitPitch - pitch) * blend;
+            pitch = Math.Max(-CameraMovement.PitchLimit, Math.Min(CameraMovement.PitchLimit, pitch));
+            distance = Math.Max(1, distance + (current.Distance - distance) * blend);
+            current.OrbitCenter = target;
+
+            // Interpolate on the orbit, not along a chord through its center. Position and
+            // orientation come from one pose, keeping the player centered and the radius stable.
+            double cp = Math.Cos(pitch);
+            result[0] = (float)(target[0] - distance * cp * Math.Cos(yaw) - camera[0]);
+            result[1] = (float)(target[1] - distance * cp * Math.Sin(yaw) - camera[1]);
+            result[2] = (float)(target[2] + distance * Math.Sin(pitch) - camera[2]);
+            result[3] = (float)(yaw - camera[3]);
+            current.WrittenYaw = camera[3] + result[3].Value;
+            result[4] = (float)(pitch - camera[4]);
             return result;
         }
+
+        private static double NearAngle(double angle, double reference) =>
+            angle + Math.Round((reference - angle) / TwoPi) * TwoPi;
 
         private double[] Target(State current, float[] player)
         {
