@@ -51,7 +51,8 @@ namespace Crash.Helper
                 new Hotkey("Camera Save", KeyModifiers.None, 0, camera.SaveCamera),
                 new Hotkey("Camera TP", KeyModifiers.None, 0, camera.Teleport),
                 new Hotkey("Toggle camera input", KeyModifiers.None, 0, camera.ToggleMovement),
-                new Hotkey("Camera Follow player", KeyModifiers.None, 0, camera.ToggleFollow)
+                new Hotkey("Camera Follow player", KeyModifiers.None, 0, camera.ToggleFollow),
+                new Hotkey("Camera Orbit player", KeyModifiers.None, 0, camera.ToggleOrbit)
             };
             for (int i = 0; i < hotkeys.Count; i++)
                 hotkeys[i].Group = i < 6 ? "Data" : i < 12 ? "Level" : i < 25 ? "Position" : "Camera";

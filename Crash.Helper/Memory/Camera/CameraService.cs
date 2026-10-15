@@ -62,6 +62,22 @@ namespace Crash.Helper.Memory.Camera
             }
         }
 
+        internal void SetOrbit(bool enabled)
+        {
+            lock (sync)
+            {
+                if (stopping || disposed) return;
+                follow.SetOrbit(enabled);
+                motionChanged.Set();
+            }
+        }
+
+        internal void RequestOrbitAngles(double yawDegrees, double pitchDegrees) => follow.RequestOrbitAngles(yawDegrees, pitchDegrees);
+
+        internal void StepOrbitAngles(double yawDegrees, double pitchDegrees) => follow.StepOrbitAngles(yawDegrees, pitchDegrees);
+
+        internal double[] OrbitDegrees => follow.OrbitDegrees;
+
         internal void AddMouseMovement(double yaw, double pitch)
         {
             lock (sync)

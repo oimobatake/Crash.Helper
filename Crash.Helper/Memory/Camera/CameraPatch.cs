@@ -164,6 +164,8 @@ namespace Crash.Helper.Memory.Camera
             // Freeze removes the game writers. Movement must not suspend the entire game each frame.
             WriteValuesCore(null, true, current =>
             {
+                if (follow != null && follow.Orbiting && freezePosition)
+                    return follow.Orbit(current, directions, xyzSpeed, rotationSpeed, seconds, mouseYaw, mousePitch, player);
                 var delta = CameraMovement.Delta(directions, xyzSpeed, rotationSpeed, seconds,
                     current[3], current[4], followPitch, mouseYaw, mousePitch);
                 return follow == null || !freezePosition ? delta : follow.Apply(current, delta, player, seconds);
