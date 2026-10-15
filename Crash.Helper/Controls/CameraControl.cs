@@ -19,8 +19,8 @@ namespace Crash.Helper.Controls
         private readonly CheckBox freezeXYZ, freezeYawPitch, followPlayer, orbitPlayer;
         // Orbit H, Orbit V, and Zoom (distance from the player in player units).
         private readonly TextBox[] orbitEditors = new TextBox[3];
-        private readonly Button[] orbitStepButtons = new Button[6];
-        private const double OrbitStepDegrees = 5, OrbitStepDistance = 1;
+        private const double OrbitStepDistance = 1;
+        private double orbitHorizontalStep = 5, orbitVerticalStep = 5;
         private readonly MouseCameraListener mouse = new MouseCameraListener();
         private readonly Button saveButton, teleportButton;
         private readonly ToolTip toolTip = new ToolTip();
@@ -29,7 +29,7 @@ namespace Crash.Helper.Controls
         private CameraMemoryProfile profile;
         private float[] values, saved;
         private float xyzSpeed = 30.0f, yawPitchSpeed = 0.03f;
-        private float mouseXSensitivity = 0.002f, mouseYSensitivity = 0.002f;
+        private float mouseXSensitivity = 0.001f, mouseYSensitivity = 0.001f;
         private float followScale = HelperSettings.DefaultCameraFollowScale;
         private float followDeadzone = HelperSettings.DefaultCameraFollowVerticalDeadzone;
         private float followSpeed = HelperSettings.DefaultCameraFollowSpeed;
@@ -51,7 +51,7 @@ namespace Crash.Helper.Controls
 
         internal CameraControl()
         {
-            Size = new Size(270, 274);
+            Size = new Size(270, 250);
             for (int i = 0; i < editors.Length; i++)
             {
                 int axis = i;
@@ -83,11 +83,10 @@ namespace Crash.Helper.Controls
             }
             freezeXYZ = new CheckBox { Text = "Control XYZ", AutoSize = true, Left = 160, Top = 28 };
             freezeYawPitch = new CheckBox { Text = "Control YawPitch", AutoSize = true, Left = 160, Top = 93 };
-            followPlayer = new CheckBox { Text = "Follow player", AutoSize = true, Left = 160, Top = 54 };
+            followPlayer = new CheckBox { Text = "Follow player", AutoSize = true, Left = 160, Top = 172 };
             freezeXYZ.CheckedChanged += OnFreezeChanged;
             freezeYawPitch.CheckedChanged += OnFreezeChanged;
             followPlayer.CheckedChanged += OnFollowChanged;
-            toolTip.SetToolTip(followPlayer, "Keep the camera at its current offset from the player. Enables Control XYZ.");
             Controls.Add(freezeXYZ);
             Controls.Add(freezeYawPitch);
             Controls.Add(followPlayer);
@@ -104,24 +103,8 @@ namespace Crash.Helper.Controls
             for (int i = 0; i < orbitEditors.Length; i++)
             {
                 int axis = i;
-                var label = new Label { Text = orbitAxes[i] + ":", AutoSize = true, Left = 12, Top = 198 + i * 26 };
-                var editor = new TextBox { Left = 68, Top = 194 + i * 26, Width = 80, Text = "-", TextAlign = HorizontalAlignment.Right };
-                for (int j = 0; j < 2; j++)
-                {
-                    bool zoom = axis == 2;
-                    double size = zoom ? OrbitStepDistance : OrbitStepDegrees;
-                    double step = j == 0 ? -size : size;
-                    var button = new Button { Text = (step < 0 ? "-" : "+") + size + (zoom ? "" : "\u00B0"), Left = 154 + j * 46, Top = 193 + i * 26, Width = 44 };
-                    button.Click += (s, e) =>
-                    {
-                        if (!OrbitActive) return;
-                        if (zoom) service.StepOrbitDistance(step);
-                        else service.StepOrbitAngles(axis == 0 ? step : 0, axis == 1 ? step : 0);
-                    };
-                    if (zoom) toolTip.SetToolTip(button, step < 0 ? "Move the camera closer to the player." : "Move the camera away from the player.");
-                    orbitStepButtons[i * 2 + j] = button;
-                    Controls.Add(button);
-                }
+                var label = new Label { Text = orbitAxes[i] + ":", AutoSize = true, Left = 12, Top = 174 + i * 26 };
+                var editor = new TextBox { Left = 68, Top = 170 + i * 26, Width = 80, Text = "-", TextAlign = HorizontalAlignment.Right };
                 editor.Enter += (s, e) => EditingChanged?.Invoke(true);
                 editor.MouseDown += (s, e) => EditingChanged?.Invoke(true);
                 editor.Leave += (s, e) => { editor.Select(0, 0); UpdateOrbitEditor(axis); EditingChanged?.Invoke(false); };
@@ -152,9 +135,8 @@ namespace Crash.Helper.Controls
                 Controls.Add(label);
                 Controls.Add(editor);
             }
-            orbitPlayer = new CheckBox { Text = "Orbit player", AutoSize = true, Left = 15, Top = 170 };
+            orbitPlayer = new CheckBox { Text = "Orbit player", AutoSize = true, Left = 160, Top = 198 };
             orbitPlayer.CheckedChanged += OnOrbitChanged;
-            toolTip.SetToolTip(orbitPlayer, "Circle the camera around the player while looking at it (0-359 degrees). Enables Follow player and both Control groups.");
             Controls.Add(orbitPlayer);
             MouseDown += (s, e) => EndEditing();
             foreach (Control control in Controls)
@@ -199,7 +181,12 @@ namespace Crash.Helper.Controls
 
         private void OnFreezeChanged(object sender, EventArgs e)
         {
-            if (!suppressChanges) Configure();
+            if (suppressChanges) return;
+            suppressChanges = true;
+            if (!freezeXYZ.Checked) followPlayer.Checked = false;
+            if (!freezeXYZ.Checked || !freezeYawPitch.Checked) orbitPlayer.Checked = false;
+            suppressChanges = false;
+            Configure();
         }
 
         private void OnFollowChanged(object sender, EventArgs e)
@@ -289,7 +276,7 @@ namespace Crash.Helper.Controls
             freezeXYZ.Enabled = freezeYawPitch.Enabled = followPlayer.Enabled = orbitPlayer.Enabled = available && ready && !changing && !closing && !loading;
             for (int i = 0; i < orbitEditors.Length; i++)
             {
-                orbitEditors[i].Enabled = orbitStepButtons[i * 2].Enabled = orbitStepButtons[i * 2 + 1].Enabled = OrbitActive;
+                orbitEditors[i].Enabled = OrbitActive;
                 if (!orbitEditors[i].Focused) UpdateOrbitEditor(i);
             }
             saveButton.Enabled = available && ready && !changing && values != null && !closing && !loading && !movementDisabled;
@@ -331,20 +318,58 @@ namespace Crash.Helper.Controls
 
         internal void ToggleFollow()
         {
-            if (available && ready && !closing && !loading && !IsLoading()) followPlayer.Checked = !followPlayer.Checked;
+            if (CanToggleControls) followPlayer.Checked = !followPlayer.Checked;
         }
 
-        // Hotkey counterpart of the -/+ buttons: axis 0 = Orbit H, 1 = Orbit V, 2 = Zoom.
+        // Axis 0 = Orbit H, 1 = Orbit V, 2 = Zoom.
         internal void StepOrbit(int axis, int direction)
         {
-            if (!OrbitActive || IsLoading()) return;
+            if (!CanToggleControls || !OrbitActive) return;
             if (axis == 2) service.StepOrbitDistance(direction * OrbitStepDistance);
-            else service.StepOrbitAngles(axis == 0 ? direction * OrbitStepDegrees : 0, axis == 1 ? direction * OrbitStepDegrees : 0);
+            else service.StepOrbitAngles(axis == 0 ? direction * orbitHorizontalStep : 0, axis == 1 ? direction * orbitVerticalStep : 0);
         }
 
         internal void ToggleOrbit()
         {
-            if (available && ready && !closing && !loading && !IsLoading()) orbitPlayer.Checked = !orbitPlayer.Checked;
+            if (CanToggleControls) orbitPlayer.Checked = !orbitPlayer.Checked;
+        }
+
+        private bool CanToggleControls => !updateSuspended && available && ready && !closing && !loading && !movementDisabled && !IsLoading();
+
+        internal ISet<Hotkey> HandleCombinedHotkeys(Hotkey[] actions)
+        {
+            var handled = new HashSet<Hotkey>();
+            var xyz = actions.FirstOrDefault(action => action.Label == "Control XYZ");
+            var rotation = actions.FirstOrDefault(action => action.Label == "Control YawPitch");
+            var follow = actions.FirstOrDefault(action => action.Label == "Follow Player");
+            var orbit = actions.FirstOrDefault(action => action.Label == "Orbit Player");
+            bool sharedOrbit = orbit != null && (xyz != null || rotation != null);
+            bool sharedFollow = follow != null && xyz != null;
+            if (!sharedOrbit && !sharedFollow) return handled;
+            if (sharedOrbit) { handled.Add(orbit); if (xyz != null) handled.Add(xyz); if (rotation != null) handled.Add(rotation); }
+            if (sharedOrbit && follow != null) handled.Add(follow);
+            if (sharedFollow) { handled.Add(follow); handled.Add(xyz); }
+            if (!CanToggleControls) return handled;
+            bool enabled = sharedOrbit ? !orbitPlayer.Checked : !followPlayer.Checked;
+            bool reconfigure = false;
+            suppressChanges = true;
+            if (xyz != null && handled.Contains(xyz)) { reconfigure |= freezeXYZ.Checked != enabled; freezeXYZ.Checked = enabled; }
+            if (rotation != null && handled.Contains(rotation)) { reconfigure |= freezeYawPitch.Checked != enabled; freezeYawPitch.Checked = enabled; }
+            if (follow != null && handled.Contains(follow)) followPlayer.Checked = enabled;
+            if (sharedOrbit)
+            {
+                orbitPlayer.Checked = enabled;
+                if (enabled)
+                {
+                    reconfigure |= !freezeXYZ.Checked || !freezeYawPitch.Checked;
+                    followPlayer.Checked = freezeXYZ.Checked = freezeYawPitch.Checked = true;
+                }
+            }
+            if (!freezeXYZ.Checked) followPlayer.Checked = false;
+            if (!freezeXYZ.Checked || !freezeYawPitch.Checked || !followPlayer.Checked) orbitPlayer.Checked = false;
+            suppressChanges = false;
+            if (reconfigure) Configure(); else UpdateState();
+            return handled;
         }
 
         internal void ToggleFreeze(bool rotation)
@@ -454,6 +479,8 @@ namespace Crash.Helper.Controls
             yawPitchSpeed = settings.CameraYawPitchSpeed;
             mouseXSensitivity = settings.CameraMouseXSensitivity;
             mouseYSensitivity = settings.CameraMouseYSensitivity;
+            orbitHorizontalStep = settings.CameraOrbitHorizontalStep;
+            orbitVerticalStep = settings.CameraOrbitVerticalStep;
             followScale = settings.CameraFollowScale;
             followDeadzone = settings.CameraFollowVerticalDeadzone;
             followSpeed = settings.CameraFollowSpeed;

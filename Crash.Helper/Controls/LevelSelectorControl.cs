@@ -281,6 +281,8 @@ namespace Crash.Helper.Controls
             levelBox.Controls.Add(stopButton);
             levelBox.Controls.Add(launchButton);
             dataControl.AttachLevelControls(levelBox, combo);
+            combo.SelectedIndexChanged += (s, e) => dataControl.SetLaunchSecretLevel(combo.SelectedItem as string);
+            dataControl.SetLaunchSecretLevel(combo.SelectedItem as string);
             this.Controls.Add(levelBox);
             InitializeLevelImage(levelBox);
 

@@ -25,11 +25,11 @@ namespace Crash.Helper
             draft = settings.Clone();
             Text = "Crash Helper Settings";
             StartPosition = FormStartPosition.CenterParent;
-            ClientSize = new Size(480, Math.Min(620, Screen.PrimaryScreen.WorkingArea.Height - 80));
+            ClientSize = new Size(640, Math.Min(620, Screen.PrimaryScreen.WorkingArea.Height - 80));
             FormBorderStyle = FormBorderStyle.Sizable;
             // The Framework size grip misreads negative monitor coordinates; keep native border resizing.
             SizeGripStyle = SizeGripStyle.Hide;
-            MinimumSize = new Size(400, 260);
+            MinimumSize = new Size(600, 260);
             MaximizeBox = true;
             MinimizeBox = false;
             ShowIcon = false;
@@ -37,8 +37,10 @@ namespace Crash.Helper
             tabs = new TabControl { Dock = DockStyle.Fill, TabIndex = 0 };
             var gamePage = new TabPage("GameFlag") { Padding = new Padding(10), AutoScroll = true };
             var helperPage = new TabPage("CrashHelper") { Padding = new Padding(8), AutoScroll = true };
+            var hotkeysPage = new TabPage("Hotkeys") { Padding = new Padding(8), AutoScroll = true };
             tabs.TabPages.Add(gamePage);
             tabs.TabPages.Add(helperPage);
+            tabs.TabPages.Add(hotkeysPage);
             gamePage.Controls.Add(new GameFlagControl(memory, canEditGame) { Dock = DockStyle.Top });
             var layout = new FlowLayoutPanel { AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, Dock = DockStyle.Top };
             layout.Controls.Add(new Label { Text = "Steam application", AutoSize = true });
@@ -65,7 +67,7 @@ namespace Crash.Helper
             startupLevel.Leave += (s, e) => manager.SetEditing(false);
             layout.Controls.Add(startupLevel);
             hotkeys = new HotkeyControl(manager, draft) { Enabled = helperEnabled };
-            layout.Controls.Add(hotkeys);
+            hotkeysPage.Controls.Add(hotkeys);
             helperPage.Controls.Add(layout);
             var footer = new Panel { Dock = DockStyle.Bottom, Height = 44, Padding = new Padding(8) };
             save = new Button { Text = "Save", Size = new Size(75, 25), Anchor = AnchorStyles.Top | AnchorStyles.Right };

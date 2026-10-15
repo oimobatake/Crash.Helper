@@ -50,15 +50,13 @@ namespace Crash.Helper
                 new Hotkey("XYZ Speed x2", KeyModifiers.None, 0, () => { }) { RepeatWhileHeld = true, CameraSpeedBoost = true },
                 new Hotkey("Camera Save", KeyModifiers.None, 0, camera.SaveCamera),
                 new Hotkey("Camera TP", KeyModifiers.None, 0, camera.Teleport),
-                new Hotkey("Toggle camera input", KeyModifiers.None, 0, camera.ToggleMovement),
-                new Hotkey("Camera Follow player", KeyModifiers.None, 0, camera.ToggleFollow),
-                new Hotkey("Camera Orbit player", KeyModifiers.None, 0, camera.ToggleOrbit),
-                new Hotkey("Camera Orbit H -5", KeyModifiers.None, 0, () => camera.StepOrbit(0, -1)),
-                new Hotkey("Camera Orbit H +5", KeyModifiers.None, 0, () => camera.StepOrbit(0, 1)),
-                new Hotkey("Camera Orbit V -5", KeyModifiers.None, 0, () => camera.StepOrbit(1, -1)),
-                new Hotkey("Camera Orbit V +5", KeyModifiers.None, 0, () => camera.StepOrbit(1, 1)),
-                new Hotkey("Camera Zoom In", KeyModifiers.None, 0, () => camera.StepOrbit(2, -1)),
-                new Hotkey("Camera Zoom Out", KeyModifiers.None, 0, () => camera.StepOrbit(2, 1))
+                new Hotkey("Follow Player", KeyModifiers.None, 0, camera.ToggleFollow),
+                new Hotkey("Orbit Player", KeyModifiers.None, 0, camera.ToggleOrbit),
+                new Hotkey("Orbit Horizontal -", KeyModifiers.None, 0, () => camera.StepOrbit(0, -1)),
+                new Hotkey("Orbit Horizontal +", KeyModifiers.None, 0, () => camera.StepOrbit(0, 1)),
+                new Hotkey("Orbit Vertical -", KeyModifiers.None, 0, () => camera.StepOrbit(1, -1)),
+                new Hotkey("Orbit Vertical +", KeyModifiers.None, 0, () => camera.StepOrbit(1, 1)),
+                new Hotkey("Toggle camera input", KeyModifiers.None, 0, camera.ToggleMovement)
             };
             for (int i = 0; i < hotkeys.Count; i++)
                 hotkeys[i].Group = i < 6 ? "Data" : i < 12 ? "Level" : i < 25 ? "Position" : "Camera";

@@ -35,6 +35,13 @@ namespace Crash.Helper
 
         // bitmask of GamepadButton values (wButtons). Use null when no binding.
         public uint? GamepadMask { get; set; }
+        public List<HotkeyBinding> Alternatives { get; set; } = new List<HotkeyBinding>();
+
+        internal IEnumerable<HotkeyBinding> GetBindings()
+        {
+            yield return new HotkeyBinding { Key = Key, Modifiers = Modifier, Gamepad = GamepadMask ?? 0 };
+            foreach (var binding in Alternatives) if (binding != null) yield return binding;
+        }
 
 		public int ID { get; set; }
 		

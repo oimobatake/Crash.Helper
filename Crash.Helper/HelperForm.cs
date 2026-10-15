@@ -60,6 +60,7 @@ namespace Crash.Helper
                 () => memory.ProcessHooked, action => { if (!IsDisposed && IsHandleCreated) BeginInvoke(action); },
                 () => ForegroundApplication.IsGameOrHelper(memory.LoadMap.Process));
             hotkeyManager.AdvancedInputBlocked = () => LoadingMemory.Read(memory.LoadMap.Process, memory.Profile?.Camera?.PauseMenu);
+            hotkeyManager.CombinedActions = cameraControl.HandleCombinedHotkeys;
             cameraControl.EditingChanged += hotkeyManager.SetEditing;
             positionControl.EditingChanged += hotkeyManager.SetEditing;
             hotkeyManager.PositionMovementChanged += positionControl.SetMovement;
@@ -199,6 +200,7 @@ namespace Crash.Helper
             othersControl.SetAvailability(advancedReady ? memory.LoadMap.Process : null, advancedReady ? memory.Profile : null);
             cameraControl.SetAvailability(advancedReady ? memory.LoadMap.Process : null, advancedReady ? memory.Profile?.Camera : null);
             levelSelector.ApplyAvailability(canConfigure, ready);
+            dataControl.SetSecretLaunchAvailability(canConfigure && helperEnabled && !memory.ProcessHooked);
             settingsButton.Enabled = canConfigure;
             advancedButton.Enabled = canConfigure;
             hotkeyManager.SetReady(ready);
@@ -208,10 +210,12 @@ namespace Crash.Helper
 
         private void LaunchGame(string map)
         {
+            dataControl.BeginLaunchSecret(map);
             try { processControl.PrepareForLaunch(); } catch { }
             try { launcher.Launch(map); }
             catch (Exception ex)
             {
+                dataControl.CancelLaunchSecret();
                 MessageBox.Show(this, $"Failed to launch Steam. Tried: {settings.SteamPath}\nError: {ex.Message}", "Launch failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
@@ -231,6 +235,7 @@ namespace Crash.Helper
                 e.Cancel = true;
                 if (levelLockCleanupPending) return;
                 levelLockCleanupPending = true;
+                dataControl.CancelLaunchSecret();
                 ApplyAvailability(false, false);
                 try
                 {

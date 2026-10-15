@@ -17,6 +17,15 @@ namespace Crash.Helper
         [DataMember] public KeyModifiers Modifiers { get; set; }
         // XInput button mask (GamepadButton values); zero means no controller binding.
         [DataMember] public uint Gamepad { get; set; }
+        [DataMember(EmitDefaultValue = false)] public List<HotkeyBinding> Alternatives { get; set; }
+
+        public HotkeyBinding Clone() => new HotkeyBinding
+        {
+            Key = Key, Modifiers = Modifiers, Gamepad = Gamepad,
+            Alternatives = Alternatives?.FindAll(binding => binding != null).ConvertAll(binding => binding.Clone())
+        };
+
+        internal bool IsAssigned => Key != 0 || Gamepad != 0;
     }
 
     [DataContract]
@@ -44,8 +53,10 @@ namespace Crash.Helper
         [DataMember] public float PositionXYZSpeed { get; set; } = 0.8f;
         [DataMember] public float CameraXYZSpeed { get; set; } = 30f;
         [DataMember] public float CameraYawPitchSpeed { get; set; } = 0.03f;
-        [DataMember] public float CameraMouseXSensitivity { get; set; } = 0.002f;
-        [DataMember] public float CameraMouseYSensitivity { get; set; } = 0.002f;
+        [DataMember] public float CameraMouseXSensitivity { get; set; } = 0.001f;
+        [DataMember] public float CameraMouseYSensitivity { get; set; } = 0.001f;
+        [DataMember] public float CameraOrbitHorizontalStep { get; set; } = 5f;
+        [DataMember] public float CameraOrbitVerticalStep { get; set; } = 5f;
         [DataMember] public float CameraFollowScale { get; set; } = DefaultCameraFollowScale;
         [DataMember] public float CameraFollowVerticalDeadzone { get; set; } = DefaultCameraFollowVerticalDeadzone;
         [DataMember] public float CameraFollowSpeed { get; set; } = DefaultCameraFollowSpeed;
@@ -75,12 +86,14 @@ namespace Crash.Helper
             CameraYawPitchSpeed = source.CameraYawPitchSpeed;
             CameraMouseXSensitivity = source.CameraMouseXSensitivity;
             CameraMouseYSensitivity = source.CameraMouseYSensitivity;
+            CameraOrbitHorizontalStep = source.CameraOrbitHorizontalStep;
+            CameraOrbitVerticalStep = source.CameraOrbitVerticalStep;
             CameraFollowScale = source.CameraFollowScale;
             CameraFollowVerticalDeadzone = source.CameraFollowVerticalDeadzone;
             CameraFollowSpeed = source.CameraFollowSpeed;
             Hotkeys = new Dictionary<string, HotkeyBinding>();
             foreach (var entry in source.Hotkeys)
-                Hotkeys[entry.Key] = new HotkeyBinding { Key = entry.Value.Key, Modifiers = entry.Value.Modifiers, Gamepad = entry.Value.Gamepad };
+                Hotkeys[entry.Key] = entry.Value?.Clone() ?? new HotkeyBinding();
         }
 
         public static HelperSettings Load()
@@ -96,8 +109,10 @@ namespace Crash.Helper
                 if (!IsMovementValueValid(settings.CameraXYZSpeed)) settings.CameraXYZSpeed = 30f;
                 if (!IsMovementValueValid(settings.PositionXYZSpeed)) settings.PositionXYZSpeed = 0.8f;
                 if (!IsMovementValueValid(settings.CameraYawPitchSpeed)) settings.CameraYawPitchSpeed = 0.03f;
-                if (!IsMovementValueValid(settings.CameraMouseXSensitivity)) settings.CameraMouseXSensitivity = 0.002f;
-                if (!IsMovementValueValid(settings.CameraMouseYSensitivity)) settings.CameraMouseYSensitivity = 0.002f;
+                if (!IsMovementValueValid(settings.CameraMouseXSensitivity)) settings.CameraMouseXSensitivity = 0.001f;
+                if (!IsMovementValueValid(settings.CameraMouseYSensitivity)) settings.CameraMouseYSensitivity = 0.001f;
+                if (!IsMovementValueValid(settings.CameraOrbitHorizontalStep)) settings.CameraOrbitHorizontalStep = 5f;
+                if (!IsMovementValueValid(settings.CameraOrbitVerticalStep)) settings.CameraOrbitVerticalStep = 5f;
                 if (!IsMovementValueValid(settings.CameraFollowScale)) settings.CameraFollowScale = DefaultCameraFollowScale;
                 if (!IsMovementValueValid(settings.CameraFollowVerticalDeadzone)) settings.CameraFollowVerticalDeadzone = DefaultCameraFollowVerticalDeadzone;
                 if (!IsMovementValueValid(settings.CameraFollowSpeed)) settings.CameraFollowSpeed = DefaultCameraFollowSpeed;
@@ -122,7 +137,8 @@ namespace Crash.Helper
             PositionXYZSpeed = 0.8f;
             CameraXYZSpeed = 30f;
             CameraYawPitchSpeed = 0.03f;
-            CameraMouseXSensitivity = CameraMouseYSensitivity = 0.002f;
+            CameraMouseXSensitivity = CameraMouseYSensitivity = 0.001f;
+            CameraOrbitHorizontalStep = CameraOrbitVerticalStep = 5f;
             CameraFollowScale = DefaultCameraFollowScale;
             CameraFollowVerticalDeadzone = DefaultCameraFollowVerticalDeadzone;
             CameraFollowSpeed = DefaultCameraFollowSpeed;
@@ -140,7 +156,8 @@ namespace Crash.Helper
             if (!IsMovementValueValid(value)) throw new ArgumentOutOfRangeException(nameof(value));
             if (name != nameof(CameraXYZSpeed) && name != nameof(CameraYawPitchSpeed) &&
                 name != nameof(CameraMouseXSensitivity) && name != nameof(CameraMouseYSensitivity) && name != nameof(PositionXYZSpeed) &&
-                name != nameof(CameraFollowScale) && name != nameof(CameraFollowVerticalDeadzone) && name != nameof(CameraFollowSpeed))
+                name != nameof(CameraFollowScale) && name != nameof(CameraFollowVerticalDeadzone) && name != nameof(CameraFollowSpeed) &&
+                name != nameof(CameraOrbitHorizontalStep) && name != nameof(CameraOrbitVerticalStep))
                 throw new ArgumentException("Unknown movement setting.", nameof(name));
             SaveSingleSetting(name, "number", value.ToString("R", CultureInfo.InvariantCulture));
             // Apply the live value only after the single-property save succeeds.
@@ -150,6 +167,8 @@ namespace Crash.Helper
                 case nameof(CameraYawPitchSpeed): CameraYawPitchSpeed = value; break;
                 case nameof(CameraMouseXSensitivity): CameraMouseXSensitivity = value; break;
                 case nameof(CameraMouseYSensitivity): CameraMouseYSensitivity = value; break;
+                case nameof(CameraOrbitHorizontalStep): CameraOrbitHorizontalStep = value; break;
+                case nameof(CameraOrbitVerticalStep): CameraOrbitVerticalStep = value; break;
                 case nameof(PositionXYZSpeed): PositionXYZSpeed = value; break;
                 case nameof(CameraFollowScale): CameraFollowScale = value; break;
                 case nameof(CameraFollowVerticalDeadzone): CameraFollowVerticalDeadzone = value; break;

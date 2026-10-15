@@ -12,7 +12,8 @@ namespace Crash.Helper.Memory
                 case "Crash 2 - Totally Bear": return 4;
                 case "Crash 2 - Totally Fly": return 5;
                 case "Crash 3 - Ski Crazed": return 6;
-                case "Crash 3 - Hang'em High": return enabled ? 7 : 0;
+                case "Crash 3 - Hang'em High":
+                case "Crash 3 - Hang 'Em High": return enabled ? 7 : 0;
                 case "Crash 3 - Area 51?": return 8;
                 case "Crash 3 - Future Frenzy": return enabled ? 9 : 0;
                 case "Crash 3 - Rings of Power": return 10;
