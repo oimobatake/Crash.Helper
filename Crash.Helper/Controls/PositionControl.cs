@@ -113,6 +113,15 @@ namespace Crash.Helper.Controls
             for (int i = 0; i < editors.Length; i++) if (!editors[i].Focused) UpdateEditor(i);
         }
 
+        // Thread-safe read for other workers. Returns null during loading, fades, or when unavailable.
+        internal float[] ReadPlayerPosition()
+        {
+            if (closing) return null;
+            try { return motion.ReadValues(); }
+            catch (System.ComponentModel.Win32Exception) { return null; }
+            catch (InvalidOperationException) { return null; }
+        }
+
         internal void SavePosition()
         {
             if (!CanEdit) return;

@@ -67,12 +67,13 @@ The Camera panel lets you arrange a view independently of the game's normal came
 
 - `Control XYZ` gives you control over the camera's position.
 - `Control YawPitch` gives you control over its horizontal and vertical viewing angles.
+- `Follow player` keeps the camera at its current offset from the player and turns on `Control XYZ`. Movement shortcuts adjust the offset while following.
 - Edit values and press Enter, or use assigned movement and rotation shortcuts.
 - Enable `Mouse control` in Settings to look around with the mouse. Separate X/Y sensitivity and inverted Y options are available.
 - Choose whether camera movement follows its pitch, and adjust movement and rotation speeds.
 - Click `Save` to remember a view and `TP` to restore it. Only the enabled Control groups are restored.
 
-Position freezes and camera Control checkboxes reset when loading begins. Enable them again after the level loads. Advanced input is also paused during the game's pause menu.
+Position freezes and camera Control checkboxes reset when loading begins. Enable them again after the level loads. `Follow player` stays on and resumes after loading. Advanced input is also paused during the game's pause menu.
 
 ### Change gems and powers
 

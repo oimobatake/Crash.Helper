@@ -151,6 +151,7 @@
     <Compile Include="Memory\GameMemoryProfile.cs" />
     <Compile Include="Memory\Camera\CameraMemoryProfile.cs" />
     <Compile Include="Memory\Camera\CameraCode.cs" />
+    <Compile Include="Memory\Camera\CameraFollow.cs" />
     <Compile Include="Memory\Camera\CameraMovement.cs" />
     <Compile Include="Input\KeyIdentity.cs" />
     <Compile Include="HelperLog.cs" />

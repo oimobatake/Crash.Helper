@@ -16,7 +16,7 @@ namespace Crash.Helper.Controls
         private readonly CameraService service = new CameraService();
         private readonly TextBox[] editors = new TextBox[5];
         private readonly string[] axes = { "X", "Y", "Z", "Yaw", "Pitch" };
-        private readonly CheckBox freezeXYZ, freezeYawPitch;
+        private readonly CheckBox freezeXYZ, freezeYawPitch, followPlayer;
         private readonly MouseCameraListener mouse = new MouseCameraListener();
         private readonly Button saveButton, teleportButton;
         private readonly ToolTip toolTip = new ToolTip();
@@ -26,9 +26,12 @@ namespace Crash.Helper.Controls
         private float[] values, saved;
         private float xyzSpeed = 30.0f, yawPitchSpeed = 0.03f;
         private float mouseXSensitivity = 0.002f, mouseYSensitivity = 0.002f;
+        private float followScale = HelperSettings.DefaultCameraFollowScale;
         private bool followPitch = true, mouseControl, invertMouseY, inputEnabled;
         private bool speedBoost, loading, movementDisabled;
         internal Func<bool> IsLoading { get; set; } = () => false;
+        // Called on the camera worker. Returns null while the player position cannot be read.
+        internal Func<float[]> PlayerPosition { get; set; }
         internal bool CanAdjustXYZSpeed => CanWrite(0);
         internal bool CanAdjustRotationSpeed => CanWrite(3);
         internal bool CanAdjustMouseSensitivity => CanWrite(3);
@@ -74,10 +77,14 @@ namespace Crash.Helper.Controls
             }
             freezeXYZ = new CheckBox { Text = "Control XYZ", AutoSize = true, Left = 160, Top = 28 };
             freezeYawPitch = new CheckBox { Text = "Control YawPitch", AutoSize = true, Left = 160, Top = 93 };
+            followPlayer = new CheckBox { Text = "Follow player", AutoSize = true, Left = 160, Top = 54 };
             freezeXYZ.CheckedChanged += OnFreezeChanged;
             freezeYawPitch.CheckedChanged += OnFreezeChanged;
+            followPlayer.CheckedChanged += OnFollowChanged;
+            toolTip.SetToolTip(followPlayer, "Keep the camera at its current offset from the player. Enables Control XYZ.");
             Controls.Add(freezeXYZ);
             Controls.Add(freezeYawPitch);
+            Controls.Add(followPlayer);
             mouse.Moved += OnMouseMovement;
             saveButton = new Button { Text = "Save", Left = 52, Top = 138, Width = 80 };
             teleportButton = new Button { Text = "TP", Left = 137, Top = 138, Width = 80 };
@@ -117,7 +124,7 @@ namespace Crash.Helper.Controls
             values = null;
             heldDirections = new int[5];
             suppressChanges = true;
-            freezeXYZ.Checked = freezeYawPitch.Checked = false;
+            freezeXYZ.Checked = freezeYawPitch.Checked = followPlayer.Checked = false;
             suppressChanges = false;
             Configure();
         }
@@ -125,6 +132,14 @@ namespace Crash.Helper.Controls
         private void OnFreezeChanged(object sender, EventArgs e)
         {
             if (!suppressChanges) Configure();
+        }
+
+        private void OnFollowChanged(object sender, EventArgs e)
+        {
+            if (suppressChanges) return;
+            // Following writes the camera XYZ, which requires the game's position writer to be removed.
+            if (followPlayer.Checked && !freezeXYZ.Checked) freezeXYZ.Checked = true;
+            else UpdateMovement();
         }
 
         private async void Configure()
@@ -173,7 +188,7 @@ namespace Crash.Helper.Controls
                 editors[i].Enabled = CanWrite(i);
                 if (!editors[i].Focused) UpdateEditor(i);
             }
-            freezeXYZ.Enabled = freezeYawPitch.Enabled = available && ready && !changing && !closing && !loading;
+            freezeXYZ.Enabled = freezeYawPitch.Enabled = followPlayer.Enabled = available && ready && !changing && !closing && !loading;
             saveButton.Enabled = available && ready && !changing && values != null && !closing && !loading && !movementDisabled;
             teleportButton.Enabled = saved != null && (CanWrite(0) || CanWrite(3));
             UpdateMovement();
@@ -209,6 +224,11 @@ namespace Crash.Helper.Controls
                 if (version == generation && !IsDisposed) await RefreshAsync();
             }
             catch (Exception ex) { HelperLog.Error("Write camera", ex); }
+        }
+
+        internal void ToggleFollow()
+        {
+            if (available && ready && !closing && !loading && !IsLoading()) followPlayer.Checked = !followPlayer.Checked;
         }
 
         internal void ToggleFreeze(bool rotation)
@@ -258,7 +278,7 @@ namespace Crash.Helper.Controls
             heldDirections = new int[5];
             speedBoost = false;
             suppressChanges = true;
-            freezeXYZ.Checked = freezeYawPitch.Checked = false;
+            freezeXYZ.Checked = freezeYawPitch.Checked = followPlayer.Checked = false;
             suppressChanges = false;
             Configure(); InputStateChanged?.Invoke();
         }
@@ -267,12 +287,11 @@ namespace Crash.Helper.Controls
         {
             if (loading == value || closing) return;
             loading = value;
-            if (value)
-            {
-                suppressChanges = true;
-                freezeXYZ.Checked = freezeYawPitch.Checked = false;
-                suppressChanges = false;
-            }
+            suppressChanges = true;
+            if (value) freezeXYZ.Checked = freezeYawPitch.Checked = false;
+            // Following persists across levels, so restore its required XYZ control after loading.
+            else if (followPlayer.Checked) freezeXYZ.Checked = true;
+            suppressChanges = false;
             Configure(); InputStateChanged?.Invoke();
         }
 
@@ -291,6 +310,8 @@ namespace Crash.Helper.Controls
             if (!updateSuspended && inputEnabled && available && ready && !changing && !closing && !loading && !movementDisabled)
                 for (int i = 0; i < directions.Length; i++)
                     if (i < 3 ? freezeXYZ.Checked : freezeYawPitch.Checked) directions[i] = heldDirections[i];
+            bool follow = !updateSuspended && available && ready && !changing && !closing && !loading && freezeXYZ.Checked && followPlayer.Checked;
+            service.SetFollow(follow ? PlayerPosition : null, followScale);
             bool useMouse = inputEnabled && mouseControl && CanWrite(3);
             try
             {
@@ -311,6 +332,7 @@ namespace Crash.Helper.Controls
             yawPitchSpeed = settings.CameraYawPitchSpeed;
             mouseXSensitivity = settings.CameraMouseXSensitivity;
             mouseYSensitivity = settings.CameraMouseYSensitivity;
+            followScale = settings.CameraFollowScale;
             UpdateMovement();
         }
 

@@ -21,6 +21,9 @@ namespace Crash.Helper.Memory.Camera
         private float xyzSpeed = 0.5f, rotationSpeed = 0.01f;
         private bool followPitch, acceptMouse;
         private double pendingMouseYaw, pendingMousePitch;
+        private readonly CameraFollow follow = new CameraFollow();
+        private Func<float[]> followSource;
+        private float followScale = 1;
         private bool stopping, disposed, shutdownComplete;
 
         internal CameraService()
@@ -40,6 +43,20 @@ namespace Crash.Helper.Memory.Camera
                 rotationSpeed = rotation;
                 followPitch = pitch;
                 acceptMouse = mouse;
+                motionChanged.Set();
+            }
+        }
+
+        // The source runs on the camera worker. It returns null while the player cannot be read.
+        internal void SetFollow(Func<float[]> source, float scale)
+        {
+            lock (sync)
+            {
+                if (stopping || disposed || (followSource == source && followScale == scale)) return;
+                followSource = source;
+                followScale = scale;
+                // Recapture the offset whenever following starts again or its scale changes.
+                follow.Reset(scale);
                 motionChanged.Set();
             }
         }
@@ -67,6 +84,8 @@ namespace Crash.Helper.Memory.Camera
                     int[] input;
                     float xyz, rotation;
                     bool pitch, moving;
+                    Func<float[]> source;
+                    float scale;
                     lock (sync)
                     {
                         if (stopping) return;
@@ -74,7 +93,9 @@ namespace Crash.Helper.Memory.Camera
                         xyz = xyzSpeed;
                         rotation = rotationSpeed;
                         pitch = followPitch;
-                        moving = input.Any(value => value != 0) || pendingMouseYaw != 0 || pendingMousePitch != 0;
+                        source = followSource;
+                        scale = followScale;
+                        moving = source != null || input.Any(value => value != 0) || pendingMouseYaw != 0 || pendingMousePitch != 0;
                     }
                     if (!moving)
                     {
@@ -87,31 +108,40 @@ namespace Crash.Helper.Memory.Camera
                     double now = clock.Elapsed.TotalSeconds;
                     double elapsed = now - previous;
                     previous = now;
+                    bool failed = false;
                     if (gate.Wait(0))
                     {
                         try
                         {
                             bool apply;
                             double mouseYaw = 0, mousePitch = 0;
+                            float[] player = null;
+                            if (source != null)
+                            {
+                                try { player = source(); }
+                                catch (Exception ex) { HelperLog.Error("Read player position for camera follow", ex); }
+                            }
                             lock (sync)
                             {
-                                apply = !stopping && active && directions.SequenceEqual(input);
+                                apply = !stopping && active && directions.SequenceEqual(input) && followSource == source && followScale == scale;
                                 if (apply)
                                 {
                                     mouseYaw = pendingMouseYaw; mousePitch = pendingMousePitch;
                                     pendingMouseYaw = pendingMousePitch = 0;
                                 }
                             }
-                            if (apply) patch.Move(input, xyz, rotation, elapsed, pitch, mouseYaw, mousePitch);
+                            if (apply) patch.Move(input, xyz, rotation, elapsed, pitch, mouseYaw, mousePitch, source == null ? null : follow, player);
                         }
                         catch (Exception ex)
                         {
                             HelperLog.Error("Move camera", ex);
-                            lock (sync) { directions = new int[5]; pendingMouseYaw = pendingMousePitch = 0; }
+                            failed = true;
+                            lock (sync) { directions = new int[5]; pendingMouseYaw = pendingMousePitch = 0; follow.Reset(followScale); }
                         }
                         finally { gate.Release(); }
                     }
-                    motionChanged.WaitOne(8);
+                    // Following keeps the loop running, so back off instead of retrying a failure every frame.
+                    motionChanged.WaitOne(failed ? 500 : 8);
                 }
             }
             finally { if (preciseTimer) timeEndPeriod(1); }
@@ -127,6 +157,7 @@ namespace Crash.Helper.Memory.Camera
             {
                 generation++;
                 pendingMouseYaw = pendingMousePitch = 0;
+                follow.Reset(followScale);
                 pending?.Cancel();
                 pending = request = new CancellationTokenSource();
             }
@@ -214,6 +245,7 @@ namespace Crash.Helper.Memory.Camera
                 acceptMouse = false;
                 pendingMouseYaw = pendingMousePitch = 0;
                 directions = new int[5];
+                followSource = null;
                 motionChanged.Set();
             }
             await motionWorker.ConfigureAwait(false);

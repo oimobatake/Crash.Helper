@@ -157,13 +157,17 @@ namespace Crash.Helper.Memory.Camera
         }
 
         internal void Move(int[] directions, float xyzSpeed, float rotationSpeed, double seconds,
-            bool followPitch = false, double mouseYaw = 0, double mousePitch = 0)
+            bool followPitch = false, double mouseYaw = 0, double mousePitch = 0, CameraFollow follow = null, float[] player = null)
         {
             if (!installed || HasExited) return;
             if (IsPauseMenuOpen()) return;
             // Freeze removes the game writers. Movement must not suspend the entire game each frame.
-            WriteValuesCore(null, true, current => CameraMovement.Delta(directions, xyzSpeed, rotationSpeed, seconds,
-                current[3], current[4], followPitch, mouseYaw, mousePitch));
+            WriteValuesCore(null, true, current =>
+            {
+                var delta = CameraMovement.Delta(directions, xyzSpeed, rotationSpeed, seconds,
+                    current[3], current[4], followPitch, mouseYaw, mousePitch);
+                return follow == null || !freezePosition ? delta : follow.Apply(current, delta, player);
+            });
         }
 
         private bool IsPauseMenuOpen()

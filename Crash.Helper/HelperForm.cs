@@ -53,7 +53,7 @@ namespace Crash.Helper
             launcher = new SteamGameLauncher(settings);
             levelSelector.LaunchRequested += LaunchGame;
             positionControl = new PositionControl(memory) { Enabled = false };
-            cameraControl = new CameraControl { IsLoading = () => memory.IsLoading };
+            cameraControl = new CameraControl { IsLoading = () => memory.IsLoading, PlayerPosition = positionControl.ReadPlayerPosition };
             othersControl = new OthersControl();
             othersControl.FadeWriteDisabledChanged += positionControl.SetFadeWriteDisabled;
             hotkeyManager = new HotkeyManager(HelperHotkeyActions.Create(memory, dataControl, levelSelector, positionControl, cameraControl, othersControl), settings,

@@ -72,6 +72,7 @@ namespace Crash.Helper.Controls
                         AddSpeedEditor(table, ref row, "YawPitch Speed", nameof(HelperSettings.CameraYawPitchSpeed));
                         AddSpeedEditor(table, ref row, "Mouse X sensitivity", nameof(HelperSettings.CameraMouseXSensitivity));
                         AddSpeedEditor(table, ref row, "Mouse Y sensitivity", nameof(HelperSettings.CameraMouseYSensitivity));
+                        AddSpeedEditor(table, ref row, "Follow scale", nameof(HelperSettings.CameraFollowScale));
                     }
                 }
                 int index = i;
