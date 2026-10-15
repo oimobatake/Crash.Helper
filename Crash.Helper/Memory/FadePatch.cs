@@ -17,7 +17,6 @@ namespace Crash.Helper.Memory
 
         internal FadePatch(Process target, long address, byte[] original)
         {
-
             Original = (byte[])original.Clone();
             process = Process.GetProcessById(target.Id);
             this.address = new IntPtr(address);
