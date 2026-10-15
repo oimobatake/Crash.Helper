@@ -48,10 +48,11 @@ namespace Crash.Helper.Memory.Camera
         }
 
         // The source runs on the camera worker. It returns null while the player cannot be read.
-        internal void SetFollow(Func<float[]> source, float scale)
+        internal void SetFollow(Func<float[]> source, float scale, float verticalDeadzone, float speed)
         {
             lock (sync)
             {
+                follow.SetSmoothing(verticalDeadzone, speed);
                 if (stopping || disposed || (followSource == source && followScale == scale)) return;
                 followSource = source;
                 followScale = scale;

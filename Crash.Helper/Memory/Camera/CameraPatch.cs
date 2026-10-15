@@ -166,7 +166,7 @@ namespace Crash.Helper.Memory.Camera
             {
                 var delta = CameraMovement.Delta(directions, xyzSpeed, rotationSpeed, seconds,
                     current[3], current[4], followPitch, mouseYaw, mousePitch);
-                return follow == null || !freezePosition ? delta : follow.Apply(current, delta, player);
+                return follow == null || !freezePosition ? delta : follow.Apply(current, delta, player, seconds);
             });
         }
 

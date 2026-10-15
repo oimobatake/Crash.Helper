@@ -73,6 +73,8 @@ namespace Crash.Helper.Controls
                         AddSpeedEditor(table, ref row, "Mouse X sensitivity", nameof(HelperSettings.CameraMouseXSensitivity));
                         AddSpeedEditor(table, ref row, "Mouse Y sensitivity", nameof(HelperSettings.CameraMouseYSensitivity));
                         AddSpeedEditor(table, ref row, "Follow scale", nameof(HelperSettings.CameraFollowScale));
+                        AddSpeedEditor(table, ref row, "Follow vertical deadzone", nameof(HelperSettings.CameraFollowVerticalDeadzone));
+                        AddSpeedEditor(table, ref row, "Follow speed (0 = instant)", nameof(HelperSettings.CameraFollowSpeed));
                     }
                 }
                 int index = i;

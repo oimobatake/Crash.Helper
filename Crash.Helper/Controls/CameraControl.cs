@@ -27,6 +27,8 @@ namespace Crash.Helper.Controls
         private float xyzSpeed = 30.0f, yawPitchSpeed = 0.03f;
         private float mouseXSensitivity = 0.002f, mouseYSensitivity = 0.002f;
         private float followScale = HelperSettings.DefaultCameraFollowScale;
+        private float followDeadzone = HelperSettings.DefaultCameraFollowVerticalDeadzone;
+        private float followSpeed = HelperSettings.DefaultCameraFollowSpeed;
         private bool followPitch = true, mouseControl, invertMouseY, inputEnabled;
         private bool speedBoost, loading, movementDisabled;
         internal Func<bool> IsLoading { get; set; } = () => false;
@@ -311,7 +313,7 @@ namespace Crash.Helper.Controls
                 for (int i = 0; i < directions.Length; i++)
                     if (i < 3 ? freezeXYZ.Checked : freezeYawPitch.Checked) directions[i] = heldDirections[i];
             bool follow = !updateSuspended && available && ready && !changing && !closing && !loading && freezeXYZ.Checked && followPlayer.Checked;
-            service.SetFollow(follow ? PlayerPosition : null, followScale);
+            service.SetFollow(follow ? PlayerPosition : null, followScale, followDeadzone, followSpeed);
             bool useMouse = inputEnabled && mouseControl && CanWrite(3);
             try
             {
@@ -333,6 +335,8 @@ namespace Crash.Helper.Controls
             mouseXSensitivity = settings.CameraMouseXSensitivity;
             mouseYSensitivity = settings.CameraMouseYSensitivity;
             followScale = settings.CameraFollowScale;
+            followDeadzone = settings.CameraFollowVerticalDeadzone;
+            followSpeed = settings.CameraFollowSpeed;
             UpdateMovement();
         }
 

@@ -23,6 +23,10 @@ namespace Crash.Helper
         // Camera units per player position unit. A measured ratio of about 39.4 matches meters
         // (player) to inches (camera), so it should hold across levels.
         public const float DefaultCameraFollowScale = 39.3701f;
+        // Player units (meters) of vertical movement ignored before the camera follows.
+        public const float DefaultCameraFollowVerticalDeadzone = 1.5f;
+        // Per-second approach rate toward the follow target. Zero moves the camera instantly.
+        public const float DefaultCameraFollowSpeed = 8f;
         public const string DefaultStartupLevel = "Crash 1 - The Wumpa Islands";
         public static string FilePath => Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "CrashHelper_Settings.json");
         [DataMember] public string SteamPath { get; set; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "Steam", "steam.exe");
@@ -40,6 +44,8 @@ namespace Crash.Helper
         [DataMember] public float CameraMouseXSensitivity { get; set; } = 0.002f;
         [DataMember] public float CameraMouseYSensitivity { get; set; } = 0.002f;
         [DataMember] public float CameraFollowScale { get; set; } = DefaultCameraFollowScale;
+        [DataMember] public float CameraFollowVerticalDeadzone { get; set; } = DefaultCameraFollowVerticalDeadzone;
+        [DataMember] public float CameraFollowSpeed { get; set; } = DefaultCameraFollowSpeed;
         [DataMember] public Dictionary<string, HotkeyBinding> Hotkeys { get; set; } = new Dictionary<string, HotkeyBinding>();
 
         public HelperSettings Clone()
@@ -66,6 +72,8 @@ namespace Crash.Helper
             CameraMouseXSensitivity = source.CameraMouseXSensitivity;
             CameraMouseYSensitivity = source.CameraMouseYSensitivity;
             CameraFollowScale = source.CameraFollowScale;
+            CameraFollowVerticalDeadzone = source.CameraFollowVerticalDeadzone;
+            CameraFollowSpeed = source.CameraFollowSpeed;
             Hotkeys = new Dictionary<string, HotkeyBinding>();
             foreach (var entry in source.Hotkeys)
                 Hotkeys[entry.Key] = new HotkeyBinding { Key = entry.Value.Key, Modifiers = entry.Value.Modifiers };
@@ -87,6 +95,8 @@ namespace Crash.Helper
                 if (!IsMovementValueValid(settings.CameraMouseXSensitivity)) settings.CameraMouseXSensitivity = 0.002f;
                 if (!IsMovementValueValid(settings.CameraMouseYSensitivity)) settings.CameraMouseYSensitivity = 0.002f;
                 if (!IsMovementValueValid(settings.CameraFollowScale)) settings.CameraFollowScale = DefaultCameraFollowScale;
+                if (!IsMovementValueValid(settings.CameraFollowVerticalDeadzone)) settings.CameraFollowVerticalDeadzone = DefaultCameraFollowVerticalDeadzone;
+                if (!IsMovementValueValid(settings.CameraFollowSpeed)) settings.CameraFollowSpeed = DefaultCameraFollowSpeed;
                 if (string.IsNullOrWhiteSpace(settings.SteamPath)) settings.SteamPath = new HelperSettings().SteamPath;
                 return settings;
             }
@@ -110,6 +120,8 @@ namespace Crash.Helper
             CameraYawPitchSpeed = 0.03f;
             CameraMouseXSensitivity = CameraMouseYSensitivity = 0.002f;
             CameraFollowScale = DefaultCameraFollowScale;
+            CameraFollowVerticalDeadzone = DefaultCameraFollowVerticalDeadzone;
+            CameraFollowSpeed = DefaultCameraFollowSpeed;
         }
 
         public static void SaveAdvancedControls(bool enabled)
@@ -124,7 +136,7 @@ namespace Crash.Helper
             if (!IsMovementValueValid(value)) throw new ArgumentOutOfRangeException(nameof(value));
             if (name != nameof(CameraXYZSpeed) && name != nameof(CameraYawPitchSpeed) &&
                 name != nameof(CameraMouseXSensitivity) && name != nameof(CameraMouseYSensitivity) && name != nameof(PositionXYZSpeed) &&
-                name != nameof(CameraFollowScale))
+                name != nameof(CameraFollowScale) && name != nameof(CameraFollowVerticalDeadzone) && name != nameof(CameraFollowSpeed))
                 throw new ArgumentException("Unknown movement setting.", nameof(name));
             SaveSingleSetting(name, "number", value.ToString("R", CultureInfo.InvariantCulture));
             // Apply the live value only after the single-property save succeeds.
@@ -136,6 +148,8 @@ namespace Crash.Helper
                 case nameof(CameraMouseYSensitivity): CameraMouseYSensitivity = value; break;
                 case nameof(PositionXYZSpeed): PositionXYZSpeed = value; break;
                 case nameof(CameraFollowScale): CameraFollowScale = value; break;
+                case nameof(CameraFollowVerticalDeadzone): CameraFollowVerticalDeadzone = value; break;
+                case nameof(CameraFollowSpeed): CameraFollowSpeed = value; break;
             }
         }
 
