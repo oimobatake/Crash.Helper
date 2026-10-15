@@ -16,6 +16,9 @@ namespace Crash.Helper.Controls
             internal HotkeyBinding Binding;
             internal HotkeyTextBox Editor;
             internal Button Add;
+            internal TableLayoutPanel Table;
+            internal Button Reset, Remove;
+            internal bool IsAlternative, Removed;
         }
 
         private readonly HotkeyManager manager;
@@ -23,20 +26,25 @@ namespace Crash.Helper.Controls
         private readonly List<BindingRow> rows = new List<BindingRow>();
         private readonly List<TextBox> editors = new List<TextBox>();
         private readonly List<GroupBox> bindingGroups = new List<GroupBox>();
+        private readonly List<Control> buildingLayouts = new List<Control>();
         private readonly Label status;
         private readonly Dictionary<string, TextBox> speedEditors = new Dictionary<string, TextBox>();
         private int gamepadEditor = -1;
         private uint gamepadChord;
+        private bool fixedLayout;
+        private bool fontReflowPending, deferReflow, freezePending;
 
         internal HotkeyControl(HotkeyManager manager, HelperSettings draft)
         {
             this.manager = manager;
             this.draft = draft;
+            HoldLayout(this);
             AutoSize = true;
+            AutoSizeMode = AutoSizeMode.GrowAndShrink;
             MinimumSize = new Size(580, 0);
-            var box = new GroupBox { Text = "Hotkeys", AutoSize = true, Dock = DockStyle.Top, Padding = new Padding(10) };
-            var groups = new TableLayoutPanel { AutoSize = true, ColumnCount = 1, Dock = DockStyle.Fill };
-            var header = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = Padding.Empty };
+            var box = HoldLayout(new GroupBox { Text = "Hotkeys", AutoSize = true, Dock = DockStyle.Top, Padding = new Padding(10) });
+            var groups = HoldLayout(new TableLayoutPanel { AutoSize = true, ColumnCount = 1, Dock = DockStyle.Fill });
+            var header = HoldLayout(new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = Padding.Empty });
             var enabled = new CheckBox { Text = "Hotkeys enabled", Checked = draft.HotkeysEnabled, AutoSize = true };
             status = new Label { AutoSize = true, Anchor = AnchorStyles.Left, Margin = new Padding(6, 3, 3, 3) };
             enabled.CheckedChanged += (s, e) =>
@@ -55,9 +63,9 @@ namespace Crash.Helper.Controls
                 if (action.Group != currentGroup)
                 {
                     currentGroup = action.Group;
-                    var group = new GroupBox { Text = currentGroup, AutoSize = true, Dock = DockStyle.Fill, Padding = new Padding(6), Margin = new Padding(0, 4, 0, 4), Enabled = draft.HotkeysEnabled };
+                    var group = HoldLayout(new GroupBox { Text = currentGroup, AutoSize = true, Dock = DockStyle.Fill, Padding = new Padding(6), Margin = new Padding(0, 4, 0, 4), Enabled = draft.HotkeysEnabled });
                     bindingGroups.Add(group);
-                    table = new TableLayoutPanel { AutoSize = true, ColumnCount = 4, Dock = DockStyle.Fill };
+                    table = HoldLayout(new TableLayoutPanel { AutoSize = true, ColumnCount = 4, Dock = DockStyle.Fill });
                     table.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
                     for (int column = 1; column < 4; column++) table.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
                     group.Controls.Add(table);
@@ -88,7 +96,7 @@ namespace Crash.Helper.Controls
                     }
                 }
                 var binding = draft.Hotkeys[action.Label];
-                var inputs = new TableLayoutPanel { AutoSize = true, ColumnCount = 3, Dock = DockStyle.Fill, Margin = Padding.Empty };
+                var inputs = HoldLayout(new TableLayoutPanel { AutoSize = true, ColumnCount = 3, Dock = DockStyle.Fill, Margin = Padding.Empty });
                 for (int column = 0; column < 3; column++) inputs.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
                 table.Controls.Add(new Label { Text = action.Label, AutoSize = true, Anchor = AnchorStyles.Left | AnchorStyles.Top, Margin = new Padding(3, 7, 3, 3) }, 0, row);
                 table.Controls.Add(inputs, 1, row++);
@@ -117,12 +125,94 @@ namespace Crash.Helper.Controls
                 manager.GamepadButtonsChanged -= OnGamepadButtonsChanged;
             };
             OnStatusChanged(this, EventArgs.Empty);
+            for (int i = buildingLayouts.Count - 1; i >= 0; i--) buildingLayouts[i].ResumeLayout(true);
+            QueueFreezeLayout();
+        }
+
+        protected override void OnHandleCreated(EventArgs e)
+        {
+            base.OnHandleCreated(e);
+            QueueFreezeLayout();
+        }
+
+        protected override void OnVisibleChanged(EventArgs e)
+        {
+            bool hold = fixedLayout;
+            if (hold) foreach (var control in buildingLayouts) control.SuspendLayout();
+            try { base.OnVisibleChanged(e); }
+            finally
+            {
+                if (hold)
+                    for (int i = buildingLayouts.Count - 1; i >= 0; i--) buildingLayouts[i].ResumeLayout(false);
+            }
+            if (Visible) QueueFreezeLayout();
+        }
+
+        private void QueueFreezeLayout()
+        {
+            if (fixedLayout || freezePending || !IsHandleCreated || buildingLayouts == null || buildingLayouts.Count == 0) return;
+            freezePending = true;
+            BeginInvoke(new Action(() =>
+            {
+                freezePending = false;
+                if (!IsDisposed && Visible) FreezeLayout();
+            }));
+        }
+
+        // The rows have fixed inputs and fonts. Cache their final container sizes instead of
+        // recursively autosizing hundreds of controls on every tab visibility change.
+        private void FreezeLayout()
+        {
+            foreach (var control in buildingLayouts) control.SuspendLayout();
+            for (int i = buildingLayouts.Count - 1; i >= 0; i--)
+            {
+                var control = buildingLayouts[i];
+                Size size = control.Size;
+                control.AutoSize = false;
+                control.Size = size;
+            }
+            for (int i = buildingLayouts.Count - 1; i >= 0; i--) buildingLayouts[i].ResumeLayout(false);
+            fixedLayout = true;
+            // Disabling AutoSize resets bounds of docked children. Place every table's cells
+            // once with fixed sizes before caching the layout for future tab switches.
+            for (int i = buildingLayouts.Count - 1; i >= 0; i--) buildingLayouts[i].PerformLayout();
+            Parent?.PerformLayout();
+        }
+
+        private void ReflowBindings()
+        {
+            if (!fixedLayout || deferReflow) return;
+            foreach (var control in buildingLayouts) { control.SuspendLayout(); control.AutoSize = true; }
+            for (int i = buildingLayouts.Count - 1; i >= 0; i--) buildingLayouts[i].ResumeLayout(true);
+            Parent?.PerformLayout();
+            FreezeLayout();
+        }
+
+        protected override void OnFontChanged(EventArgs e)
+        {
+            base.OnFontChanged(e);
+            if (!fixedLayout || !IsHandleCreated || fontReflowPending) return;
+            fontReflowPending = true;
+            BeginInvoke(new Action(() =>
+            {
+                fontReflowPending = false;
+                if (!IsDisposed) ReflowBindings();
+            }));
+        }
+
+        private T HoldLayout<T>(T control) where T : Control
+        {
+            control.SuspendLayout();
+            if (control is Panel panel) panel.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            buildingLayouts.Add(control);
+            return control;
         }
 
         private BindingRow AddBindingRow(string label, HotkeyBinding binding, TableLayoutPanel table, Button add)
         {
             int index = rows.Count;
-            var row = new BindingRow { Label = label, Binding = binding, Add = add };
+            var row = new BindingRow { Label = label, Binding = binding, Add = add, Table = table,
+                IsAlternative = !ReferenceEquals(binding, draft.Hotkeys[label]) };
             var editor = new HotkeyTextBox { ReadOnly = true, Width = 170, Text = Display(binding), ShortcutsEnabled = false };
             row.Editor = editor;
             editor.Enter += (s, e) => { gamepadEditor = index; gamepadChord = 0; manager.SetEditing(true); };
@@ -130,6 +220,7 @@ namespace Crash.Helper.Controls
             editor.PreviewKeyDown += (s, e) => e.IsInputKey = true;
             editor.KeyDown += (s, e) => CaptureBinding(index, e);
             var reset = new Button { Text = "Reset", AutoSize = true };
+            row.Reset = reset;
             reset.Click += (s, e) => SetBinding(index, 0, KeyModifiers.None);
             rows.Add(row);
             editors.Add(editor);
@@ -137,7 +228,50 @@ namespace Crash.Helper.Controls
             table.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             table.Controls.Add(editor, 0, number);
             table.Controls.Add(reset, 1, number);
+            if (row.IsAlternative)
+            {
+                row.Remove = new Button { Text = "Remove key", AutoSize = true };
+                row.Remove.Click += (s, e) => RemoveBindingRow(row);
+                table.Controls.Add(row.Remove, 2, number);
+            }
+            ReflowBindings();
             return row;
+        }
+
+        private void RemoveBindingRow(BindingRow row)
+        {
+            if (!row.IsAlternative || row.Removed) return;
+            row.Removed = true;
+            if (gamepadEditor == rows.IndexOf(row)) { gamepadEditor = -1; gamepadChord = 0; manager.SetEditing(false); }
+            draft.Hotkeys[row.Label].Alternatives?.Remove(row.Binding);
+            var table = row.Table;
+            table.SuspendLayout();
+            try
+            {
+                int number = table.GetRow(row.Editor);
+                foreach (var control in new Control[] { row.Editor, row.Reset, row.Remove })
+                { table.Controls.Remove(control); control.Dispose(); }
+                foreach (Control control in table.Controls)
+                {
+                    int current = table.GetRow(control);
+                    if (current > number) table.SetRow(control, current - 1);
+                }
+                table.RowStyles.RemoveAt(number);
+                table.RowCount--;
+            }
+            finally { table.ResumeLayout(true); }
+            ReflowBindings();
+        }
+
+        internal void RemoveEmptyBindings()
+        {
+            deferReflow = true;
+            try
+            {
+                foreach (var row in rows.Where(row => row.IsAlternative && !row.Removed && !row.Binding.IsAssigned).ToArray())
+                    RemoveBindingRow(row);
+            }
+            finally { deferReflow = false; ReflowBindings(); }
         }
 
         private static string Display(HotkeyBinding binding) =>

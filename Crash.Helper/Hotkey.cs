@@ -51,6 +51,7 @@ namespace Crash.Helper
 
         public string Group { get; set; } = "General";
         public bool RepeatWhileHeld { get; set; }
+        public int RepeatIntervalMilliseconds { get; set; }
         public bool CameraSpeedBoost { get; set; }
         public bool PositionSpeedBoost { get; set; }
         public int PositionAxis { get; set; } = -1;

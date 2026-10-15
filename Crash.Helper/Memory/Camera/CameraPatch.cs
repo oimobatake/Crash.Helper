@@ -138,10 +138,11 @@ namespace Crash.Helper.Memory.Camera
             catch (Win32Exception) { return null; } // The camera can be replaced during a level transition.
         }
 
-        internal void WriteValues(float?[] values, bool relative = false)
+        internal void WriteValues(float?[] values, bool relative = false, bool pauseGame = true)
         {
             if (!installed || HasExited) return;
-            memory.WhilePaused(() => WriteValuesCore(values, relative));
+            if (pauseGame) memory.WhilePaused(() => WriteValuesCore(values, relative));
+            else WriteValuesCore(values, relative);
         }
 
         private void WriteOwner()

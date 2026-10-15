@@ -15,6 +15,7 @@ namespace Crash.Helper.Controls
         private bool pendingSecretChecked, launchLoadingSeen;
         private int launchSecretProcessId;
         private DateTime launchSecretDeadline, launchReadySince;
+        private bool refreshingSecretCheckbox;
 
         internal void SetLaunchSecretLevel(string level)
         {
@@ -54,7 +55,7 @@ namespace Crash.Helper.Controls
             dataBox.Controls.Add(secretLevelCheckbox);
             secretLevelTimer = new System.Windows.Forms.Timer { Interval = 10 };
             secretLevelTimer.Tick += (s, e) => UpdateSecretLevel();
-            secretLevelCheckbox.CheckedChanged += (s, e) => UpdateSecretLevel();
+            secretLevelCheckbox.CheckedChanged += (s, e) => { if (!refreshingSecretCheckbox) UpdateSecretLevel(); };
             EnabledChanged += (s, e) => UpdateSecretLevel();
         }
 
@@ -87,8 +88,18 @@ namespace Crash.Helper.Controls
             bool preparing = secretBeforeLaunch && memory != null && !memory.ProcessHooked && pendingSecretLevel == null;
             string editableLevel = preparing ? launchSelection : level;
             secretLevelCheckbox.Enabled = (active || preparing) && SecretLevelRules.GetValue(editableLevel, true) != SecretLevelRules.GetValue(editableLevel, false);
-            if (pendingSecretLevel != null) { secretLevelCheckbox.Enabled = false; secretLevelTimer.Start(); return; }
-            if (!active) { secretLevelTimer.Stop(); return; }
+            if (pendingSecretLevel != null) secretLevelCheckbox.Enabled = false;
+            bool canRead = memory != null && memory.ProcessHooked && memory.IsSupportedVersion;
+            if (!secretLevelCheckbox.Enabled && canRead)
+            {
+                // Mirror game state without treating this display change as a user edit.
+                refreshingSecretCheckbox = true;
+                try { secretLevelCheckbox.Checked = memory.SecretLevel.Read() != 0; }
+                finally { refreshingSecretCheckbox = false; }
+            }
+            secretLevelTimer.Interval = active || pendingSecretLevel != null ? 10 : 100;
+            if (pendingSecretLevel != null) { secretLevelTimer.Start(); return; }
+            if (!active) { if (canRead) secretLevelTimer.Start(); else secretLevelTimer.Stop(); return; }
             secretLevelTimer.Start();
             memory.SecretLevel.Write(SecretLevelRules.GetValue(level, secretLevelCheckbox.Checked));
         }

@@ -34,7 +34,7 @@ namespace Crash.Helper.Controls
         private float followDeadzone = HelperSettings.DefaultCameraFollowVerticalDeadzone;
         private float followSpeed = HelperSettings.DefaultCameraFollowSpeed;
         private bool followPitch = true, mouseControl, invertMouseX, invertMouseY, inputEnabled;
-        private bool speedBoost, loading, movementDisabled;
+        private bool speedBoost, loading, movementDisabled, teleporting;
         internal Func<bool> IsLoading { get; set; } = () => false;
         // Called on the camera worker. Returns null while the player position cannot be read.
         internal Func<float[]> PlayerPosition { get; set; }
@@ -51,7 +51,7 @@ namespace Crash.Helper.Controls
 
         internal CameraControl()
         {
-            Size = new Size(270, 250);
+            Size = new Size(270, 244);
             for (int i = 0; i < editors.Length; i++)
             {
                 int axis = i;
@@ -83,7 +83,7 @@ namespace Crash.Helper.Controls
             }
             freezeXYZ = new CheckBox { Text = "Control XYZ", AutoSize = true, Left = 160, Top = 28 };
             freezeYawPitch = new CheckBox { Text = "Control YawPitch", AutoSize = true, Left = 160, Top = 93 };
-            followPlayer = new CheckBox { Text = "Follow player", AutoSize = true, Left = 160, Top = 172 };
+            followPlayer = new CheckBox { Text = "Follow Player", AutoSize = true, Left = 160, Top = 166 };
             freezeXYZ.CheckedChanged += OnFreezeChanged;
             freezeYawPitch.CheckedChanged += OnFreezeChanged;
             followPlayer.CheckedChanged += OnFollowChanged;
@@ -92,10 +92,9 @@ namespace Crash.Helper.Controls
             Controls.Add(followPlayer);
             mouse.Moved += OnMouseMovement;
             mouse.Wheel += OnMouseWheel;
-            saveButton = new Button { Text = "Save", Left = 52, Top = 138, Width = 80 };
-            teleportButton = new Button { Text = "TP", Left = 137, Top = 138, Width = 80 };
+            saveButton = new Button { Text = "Save", Left = 52, Top = 132, Width = 80 };
+            teleportButton = new HoldButton { Text = "TP", Left = 137, Top = 132, Width = 80, HeldAction = Teleport };
             saveButton.Click += (s, e) => SaveCamera();
-            teleportButton.Click += (s, e) => Teleport();
             toolTip.SetToolTip(teleportButton, "Restore saved camera values for the enabled Control groups.");
             Controls.Add(saveButton);
             Controls.Add(teleportButton);
@@ -103,8 +102,8 @@ namespace Crash.Helper.Controls
             for (int i = 0; i < orbitEditors.Length; i++)
             {
                 int axis = i;
-                var label = new Label { Text = orbitAxes[i] + ":", AutoSize = true, Left = 12, Top = 174 + i * 26 };
-                var editor = new TextBox { Left = 68, Top = 170 + i * 26, Width = 80, Text = "-", TextAlign = HorizontalAlignment.Right };
+                var label = new Label { Text = orbitAxes[i] + ":", AutoSize = true, Left = 12, Top = 168 + i * 26 };
+                var editor = new TextBox { Left = 68, Top = 164 + i * 26, Width = 80, Text = "-", TextAlign = HorizontalAlignment.Right };
                 editor.Enter += (s, e) => EditingChanged?.Invoke(true);
                 editor.MouseDown += (s, e) => EditingChanged?.Invoke(true);
                 editor.Leave += (s, e) => { editor.Select(0, 0); UpdateOrbitEditor(axis); EditingChanged?.Invoke(false); };
@@ -135,7 +134,7 @@ namespace Crash.Helper.Controls
                 Controls.Add(label);
                 Controls.Add(editor);
             }
-            orbitPlayer = new CheckBox { Text = "Orbit player", AutoSize = true, Left = 160, Top = 198 };
+            orbitPlayer = new CheckBox { Text = "Orbit Player", AutoSize = true, Left = 160, Top = 192 };
             orbitPlayer.CheckedChanged += OnOrbitChanged;
             Controls.Add(orbitPlayer);
             MouseDown += (s, e) => EndEditing();
@@ -395,10 +394,13 @@ namespace Crash.Helper.Controls
 
         internal async void Teleport()
         {
-            if (saved == null || (!CanWrite(0) && !CanWrite(3))) return;
+            if (teleporting || saved == null || (!CanWrite(0) && !CanWrite(3))) return;
             var update = new float?[5];
             for (int i = 0; i < 5; i++) if (CanWrite(i)) update[i] = saved[i];
-            await WriteAsync(update);
+            teleporting = true;
+            try { await service.WriteAsync(update, false, false); }
+            catch (Exception ex) { HelperLog.Error("Teleport camera", ex); }
+            finally { teleporting = false; }
         }
 
         internal void SetMovement(int[] directions)
@@ -429,13 +431,7 @@ namespace Crash.Helper.Controls
             if (loading == value || closing) return;
             loading = value;
             suppressChanges = true;
-            if (value) freezeXYZ.Checked = freezeYawPitch.Checked = false;
-            // Following persists across levels, so restore its required XYZ control after loading.
-            else
-            {
-                if (followPlayer.Checked) freezeXYZ.Checked = true;
-                if (orbitPlayer.Checked) freezeYawPitch.Checked = true;
-            }
+            if (value) freezeXYZ.Checked = freezeYawPitch.Checked = followPlayer.Checked = orbitPlayer.Checked = false;
             suppressChanges = false;
             Configure(); InputStateChanged?.Invoke();
         }
@@ -454,7 +450,7 @@ namespace Crash.Helper.Controls
             var directions = new int[5];
             if (!updateSuspended && inputEnabled && available && ready && !changing && !closing && !loading && !movementDisabled)
                 for (int i = 0; i < directions.Length; i++)
-                    if (i < 3 ? freezeXYZ.Checked : freezeYawPitch.Checked) directions[i] = heldDirections[i];
+                    if (i < 3 ? freezeXYZ.Checked && !orbitPlayer.Checked : freezeYawPitch.Checked) directions[i] = heldDirections[i];
             service.SetFollow(FollowActive ? PlayerPosition : null, followScale, followDeadzone, followSpeed);
             service.SetOrbit(OrbitActive);
             bool useMouse = inputEnabled && mouseControl && CanWrite(3);

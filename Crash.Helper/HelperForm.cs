@@ -22,6 +22,7 @@ namespace Crash.Helper
         private readonly ProcessControl processControl;
         private readonly Timer refreshTimer;
         private readonly Timer loadingTimer = new Timer { Interval = 33 };
+        private readonly Timer launchAvailabilityTimer = new Timer { Interval = 500 };
         private readonly HelperSettings settings;
         private readonly Button settingsButton;
         private readonly CheckBox advancedButton;
@@ -46,7 +47,10 @@ namespace Crash.Helper
             }
             this.memory = memory ?? throw new ArgumentNullException(nameof(memory));
             dataControl = new DataControl(memory);
-            levelSelector = new LevelSelectorControl(dataControl);
+            levelSelector = new LevelSelectorControl(dataControl) { IsGameRunning = () => memory.IsProcessRunning };
+            launchAvailabilityTimer.Tick += (s, e) => { if (!UpdateSuspended) levelSelector.RefreshLaunchAvailability(); };
+            launchAvailabilityTimer.Start();
+            Disposed += (s, e) => launchAvailabilityTimer.Dispose();
             levelSelector.SelectLevel(settings.StartupLevel);
             levelSelector.SelectCurrentLevelOnFreeze = settings.SelectCurrentLevelOnFreeze;
             levelSelector.SetLevelImageVisible(settings.LevelImageEnabled);
@@ -210,6 +214,7 @@ namespace Crash.Helper
 
         private void LaunchGame(string map)
         {
+            if (memory.IsProcessRunning) { levelSelector.RefreshLaunchAvailability(); return; }
             dataControl.BeginLaunchSecret(map);
             try { processControl.PrepareForLaunch(); } catch { }
             try { launcher.Launch(map); }
@@ -255,6 +260,7 @@ namespace Crash.Helper
             ApplyAvailability(false, false);
             refreshTimer.Dispose();
             loadingTimer.Dispose();
+            launchAvailabilityTimer.Dispose();
 
             hotkeyManager.Dispose();
         }

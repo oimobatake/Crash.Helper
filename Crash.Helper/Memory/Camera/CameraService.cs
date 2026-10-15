@@ -66,7 +66,7 @@ namespace Crash.Helper.Memory.Camera
         {
             lock (sync)
             {
-                if (stopping || disposed) return;
+                if (stopping || disposed || follow.Orbiting == enabled) return;
                 follow.SetOrbit(enabled);
                 motionChanged.Set();
             }
@@ -100,6 +100,7 @@ namespace Crash.Helper.Memory.Camera
             bool preciseTimer = false;
             var clock = Stopwatch.StartNew();
             double previous = clock.Elapsed.TotalSeconds;
+            double nextUpdate = previous;
             try
             {
                 while (true)
@@ -125,12 +126,17 @@ namespace Crash.Helper.Memory.Camera
                         if (preciseTimer) { timeEndPeriod(1); preciseTimer = false; }
                         motionChanged.WaitOne();
                         previous = clock.Elapsed.TotalSeconds;
+                        nextUpdate = previous;
                         continue;
                     }
                     if (!preciseTimer) preciseTimer = timeBeginPeriod(1) == 0;
                     double now = clock.Elapsed.TotalSeconds;
-                    double elapsed = now - previous;
-                    previous = now;
+                    if (now < nextUpdate)
+                    {
+                        // UI refresh and mouse events must not interrupt the motion cadence.
+                        motionChanged.WaitOne(Math.Max(1, (int)Math.Ceiling((nextUpdate - now) * 1000)));
+                        continue;
+                    }
                     bool failed = false;
                     if (gate.Wait(0))
                     {
@@ -153,7 +159,11 @@ namespace Crash.Helper.Memory.Camera
                                     pendingMouseYaw = pendingMousePitch = 0;
                                 }
                             }
+                            now = clock.Elapsed.TotalSeconds;
+                            double elapsed = now - previous;
+                            previous = now;
                             if (apply) patch.Move(input, xyz, rotation, elapsed, pitch, mouseYaw, mousePitch, source == null ? null : follow, player);
+                            nextUpdate = now + 0.008;
                         }
                         catch (Exception ex)
                         {
@@ -163,8 +173,9 @@ namespace Crash.Helper.Memory.Camera
                         }
                         finally { gate.Release(); }
                     }
+                    else nextUpdate = clock.Elapsed.TotalSeconds + 0.001;
                     // Following keeps the loop running, so back off instead of retrying a failure every frame.
-                    motionChanged.WaitOne(failed ? 500 : 8);
+                    if (failed) { motionChanged.WaitOne(500); previous = nextUpdate = clock.Elapsed.TotalSeconds; }
                 }
             }
             finally { if (preciseTimer) timeEndPeriod(1); }
@@ -242,7 +253,7 @@ namespace Crash.Helper.Memory.Camera
             });
         }
 
-        internal Task WriteAsync(float?[] values, bool relative = false)
+        internal Task WriteAsync(float?[] values, bool relative = false, bool pauseGame = true)
         {
             var copy = (float?[])values.Clone();
             int version;
@@ -253,7 +264,7 @@ namespace Crash.Helper.Memory.Camera
                 try
                 {
                     lock (sync) if (version != generation) return;
-                    if (active) patch.WriteValues(copy, relative);
+                    if (active) patch.WriteValues(copy, relative, pauseGame);
                 }
                 finally { gate.Release(); }
             });

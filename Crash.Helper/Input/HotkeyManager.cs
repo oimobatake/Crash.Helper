@@ -15,6 +15,8 @@ namespace Crash.Helper.Input
         private readonly KeyboardHotkeyListener listener = new KeyboardHotkeyListener();
         private readonly System.Windows.Forms.Timer repeatTimer = new System.Windows.Forms.Timer { Interval = 8 };
         private readonly HashSet<Hotkey> heldActions = new HashSet<Hotkey>();
+        private readonly Dictionary<Hotkey, long> nextRepeat = new Dictionary<Hotkey, long>();
+        private readonly System.Diagnostics.Stopwatch repeatClock = System.Diagnostics.Stopwatch.StartNew();
         private readonly XInputListener gamepad = new XInputListener(8);
         private readonly PlayStationListener playStation;
         // Button masks per controller, written by the XInput poll thread and the UI thread.
@@ -140,6 +142,7 @@ namespace Crash.Helper.Input
         {
             generation++;
             heldActions.Clear();
+            nextRepeat.Clear();
             PublishMovement();
             repeatTimer.Stop();
             IsActive = false;
@@ -208,7 +211,7 @@ namespace Crash.Helper.Input
             if (matches.Length == 0) return;
             foreach (var hotkey in matches.Where(h => h.RepeatWhileHeld))
             {
-                heldActions.Add(hotkey);
+                if (heldActions.Add(hotkey)) nextRepeat[hotkey] = repeatClock.ElapsedMilliseconds + hotkey.RepeatIntervalMilliseconds;
                 repeatTimer.Start();
             }
             PublishMovement();
@@ -247,7 +250,12 @@ namespace Crash.Helper.Input
             foreach (var action in heldActions.ToArray())
             {
                 if (!Allows(action) || !IsHeld(action)) heldActions.Remove(action);
-                else if (action.CameraAxis < 0 && action.PositionAxis < 0 && !action.CameraSpeedBoost && !action.PositionSpeedBoost) action.Callback();
+                else if (action.CameraAxis < 0 && action.PositionAxis < 0 && !action.CameraSpeedBoost && !action.PositionSpeedBoost &&
+                    (!nextRepeat.TryGetValue(action, out long next) || repeatClock.ElapsedMilliseconds >= next))
+                {
+                    nextRepeat[action] = repeatClock.ElapsedMilliseconds + action.RepeatIntervalMilliseconds;
+                    action.Callback();
+                }
             }
             PublishMovement();
             if (heldActions.Count == 0) repeatTimer.Stop();

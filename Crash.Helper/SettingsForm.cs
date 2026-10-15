@@ -15,11 +15,12 @@ namespace Crash.Helper
         private readonly TextBox path;
         private readonly Button save;
         private readonly TabControl tabs;
-        private readonly HotkeyControl hotkeys;
+        private HotkeyControl hotkeys;
         private string pathBeforeEdit;
 
         internal SettingsForm(HelperSettings settings, HotkeyManager manager, CrashMemory memory, Func<bool> canEditGame, bool helperEnabled)
         {
+            SuspendLayout();
             this.settings = settings;
             this.manager = manager;
             draft = settings.Clone();
@@ -66,8 +67,6 @@ namespace Crash.Helper
             startupLevel.Enter += (s, e) => manager.SetEditing(true);
             startupLevel.Leave += (s, e) => manager.SetEditing(false);
             layout.Controls.Add(startupLevel);
-            hotkeys = new HotkeyControl(manager, draft) { Enabled = helperEnabled };
-            hotkeysPage.Controls.Add(hotkeys);
             helperPage.Controls.Add(layout);
             var footer = new Panel { Dock = DockStyle.Bottom, Height = 44, Padding = new Padding(8) };
             save = new Button { Text = "Save", Size = new Size(75, 25), Anchor = AnchorStyles.Top | AnchorStyles.Right };
@@ -85,8 +84,20 @@ namespace Crash.Helper
             save.Click += (s, e) => SaveSettings();
             WireFocusClearing(this);
             Shown += (s, e) => { tabs.Focus(); path.Select(0, 0); };
-            tabs.SelectedIndexChanged += (s, e) => { ActiveControl = tabs; tabs.Focus(); path.Select(0, 0); };
+            tabs.SelectedIndexChanged += (s, e) =>
+            {
+                if (tabs.SelectedTab == hotkeysPage && hotkeys == null)
+                {
+                    hotkeysPage.SuspendLayout();
+                    hotkeys = new HotkeyControl(manager, draft) { Enabled = helperEnabled };
+                    hotkeysPage.Controls.Add(hotkeys);
+                    WireFocusClearing(hotkeys);
+                    hotkeysPage.ResumeLayout(true);
+                }
+                ActiveControl = tabs; tabs.Focus(); path.Select(0, 0);
+            };
             FormClosed += (s, e) => manager.SetEditing(false);
+            ResumeLayout(true);
         }
 
         private void FinishPathEdit()
@@ -112,9 +123,15 @@ namespace Crash.Helper
         private void SaveSettings()
         {
             FinishPathEdit();
-            if (!hotkeys.ValidateSpeeds()) return;
+            if (hotkeys != null && !hotkeys.ValidateSpeeds()) return;
             try
             {
+                hotkeys?.RemoveEmptyBindings();
+                foreach (var binding in draft.Hotkeys.Values)
+                {
+                    binding.Alternatives?.RemoveAll(alternative => alternative == null || !alternative.IsAssigned);
+                    if (binding.Alternatives?.Count == 0) binding.Alternatives = null;
+                }
                 draft.Save();
                 settings.CopyFrom(draft);
                 manager.ReloadSettings();

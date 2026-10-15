@@ -33,7 +33,7 @@ namespace Crash.Helper
                 PositionMovement("Down", 2, -1),
                 new Hotkey("Position XYZ Speed x2", KeyModifiers.None, 0, () => { }) { RepeatWhileHeld = true, PositionSpeedBoost = true },
                 new Hotkey("Position Save", KeyModifiers.None, 0, position.SavePosition),
-                new Hotkey("Position TP", KeyModifiers.None, 0, position.Teleport),
+                new Hotkey("Position TP", KeyModifiers.None, 0, position.Teleport) { RepeatWhileHeld = true, RepeatIntervalMilliseconds = 16 },
                 new Hotkey("Toggle position input", KeyModifiers.None, 0, position.ToggleMovement),
                 new Hotkey("Control XYZ", KeyModifiers.None, 0, () => camera.ToggleFreeze(false)),
                 new Hotkey("Control YawPitch", KeyModifiers.None, 0, () => camera.ToggleFreeze(true)),
@@ -49,13 +49,15 @@ namespace Crash.Helper
                 CameraMovement("Pitch (Down)", 4, 1),
                 new Hotkey("XYZ Speed x2", KeyModifiers.None, 0, () => { }) { RepeatWhileHeld = true, CameraSpeedBoost = true },
                 new Hotkey("Camera Save", KeyModifiers.None, 0, camera.SaveCamera),
-                new Hotkey("Camera TP", KeyModifiers.None, 0, camera.Teleport),
+                new Hotkey("Camera TP", KeyModifiers.None, 0, camera.Teleport) { RepeatWhileHeld = true, RepeatIntervalMilliseconds = 16 },
                 new Hotkey("Follow Player", KeyModifiers.None, 0, camera.ToggleFollow),
                 new Hotkey("Orbit Player", KeyModifiers.None, 0, camera.ToggleOrbit),
-                new Hotkey("Orbit Horizontal -", KeyModifiers.None, 0, () => camera.StepOrbit(0, -1)),
-                new Hotkey("Orbit Horizontal +", KeyModifiers.None, 0, () => camera.StepOrbit(0, 1)),
-                new Hotkey("Orbit Vertical -", KeyModifiers.None, 0, () => camera.StepOrbit(1, -1)),
-                new Hotkey("Orbit Vertical +", KeyModifiers.None, 0, () => camera.StepOrbit(1, 1)),
+                OrbitMovement(camera, "Orbit Horizontal -", 0, -1),
+                OrbitMovement(camera, "Orbit Horizontal +", 0, 1),
+                OrbitMovement(camera, "Orbit Vertical -", 1, -1),
+                OrbitMovement(camera, "Orbit Vertical +", 1, 1),
+                OrbitMovement(camera, "Zoom In", 2, -1),
+                OrbitMovement(camera, "Zoom Out", 2, 1),
                 new Hotkey("Toggle camera input", KeyModifiers.None, 0, camera.ToggleMovement)
             };
             for (int i = 0; i < hotkeys.Count; i++)
@@ -63,6 +65,12 @@ namespace Crash.Helper
             hotkeys.Add(new Hotkey("Disable fade write", KeyModifiers.None, 0, others.ToggleFade) { Group = "Others" });
             return hotkeys;
         }
+
+        private static Hotkey OrbitMovement(CameraControl camera, string name, int axis, int direction) =>
+            new Hotkey(name, KeyModifiers.None, 0, () => camera.StepOrbit(axis, direction))
+            {
+                RepeatWhileHeld = true, RepeatIntervalMilliseconds = 50
+            };
 
         private static Hotkey CameraMovement(string name, int axis, int direction)
         {

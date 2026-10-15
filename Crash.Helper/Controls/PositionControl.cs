@@ -82,9 +82,8 @@ namespace Crash.Helper.Controls
                 Controls.Add(editor);
             }
             var save = new Button { Text = "Save", Left = 52, Top = 80, Width = 80 };
-            teleportButton = new Button { Text = "TP", Left = 137, Top = 80, Width = 80, Enabled = false };
+            teleportButton = new HoldButton { Text = "TP", Left = 137, Top = 80, Width = 80, Enabled = false, HeldAction = Teleport };
             save.Click += (s, e) => SavePosition();
-            teleportButton.Click += (s, e) => Teleport();
             Controls.Add(save);
             Controls.Add(teleportButton);
             EnabledChanged += (s, e) => UpdateState();
