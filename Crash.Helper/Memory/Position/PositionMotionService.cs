@@ -18,7 +18,7 @@ namespace Crash.Helper.Memory.Position
         private Process process;
         private GameMemoryProfile profile;
         private long moduleBase;
-        private bool active, acceptInput, stopping, disposed;
+        private bool active, acceptInput, stopping, disposed, contiguousPosition;
         private bool fadeWriteDisabled, fadeSuspended, loadingReset;
         private float[] fadePosition;
 
@@ -57,7 +57,11 @@ namespace Crash.Helper.Memory.Position
                     process?.Dispose(); process = target == null ? null : Process.GetProcessById(target.Id);
                     moduleBase = process == null ? 0 : process.MainModule.BaseAddress.ToInt64();
                 }
-                if (replaced || profile != memoryProfile) { capture = (bool[])axes.Clone(); fadePosition = null; fadeSuspended = false; loadingReset = false; }
+                if (replaced || profile != memoryProfile)
+                {
+                    capture = (bool[])axes.Clone(); fadePosition = null; fadeSuspended = false; loadingReset = false;
+                    contiguousPosition = HasContiguousPosition(memoryProfile?.Position);
+                }
                 if (!axes.Any(value => value)) loadingReset = false;
                 for (int i = 0; i < 3; i++) if (axes[i] && !frozen[i]) capture[i] = true;
                 profile = memoryProfile; active = enabled && process != null && profile != null;
@@ -86,8 +90,27 @@ namespace Crash.Helper.Memory.Position
             lock (sync)
             {
                 if (!active || stopping || TransitionBlocked()) return null;
-                return Enumerable.Range(0, 3).Select(i => BitConverter.ToSingle(Read(Address(profile.Position[i]), 4), 0)).ToArray();
+                var paths = profile.Position;
+                if (contiguousPosition)
+                {
+                    // A camera target must use XYZ from one read, not separate game updates.
+                    var bytes = Read(Address(paths[0]), 12);
+                    return new[] { BitConverter.ToSingle(bytes, 0), BitConverter.ToSingle(bytes, 4), BitConverter.ToSingle(bytes, 8) };
+                }
+                return Enumerable.Range(0, 3).Select(i => BitConverter.ToSingle(Read(Address(paths[i]), 4), 0)).ToArray();
             }
+        }
+
+        private static bool HasContiguousPosition(int[][] paths)
+        {
+            if (paths == null || paths.Length != 3 || paths[0].Length == 0) return false;
+            int last = paths[0].Length - 1;
+            for (int axis = 1; axis < 3; axis++)
+            {
+                if (paths[axis].Length != paths[0].Length || paths[axis][last] != paths[0][last] + axis * 4) return false;
+                for (int i = 0; i < last; i++) if (paths[axis][i] != paths[0][i]) return false;
+            }
+            return true;
         }
 
         private bool TransitionBlocked()

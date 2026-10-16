@@ -281,6 +281,8 @@ namespace Crash.Helper.Controls
             levelBox.Controls.Add(stopButton);
             levelBox.Controls.Add(launchButton);
             dataControl.AttachLevelControls(levelBox, combo);
+            combo.SelectedIndexChanged += (s, e) => dataControl.SetLaunchSecretLevel(combo.SelectedItem as string);
+            dataControl.SetLaunchSecretLevel(combo.SelectedItem as string);
             this.Controls.Add(levelBox);
             InitializeLevelImage(levelBox);
 
@@ -305,13 +307,15 @@ namespace Crash.Helper.Controls
 
         public event Action<string> LaunchRequested;
         public int LaunchButtonRight => launchButton.Right;
+        internal Func<bool> IsGameRunning { get; set; } = () => false;
+        internal void RefreshLaunchAvailability() => launchButton.Enabled = !IsGameRunning();
 
         public void ApplyAvailability(bool canConfigure, bool ready)
         {
             combo.Enabled = canConfigure;
             lockButton.Enabled = ready;
             stopButton.Enabled = ready;
-            launchButton.Enabled = true;
+            RefreshLaunchAvailability();
         }
 
         public void MoveSelection(int direction)
@@ -353,6 +357,8 @@ namespace Crash.Helper.Controls
 
         public void LaunchSelectedLevel()
         {
+            RefreshLaunchAvailability();
+            if (!launchButton.Enabled) return;
             if (combo.SelectedItem == null) return;
             var display = combo.SelectedItem.ToString();
             if (!Levels.ContainsKey(display)) return;

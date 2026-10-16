@@ -15,21 +15,22 @@ namespace Crash.Helper
         private readonly TextBox path;
         private readonly Button save;
         private readonly TabControl tabs;
-        private readonly HotkeyControl hotkeys;
+        private HotkeyControl hotkeys;
         private string pathBeforeEdit;
 
         internal SettingsForm(HelperSettings settings, HotkeyManager manager, CrashMemory memory, Func<bool> canEditGame, bool helperEnabled)
         {
+            SuspendLayout();
             this.settings = settings;
             this.manager = manager;
             draft = settings.Clone();
             Text = "Crash Helper Settings";
             StartPosition = FormStartPosition.CenterParent;
-            ClientSize = new Size(480, Math.Min(620, Screen.PrimaryScreen.WorkingArea.Height - 80));
+            ClientSize = new Size(640, Math.Min(620, Screen.PrimaryScreen.WorkingArea.Height - 80));
             FormBorderStyle = FormBorderStyle.Sizable;
             // The Framework size grip misreads negative monitor coordinates; keep native border resizing.
             SizeGripStyle = SizeGripStyle.Hide;
-            MinimumSize = new Size(400, 260);
+            MinimumSize = new Size(600, 260);
             MaximizeBox = true;
             MinimizeBox = false;
             ShowIcon = false;
@@ -37,8 +38,10 @@ namespace Crash.Helper
             tabs = new TabControl { Dock = DockStyle.Fill, TabIndex = 0 };
             var gamePage = new TabPage("GameFlag") { Padding = new Padding(10), AutoScroll = true };
             var helperPage = new TabPage("CrashHelper") { Padding = new Padding(8), AutoScroll = true };
+            var hotkeysPage = new TabPage("Hotkeys") { Padding = new Padding(12), AutoScroll = true, AutoScrollMargin = new Size(12, 12) };
             tabs.TabPages.Add(gamePage);
             tabs.TabPages.Add(helperPage);
+            tabs.TabPages.Add(hotkeysPage);
             gamePage.Controls.Add(new GameFlagControl(memory, canEditGame) { Dock = DockStyle.Top });
             var layout = new FlowLayoutPanel { AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, Dock = DockStyle.Top };
             layout.Controls.Add(new Label { Text = "Steam application", AutoSize = true });
@@ -64,8 +67,6 @@ namespace Crash.Helper
             startupLevel.Enter += (s, e) => manager.SetEditing(true);
             startupLevel.Leave += (s, e) => manager.SetEditing(false);
             layout.Controls.Add(startupLevel);
-            hotkeys = new HotkeyControl(manager, draft) { Enabled = helperEnabled };
-            layout.Controls.Add(hotkeys);
             helperPage.Controls.Add(layout);
             var footer = new Panel { Dock = DockStyle.Bottom, Height = 44, Padding = new Padding(8) };
             save = new Button { Text = "Save", Size = new Size(75, 25), Anchor = AnchorStyles.Top | AnchorStyles.Right };
@@ -83,8 +84,21 @@ namespace Crash.Helper
             save.Click += (s, e) => SaveSettings();
             WireFocusClearing(this);
             Shown += (s, e) => { tabs.Focus(); path.Select(0, 0); };
-            tabs.SelectedIndexChanged += (s, e) => { ActiveControl = tabs; tabs.Focus(); path.Select(0, 0); };
+            tabs.SelectedIndexChanged += (s, e) =>
+            {
+                if (tabs.SelectedTab == hotkeysPage && hotkeys == null)
+                {
+                    hotkeysPage.SuspendLayout();
+                    hotkeys = new HotkeyControl(manager, draft) { Enabled = helperEnabled,
+                        Location = new Point(hotkeysPage.Padding.Left, hotkeysPage.Padding.Top) };
+                    hotkeysPage.Controls.Add(hotkeys);
+                    WireFocusClearing(hotkeys);
+                    hotkeysPage.ResumeLayout(true);
+                }
+                ActiveControl = tabs; tabs.Focus(); path.Select(0, 0);
+            };
             FormClosed += (s, e) => manager.SetEditing(false);
+            ResumeLayout(true);
         }
 
         private void FinishPathEdit()
@@ -110,9 +124,15 @@ namespace Crash.Helper
         private void SaveSettings()
         {
             FinishPathEdit();
-            if (!hotkeys.ValidateSpeeds()) return;
+            if (hotkeys != null && !hotkeys.ValidateSpeeds()) return;
             try
             {
+                hotkeys?.RemoveEmptyBindings();
+                foreach (var binding in draft.Hotkeys.Values)
+                {
+                    binding.Alternatives?.RemoveAll(alternative => alternative == null || !alternative.IsAssigned);
+                    if (binding.Alternatives?.Count == 0) binding.Alternatives = null;
+                }
                 draft.Save();
                 settings.CopyFrom(draft);
                 manager.ReloadSettings();

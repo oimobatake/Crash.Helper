@@ -15,6 +15,8 @@ namespace Crash.Helper.Input
         private readonly KeyboardHotkeyListener listener = new KeyboardHotkeyListener();
         private readonly System.Windows.Forms.Timer repeatTimer = new System.Windows.Forms.Timer { Interval = 8 };
         private readonly HashSet<Hotkey> heldActions = new HashSet<Hotkey>();
+        private readonly Dictionary<Hotkey, long> nextRepeat = new Dictionary<Hotkey, long>();
+        private readonly System.Diagnostics.Stopwatch repeatClock = System.Diagnostics.Stopwatch.StartNew();
         private readonly XInputListener gamepad = new XInputListener(8);
         private readonly PlayStationListener playStation;
         // Button masks per controller, written by the XInput poll thread and the UI thread.
@@ -23,9 +25,11 @@ namespace Crash.Helper.Input
         // Raised on the UI thread with the buttons held across all controllers, also while editing.
         public event Action<uint> GamepadButtonsChanged;
         private int[] movement = new int[5];
+        private int[] orbitMovement = new int[3];
         private int[] positionMovement = new int[3];
         public event Action<int[]> PositionMovementChanged;
         public event Action<int[]> CameraMovementChanged;
+        public event Action<int[]> OrbitMovementChanged;
         public event Action<bool> CameraSpeedBoostChanged;
         public event Action<bool> PositionSpeedBoostChanged;
         private bool positionSpeedBoost;
@@ -39,6 +43,7 @@ namespace Crash.Helper.Input
         public bool IsActive { get; private set; }
         internal bool CanUseCameraInput => !disposed && ready && !editing && Enabled && gameAvailable() && foregroundAllowed();
         internal Func<bool> AdvancedInputBlocked { get; set; } = () => false;
+        internal Func<Hotkey[], ISet<Hotkey>> CombinedActions { get; set; }
         private bool Allows(Hotkey action)
         {
             if ((action.Group != "Position" && action.Group != "Camera") || !AdvancedInputBlocked()) return true;
@@ -70,6 +75,15 @@ namespace Crash.Helper.Input
             this.gameAvailable = gameAvailable;
             this.dispatch = dispatch;
             this.foregroundAllowed = foregroundAllowed ?? (() => true);
+            // Preserve assignments when an action is renamed; obsolete actions are removed below.
+            string[,] renamed = {
+                { "Camera Follow player", "Follow Player" }, { "Camera Orbit player", "Orbit Player" },
+                { "Camera Orbit H -5", "Orbit Horizontal -" }, { "Camera Orbit H +5", "Orbit Horizontal +" },
+                { "Camera Orbit V -5", "Orbit Vertical -" }, { "Camera Orbit V +5", "Orbit Vertical +" }
+            };
+            for (int i = 0; i < renamed.GetLength(0); i++)
+                if (!settings.Hotkeys.ContainsKey(renamed[i, 1]) && settings.Hotkeys.ContainsKey(renamed[i, 0]))
+                    settings.Hotkeys[renamed[i, 1]] = settings.Hotkeys[renamed[i, 0]];
             var currentNames = new HashSet<string>(hotkeys.Select(h => h.Label));
             foreach (var name in settings.Hotkeys.Keys.Where(name => !currentNames.Contains(name)).ToArray()) settings.Hotkeys.Remove(name);
             foreach (var hotkey in hotkeys)
@@ -80,6 +94,7 @@ namespace Crash.Helper.Input
                 hotkey.Key = binding.Key;
                 hotkey.Modifier = binding.Modifiers;
                 hotkey.GamepadMask = binding.Gamepad;
+                hotkey.Alternatives = binding.Alternatives?.Where(value => value != null).Select(value => value.Clone()).ToList() ?? new List<HotkeyBinding>();
             }
             gamepad.StateChanged += (index, buttons) => { SetPadButtons(index, buttons); dispatch(UpdateGamepad); };
             try
@@ -105,6 +120,7 @@ namespace Crash.Helper.Input
                     hotkey.Key = binding.Key;
                     hotkey.Modifier = binding.Modifiers;
                     hotkey.GamepadMask = binding.Gamepad;
+                    hotkey.Alternatives = binding.Alternatives?.Where(value => value != null).Select(value => value.Clone()).ToList() ?? new List<HotkeyBinding>();
                 }
             }
             UpdateState();
@@ -115,7 +131,8 @@ namespace Crash.Helper.Input
             var hotkey = Hotkeys[index];
             hotkey.Key = key;
             hotkey.Modifier = modifiers;
-            settings.Hotkeys[hotkey.Label] = new HotkeyBinding { Key = key, Modifiers = modifiers, Gamepad = hotkey.GamepadMask ?? 0 };
+            settings.Hotkeys[hotkey.Label] = new HotkeyBinding { Key = key, Modifiers = modifiers, Gamepad = hotkey.GamepadMask ?? 0,
+                Alternatives = hotkey.Alternatives.Select(value => value.Clone()).ToList() };
             UpdateState();
             return true;
         }
@@ -127,6 +144,7 @@ namespace Crash.Helper.Input
         {
             generation++;
             heldActions.Clear();
+            nextRepeat.Clear();
             PublishMovement();
             repeatTimer.Stop();
             IsActive = false;
@@ -138,7 +156,7 @@ namespace Crash.Helper.Input
             else if (!ready || !gameAvailable()) Status = "Helper or game unavailable.";
             else if (editing) Status = "Editing binding.";
             else if (!lastForegroundAllowed) Status = "Game or helper is not active.";
-            else if (Hotkeys.All(h => h.Key == 0 && GamepadMaskOf(h) == 0)) Status = "No keys assigned.";
+            else if (Hotkeys.All(h => !h.GetBindings().Any(binding => binding.IsAssigned))) Status = "No keys assigned.";
             else
             {
                 try { listener.Start(); IsActive = true; Status = "Active."; }
@@ -151,7 +169,7 @@ namespace Crash.Helper.Input
         private void OnKeyPressed(uint key, KeyModifiers modifiers)
         {
             if (!IsActive || !CanUseCameraInput) return;
-            Trigger(Hotkeys.Where(h => h.Key != 0 && h.Key == key && MatchesModifiers(h, modifiers) && Allows(h)).ToArray());
+            Trigger(Hotkeys.Where(h => h.GetBindings().Any(binding => binding.Key != 0 && binding.Key == key && MatchesModifiers(binding, modifiers)) && Allows(h)).ToArray());
         }
 
         private void SetPadButtons(object controller, uint buttons)
@@ -178,25 +196,24 @@ namespace Crash.Helper.Input
                 if (heldActions.Count == 0) repeatTimer.Stop();
             }
             if (pressed == 0 || !IsActive || !CanUseCameraInput) return;
-            var matches = Hotkeys.Where(h => GamepadMaskOf(h) != 0 && (buttons & GamepadMaskOf(h)) == GamepadMaskOf(h) &&
-                (pressed & GamepadMaskOf(h)) != 0 && Allows(h)).ToArray();
+            var matches = Hotkeys.Where(Allows).SelectMany(action => action.GetBindings()
+                .Where(binding => binding.Gamepad != 0 && (buttons & binding.Gamepad) == binding.Gamepad && (pressed & binding.Gamepad) != 0)
+                .Select(binding => new { Action = action, Mask = binding.Gamepad })).ToArray();
             // The most specific combination wins, so Back+A does not also run a hotkey bound to A.
-            Trigger(matches.Where(h => !matches.Any(other => GamepadMaskOf(other) != GamepadMaskOf(h) &&
-                (GamepadMaskOf(other) & GamepadMaskOf(h)) == GamepadMaskOf(h))).ToArray());
+            Trigger(matches.Where(match => !matches.Any(other => other.Mask != match.Mask && (other.Mask & match.Mask) == match.Mask))
+                .Select(match => match.Action).Distinct().ToArray());
         }
 
-        private static uint GamepadMaskOf(Hotkey hotkey) => hotkey.GamepadMask ?? 0;
-
-        private bool IsHeld(Hotkey hotkey) =>
-            (hotkey.Key != 0 && listener.IsHeld(hotkey.Key) && MatchesModifiers(hotkey, listener.HeldModifiers)) ||
-            (GamepadMaskOf(hotkey) != 0 && (gamepadButtons & GamepadMaskOf(hotkey)) == GamepadMaskOf(hotkey));
+        private bool IsHeld(Hotkey hotkey) => hotkey.GetBindings().Any(binding =>
+            (binding.Key != 0 && listener.IsHeld(binding.Key) && MatchesModifiers(binding, listener.HeldModifiers)) ||
+            (binding.Gamepad != 0 && (gamepadButtons & binding.Gamepad) == binding.Gamepad));
 
         private void Trigger(Hotkey[] matches)
         {
             if (matches.Length == 0) return;
             foreach (var hotkey in matches.Where(h => h.RepeatWhileHeld))
             {
-                heldActions.Add(hotkey);
+                if (heldActions.Add(hotkey)) nextRepeat[hotkey] = repeatClock.ElapsedMilliseconds + hotkey.RepeatIntervalMilliseconds;
                 repeatTimer.Start();
             }
             PublishMovement();
@@ -204,17 +221,21 @@ namespace Crash.Helper.Input
             // Memory operations run later on the UI thread, outside the keyboard hook.
             dispatch(() =>
             {
-                foreach (var hotkey in matches.Where(h => !h.CameraSpeedBoost && !h.PositionSpeedBoost && (!h.RepeatWhileHeld || (h.CameraAxis < 0 && h.PositionAxis < 0))))
+                if (pendingGeneration != generation || !IsActive || !CanUseCameraInput) return;
+                var actions = matches.Where(h => !h.CameraSpeedBoost && !h.PositionSpeedBoost &&
+                    (!h.RepeatWhileHeld || (h.CameraAxis < 0 && h.PositionAxis < 0)) && Allows(h)).ToArray();
+                var handled = CombinedActions?.Invoke(actions);
+                foreach (var hotkey in actions)
                 {
                     if (pendingGeneration != generation || !IsActive || !CanUseCameraInput) return;
-                    if (Allows(hotkey)) hotkey.Callback();
+                    if ((handled == null || !handled.Contains(hotkey)) && Allows(hotkey)) hotkey.Callback();
                 }
             });
         }
 
         private void OnKeyReleased(uint key)
         {
-            heldActions.RemoveWhere(h => h.Key == key && !IsHeld(h));
+            heldActions.RemoveWhere(h => h.GetBindings().Any(binding => binding.Key == key) && !IsHeld(h));
             PublishMovement();
             if (heldActions.Count == 0) repeatTimer.Stop();
         }
@@ -231,7 +252,12 @@ namespace Crash.Helper.Input
             foreach (var action in heldActions.ToArray())
             {
                 if (!Allows(action) || !IsHeld(action)) heldActions.Remove(action);
-                else if (action.CameraAxis < 0 && action.PositionAxis < 0 && !action.CameraSpeedBoost && !action.PositionSpeedBoost) action.Callback();
+                else if (action.CameraAxis < 0 && action.PositionAxis < 0 && action.OrbitAxis < 0 && !action.CameraSpeedBoost && !action.PositionSpeedBoost &&
+                    (!nextRepeat.TryGetValue(action, out long next) || repeatClock.ElapsedMilliseconds >= next))
+                {
+                    nextRepeat[action] = repeatClock.ElapsedMilliseconds + action.RepeatIntervalMilliseconds;
+                    action.Callback();
+                }
             }
             PublishMovement();
             if (heldActions.Count == 0) repeatTimer.Stop();
@@ -256,6 +282,15 @@ namespace Crash.Helper.Input
             }
             bool nextBoost = heldActions.Any(action => action.CameraSpeedBoost);
             if (speedBoost != nextBoost) { speedBoost = nextBoost; CameraSpeedBoostChanged?.Invoke(speedBoost); }
+            var nextOrbit = new int[3];
+            foreach (var action in heldActions)
+                if (action.OrbitAxis >= 0 && action.OrbitAxis < 3) nextOrbit[action.OrbitAxis] += action.OrbitDirection;
+            for (int i = 0; i < nextOrbit.Length; i++) nextOrbit[i] = Math.Sign(nextOrbit[i]);
+            if (!nextOrbit.SequenceEqual(orbitMovement))
+            {
+                orbitMovement = nextOrbit;
+                OrbitMovementChanged?.Invoke((int[])nextOrbit.Clone());
+            }
             var next = new int[5];
             foreach (var action in heldActions)
                 if (action.CameraAxis >= 0 && action.CameraAxis < next.Length) next[action.CameraAxis] += action.CameraDirection;
@@ -265,8 +300,8 @@ namespace Crash.Helper.Input
             CameraMovementChanged?.Invoke((int[])next.Clone());
         }
 
-        private static bool MatchesModifiers(Hotkey hotkey, KeyModifiers modifiers) =>
-            hotkey.Modifier == KeyModifiers.None || hotkey.Modifier == KeyIdentity.ModifiersForKey(hotkey.Key, modifiers);
+        private static bool MatchesModifiers(HotkeyBinding binding, KeyModifiers modifiers) =>
+            binding.Modifiers == KeyModifiers.None || binding.Modifiers == KeyIdentity.ModifiersForKey(binding.Key, modifiers);
 
         public void Dispose()
         {
