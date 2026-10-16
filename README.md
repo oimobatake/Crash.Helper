@@ -16,7 +16,7 @@ Use it to practice difficult sections, explore levels, or set up camera angles.
 1. Open `Crash.Helper.exe` and start the game.
 2. Keep `Helper enabled` checked. CrashHelper automatically looks for the game and shows "Process attached." when connected.
 3. Use the Data and Level panels for lives, masks, and level selection.
-4. Open `Settings` to assign keyboard shortcuts, change the Steam application path, or edit game flags.
+4. Open `Settings` to assign keyboard and controller shortcuts, change the Steam application path, choose a startup level, or edit game flags.
 5. Turn on `Advanced Controls` to show the Position, Camera, and Others panels.
 
 To start the Steam game at a particular level, select a level and click `Launch Game` before starting the game. If Steam is installed in a different location, choose "steam.exe" under [Settings] -> [CrashHelper] -> "Steam application".
@@ -45,9 +45,15 @@ The level list covers all three games. Optional preview images help you identify
 | Freeze current level | locks the level you are currently playing. |
 | Stop Lock | releases the lock so the game can choose its normal destination again. |
 | Launch Game | starts the Steam game with the selected level as its starting map. |
-| Secret level | Can only be used when the level is locked in one of Air Crash, Snow Go, Road to Ruin, Hang'em High, or Future Frenzy, allowing you to start from the secret entrance. |
+| Secret level | Can only be used when the level is locked in one of Air Crash, Snow Go, Road to Ruin, Hang'em High, or Future Frenzy, allowing you to start from the secret entrance. Before the game is running, it can also be set for the level selected for `Launch Game`, so the game starts from the secret entrance. While it cannot be changed, the checkbox shows the game's current secret-entrance state. |
 
 Level Lock changes the load destination; it does not instantly teleport you into another level. Trigger a level load in the game to use the locked destination.
+
+Open [Settings] -> [CrashHelper] to change how level selection behaves:
+
+- `Level Image` shows or hides the preview image of the selected level.
+- `Select current level when freezing` also selects the current level in the level list when you turn on `Freeze current level`.
+- `Startup level` chooses which level is selected when CrashHelper starts.
 
 ### Save and change the player's position
 
@@ -55,7 +61,7 @@ Turn on `Advanced Controls` to use the Position panel.
 
 - View or edit X, Y, and Z coordinates. Press Enter to apply an edited value.
 - Freeze each coordinate separately to hold the player on that axis.
-- Click `Save` to remember the current position, then `TP` (teleport) to return to it.
+- Click `Save` to remember the current position, then `TP` (teleport) to return to it. Hold `TP` to keep returning to the saved position.
 - Assign movement shortcuts for forward, back, left, right, up, and down. Enable the Freeze axes you want to control.
 - Adjust movement speed or hold the assigned speed-boost shortcut to move at twice that speed.
 
@@ -68,10 +74,12 @@ The Camera panel lets you arrange a view independently of the game's normal came
 - `Control XYZ` gives you control over the camera's position.
 - `Control YawPitch` gives you control over its horizontal and vertical viewing angles.
 - `Follow player` keeps the camera at its current offset from the player and turns on `Control XYZ`. Movement shortcuts adjust the offset while following.
+- `Orbit player` circles the camera around the player while always facing them, and turns on `Follow player`, `Control XYZ`, and `Control YawPitch`. Edit `Orbit H` (horizontal angle), `Orbit V` (vertical angle), and `Zoom` (distance from the player) and press Enter, or use the orbit and zoom shortcuts. The vertical angle stops just short of straight up or down.
+- In Settings, `Follow scale` converts player movement into camera movement, `Follow vertical deadzone` ignores small vertical player movement such as jumps, and `Follow speed` sets how quickly the camera catches up (0 moves it instantly). `Orbit Horizontal` and `Orbit Vertical` set how many degrees each orbit shortcut press turns the camera.
 - Edit values and press Enter, or use assigned movement and rotation shortcuts.
 - Enable `Mouse control` in Settings to look around with the mouse. Separate X/Y sensitivity and inverted X/Y options are available. Pitch stops just short of straight up or down so the view never flips.
 - Choose whether camera movement follows its pitch, and adjust movement and rotation speeds.
-- Click `Save` to remember a view and `TP` to restore it. Only the enabled Control groups are restored.
+- Click `Save` to remember a view and `TP` to restore it. Only the enabled Control groups are restored. Hold `TP` to keep restoring the saved view.
 
 Position freezes and camera Control checkboxes reset when loading begins. Enable them again after the level loads. `Follow player` stays on and resumes after loading. Advanced input is also paused during the game's pause menu.
 
@@ -91,11 +99,13 @@ Under [Advanced Controls] -> [Others], `Disable fade write` stops the game from 
 
 ## Keyboard shortcuts and settings
 
-Open [Settings] -> [CrashHelper] to assign shortcuts. Select a shortcut field and press a key or key combination, then click `Save`. Shortcuts start unassigned; `Reset` clears an individual binding.
+Open [Settings] -> [Hotkeys] to assign shortcuts. Select a shortcut field and press a key or key combination, then click `Save`. Shortcuts start unassigned; `Reset` clears an individual binding. `Hotkeys enabled` turns all shortcuts on or off at once.
 
-Available actions include lives and masks, level selection and locking, player movement and teleporting, camera movement and saved views, input toggles, and fade control.
+Available actions include lives and masks, level selection and locking, the secret level, player movement and teleporting, camera movement and saved views, camera follow and orbit, orbit angle and zoom, input toggles, and fade control.
 
-To bind a controller, click a binding box and press a button or hold a combination, then release. Xbox (XInput), DualShock 4 and DualSense controllers are supported, including triggers (`LT/L2`, `RT/R2`) and stick directions (`LeftStickUp` and so on), which count as pressed past about 60% tilt. A binding can have both a key and a controller combination; `Reset` clears both. The game also receives controller presses, so combinations such as `Back+DPadUp` avoid unwanted in-game actions.
+Each shortcut field holds one key combination or one controller combination; entering a new one replaces the old one. Click `Add` to give an action another binding, and `Remove` to delete an extra one. Speed and sensitivity values in the Position and Camera groups can be edited directly; `Default` restores a value.
+
+To bind a controller, click a binding box and press a button or hold a combination, then release. Xbox (XInput), DualShock 4 and DualSense controllers are supported, including triggers (`LT/L2`, `RT/R2`) and stick directions (`LeftStickUp` and so on), which count as pressed past about 60% tilt. The game also receives controller presses, so combinations such as `Back+DPadUp` avoid unwanted in-game actions.
 
 Shortcuts require the helper to be enabled and connected to a recognized game build. They work while the game or helper is active and pause while you edit input fields. Mouse camera control requires the game to be active. While `Orbit player` is on, the mouse wheel zooms in and out.
 
