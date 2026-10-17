@@ -25,13 +25,12 @@ namespace Crash.Helper
         private readonly Timer launchAvailabilityTimer = new Timer { Interval = 500 };
         private readonly HelperSettings settings;
         private readonly Button settingsButton;
-        private readonly CheckBox advancedButton;
+        private readonly Button advancedButton;
         private readonly FlowLayoutPanel rightColumn;
         private readonly HotkeyManager hotkeyManager;
         private readonly SteamGameLauncher launcher;
         private bool levelLockCleanupComplete;
         private bool levelLockCleanupPending;
-        private bool updatingAdvancedButton;
         internal bool UpdateClosePending => levelLockCleanupPending || levelLockCleanupComplete;
 
         public HelperForm() : this(new CrashMemory()) { }
@@ -82,10 +81,10 @@ namespace Crash.Helper
                 levelSelector.SelectCurrentLevelOnFreeze = settings.SelectCurrentLevelOnFreeze;
                 hotkeyManager.SetEditing(false);
             };
-            advancedButton = new CheckBox
+            advancedButton = new Button
             {
-                Text = "Advanced Controls", Appearance = Appearance.Button, AutoSize = true, UseVisualStyleBackColor = true,
-                TextAlign = ContentAlignment.MiddleCenter, Checked = settings.AdvancedControlsEnabled
+                Text = "Advanced Controls", AutoSize = true, UseVisualStyleBackColor = true,
+                TextAlign = ContentAlignment.MiddleCenter
             };
             flowLayoutPanel.FlowDirection = FlowDirection.LeftToRight;
             flowLayoutPanel.WrapContents = false;
@@ -129,7 +128,7 @@ namespace Crash.Helper
             refreshTimer = new Timer { Interval = 100 };
             refreshTimer.Tick += (s, e) => RefreshHelper();
             loadingTimer.Tick += (s, e) => RefreshLoading();
-            advancedButton.CheckedChanged += (s, e) => ToggleAdvancedControls();
+            advancedButton.Click += (s, e) => ToggleAdvancedControls();
             hotkeyManager.StatusChanged += (s, e) => RefreshCameraInput();
             RefreshCameraInput();
             processControl.Rescan();
@@ -160,17 +159,14 @@ namespace Crash.Helper
 
         private void ToggleAdvancedControls()
         {
-            if (updatingAdvancedButton) return;
+            bool enabled = !settings.AdvancedControlsEnabled;
             try
             {
-                HelperSettings.SaveAdvancedControls(advancedButton.Checked);
-                settings.AdvancedControlsEnabled = advancedButton.Checked;
+                HelperSettings.SaveAdvancedControls(enabled);
+                settings.AdvancedControlsEnabled = enabled;
             }
             catch (Exception ex)
             {
-                updatingAdvancedButton = true;
-                advancedButton.Checked = settings.AdvancedControlsEnabled;
-                updatingAdvancedButton = false;
                 HelperLog.Error("Save Advanced Controls", ex);
                 MessageBox.Show(this, "Could not save Advanced Controls.\n" + ex.Message, "Settings", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
