@@ -47,9 +47,16 @@ namespace Crash.Helper.Input
         private bool Allows(Hotkey action)
         {
             if ((action.Group != "Position" && action.Group != "Camera") || !AdvancedInputBlocked()) return true;
-            // Saving, teleporting and toggling input remain available in the pause menu.
+            // Checkbox toggles, saving, teleporting and input toggles remain available while paused.
             switch (action.Label)
             {
+                case "Freeze X":
+                case "Freeze Y":
+                case "Freeze Z":
+                case "Control XYZ":
+                case "Control YawPitch":
+                case "Follow Player":
+                case "Orbit Player":
                 case "Position Save":
                 case "Position TP":
                 case "Camera Save":
