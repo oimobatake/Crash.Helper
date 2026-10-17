@@ -24,6 +24,8 @@ namespace Crash.Helper.Controls
         private HelperSettings settings;
         private Func<float[]> viewOrientation;
         private int[] heldDirections = new int[3];
+        private readonly HoldButton[,] movementButtons = new HoldButton[3, 2];
+        private readonly bool[,] buttonHeld = new bool[3, 2];
         private bool inputEnabled, closing, requestedPatch;
         private bool speedBoost;
         private Process patchProcess;
@@ -43,13 +45,13 @@ namespace Crash.Helper.Controls
         {
             this.memory = memory;
             pointers = new[] { memory.PositionX, memory.PositionY, memory.PositionZ };
-            Size = new Size(270, 112);
+            Size = new Size(340, 112);
             for (int i = 0; i < editors.Length; i++)
             {
                 int index = i;
                 var label = new Label { Text = axes[i] + ":", AutoSize = true, Left = 12, Top = i * 26 + 4 };
                 var editor = new TextBox { Left = 48, Top = i * 26, Width = 100, Text = "-", TextAlign = HorizontalAlignment.Right };
-                var freeze = new CheckBox { Text = "Freeze " + axes[i], AutoSize = true, Left = 160, Top = i * 26 + 2 };
+                var freeze = new CheckBox { Text = "Freeze " + axes[i], AutoSize = true, Left = 222, Top = i * 26 + 2 };
                 freeze.CheckedChanged += (s, e) =>
                 {
                     UpdateState();
@@ -80,9 +82,21 @@ namespace Crash.Helper.Controls
                 editor.Leave += (s, e) => { editor.Select(0, 0); UpdateEditor(index); EditingChanged?.Invoke(false); };
                 editors[i] = editor;
                 Controls.Add(editor);
+                for (int side = 0; side < 2; side++)
+                {
+                    int buttonSide = side;
+                    var button = HoldButton.Adjustment(i * 26, side == 0 ? -1 : 1,
+                        "Position " + axes[i] + (side == 0 ? " minus" : " plus"), pressed =>
+                        {
+                            buttonHeld[index, buttonSide] = pressed;
+                            PublishMotion();
+                        });
+                    movementButtons[i, side] = button;
+                    Controls.Add(button);
+                }
             }
-            var save = new Button { Text = "Save", Left = 52, Top = 80, Width = 80 };
-            teleportButton = new HoldButton { Text = "TP", Left = 137, Top = 80, Width = 80, Enabled = false, HeldAction = Teleport };
+            var save = new Button { Text = "Save", Left = 87, Top = 80, Width = 80 };
+            teleportButton = new HoldButton { Text = "TP", Left = 172, Top = 80, Width = 80, Enabled = false, HeldAction = Teleport };
             save.Click += (s, e) => SavePosition();
             Controls.Add(save);
             Controls.Add(teleportButton);
@@ -151,7 +165,12 @@ namespace Crash.Helper.Controls
             bool writable = connected && !loading && !fadeBlocked && !fadeWriteDisabled && !memory.IsLoading;
             foreach (var editor in editors) if (editor != null) editor.Enabled = CanEdit;
             foreach (var checkbox in freezeCheckboxes) if (checkbox != null) checkbox.Enabled = writable;
-            foreach (var button in Controls.OfType<Button>()) button.Enabled = CanEdit && (button != teleportButton || savedPosition != null);
+            foreach (var button in Controls.OfType<Button>())
+                if (!(button is HoldButton) || button == teleportButton)
+                    button.Enabled = CanEdit && (button != teleportButton || savedPosition != null);
+            for (int axis = 0; axis < 3; axis++)
+                for (int side = 0; side < 2; side++)
+                    movementButtons[axis, side].Enabled = CanEdit && (axis == 2 ? freezeCheckboxes[2].Checked : freezeCheckboxes[0].Checked || freezeCheckboxes[1].Checked);
             PublishMotion();
             UpdatePatch(connected ? memory.PositionX.Process : null, connected ? memory.Profile?.PositionCodeOffset ?? 0 : 0,
                 writable && freezeCheckboxes.All(box => box != null && box.Checked));
@@ -162,9 +181,12 @@ namespace Crash.Helper.Controls
             if (closing) return;
             try
             {
+                var directions = new int[3];
+                for (int axis = 0; axis < directions.Length; axis++)
+                    directions[axis] = Math.Sign((inputEnabled ? heldDirections[axis] : 0) + (buttonHeld[axis, 1] ? 1 : 0) - (buttonHeld[axis, 0] ? 1 : 0));
                 motion.Configure(memory.PositionX.Process, memory.Profile, !updateSuspended && available && memory.ProcessHooked,
-                    freezeCheckboxes.Select(box => box != null && box.Checked).ToArray(), inputEnabled && !movementDisabled,
-                    heldDirections, (settings?.PositionXYZSpeed ?? 0.8f) * (speedBoost ? 2 : 1), viewOrientation);
+                    freezeCheckboxes.Select(box => box != null && box.Checked).ToArray(), !movementDisabled,
+                    directions, (settings?.PositionXYZSpeed ?? 0.8f) * (speedBoost ? 2 : 1), viewOrientation);
             }
             catch (Exception ex) { HelperLog.Error("Configure player movement", ex); }
         }

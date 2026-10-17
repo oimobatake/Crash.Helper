@@ -7,12 +7,14 @@ namespace Crash.Helper.Controls
     internal sealed class HoldButton : Button
     {
         private readonly Timer repeat = new Timer { Interval = 16 };
-        private bool holding, suppressClick;
+        private bool holding, suppressClick, clickPulse;
         internal Action HeldAction { get; set; }
+        internal Action<bool> HoldingChanged { get; set; }
 
         internal HoldButton() => repeat.Tick += (s, e) =>
         {
-            if (holding && Enabled && Visible) HeldAction?.Invoke();
+            if (clickPulse) StopHolding();
+            else if (holding && Enabled && Visible) HeldAction?.Invoke();
             else StopHolding();
         };
 
@@ -52,19 +54,38 @@ namespace Crash.Helper.Controls
         protected override void OnClick(EventArgs e)
         {
             if (suppressClick) { suppressClick = false; return; }
-            if (Enabled) HeldAction?.Invoke();
+            if (Enabled)
+            {
+                if (HoldingChanged == null) HeldAction?.Invoke();
+                else { StartHolding(); clickPulse = true; suppressClick = false; }
+            }
             base.OnClick(e);
         }
 
         private void StartHolding()
         {
-            if (!Enabled || !Visible) return;
+            if (holding || !Enabled || !Visible) return;
+            clickPulse = false;
             holding = suppressClick = true;
             repeat.Start();
+            HoldingChanged?.Invoke(true);
             HeldAction?.Invoke();
         }
 
-        private void StopHolding() { holding = false; repeat.Stop(); }
+        private void StopHolding()
+        {
+            bool wasHolding = holding;
+            holding = clickPulse = false;
+            repeat.Stop();
+            if (wasHolding) HoldingChanged?.Invoke(false);
+        }
+
+        internal static HoldButton Adjustment(int top, int direction, string name, Action<bool> holdingChanged) => new HoldButton
+        {
+            Left = direction < 0 ? 152 : 182, Top = top, Width = 28, Height = 24,
+            Image = direction < 0 ? Properties.Resources.Subtract : Properties.Resources.Add,
+            AccessibleName = name, HoldingChanged = holdingChanged
+        };
 
         protected override void OnLostFocus(EventArgs e) { StopHolding(); suppressClick = false; base.OnLostFocus(e); }
         protected override void OnEnabledChanged(EventArgs e) { if (!Enabled) StopHolding(); base.OnEnabledChanged(e); }
@@ -72,7 +93,7 @@ namespace Crash.Helper.Controls
 
         protected override void Dispose(bool disposing)
         {
-            if (disposing) repeat.Dispose();
+            if (disposing) { StopHolding(); repeat.Dispose(); }
             base.Dispose(disposing);
         }
     }
