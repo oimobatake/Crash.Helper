@@ -170,7 +170,7 @@ namespace Crash.Helper.Controls
                     button.Enabled = CanEdit && (button != teleportButton || savedPosition != null);
             for (int axis = 0; axis < 3; axis++)
                 for (int side = 0; side < 2; side++)
-                    movementButtons[axis, side].Enabled = CanEdit && (axis == 2 ? freezeCheckboxes[2].Checked : freezeCheckboxes[0].Checked || freezeCheckboxes[1].Checked);
+                    movementButtons[axis, side].Enabled = CanEdit;
             PublishMotion();
             UpdatePatch(connected ? memory.PositionX.Process : null, connected ? memory.Profile?.PositionCodeOffset ?? 0 : 0,
                 writable && freezeCheckboxes.All(box => box != null && box.Checked));
@@ -181,12 +181,14 @@ namespace Crash.Helper.Controls
             if (closing) return;
             try
             {
-                var directions = new int[3];
-                for (int axis = 0; axis < directions.Length; axis++)
-                    directions[axis] = Math.Sign((inputEnabled ? heldDirections[axis] : 0) + (buttonHeld[axis, 1] ? 1 : 0) - (buttonHeld[axis, 0] ? 1 : 0));
+                var adjustments = new int[3];
+                bool canAdjust = CanEdit;
+                for (int axis = 0; axis < adjustments.Length; axis++)
+                    adjustments[axis] = canAdjust ? (buttonHeld[axis, 1] ? 1 : 0) - (buttonHeld[axis, 0] ? 1 : 0) : 0;
+                float speed = settings?.PositionXYZSpeed ?? 0.8f;
                 motion.Configure(memory.PositionX.Process, memory.Profile, !updateSuspended && available && memory.ProcessHooked,
-                    freezeCheckboxes.Select(box => box != null && box.Checked).ToArray(), !movementDisabled,
-                    directions, (settings?.PositionXYZSpeed ?? 0.8f) * (speedBoost ? 2 : 1), viewOrientation);
+                    freezeCheckboxes.Select(box => box != null && box.Checked).ToArray(), inputEnabled && !movementDisabled,
+                    heldDirections, speed * (speedBoost ? 2 : 1), viewOrientation, adjustments);
             }
             catch (Exception ex) { HelperLog.Error("Configure player movement", ex); }
         }

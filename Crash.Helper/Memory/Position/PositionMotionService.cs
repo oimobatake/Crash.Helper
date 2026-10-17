@@ -24,7 +24,7 @@ namespace Crash.Helper.Memory.Position
 
         internal void ResetForLoading()
         {
-            lock (sync) { loadingReset = true; frozen = new bool[3]; fadePosition = null; fadeSuspended = false; }
+            lock (sync) { loadingReset = true; frozen = new bool[3]; adjustments = new int[3]; fadePosition = null; fadeSuspended = false; }
             changed.Set();
         }
 
@@ -39,14 +39,14 @@ namespace Crash.Helper.Memory.Position
         }
         private bool[] frozen = new bool[3], capture = new bool[3];
         private readonly float[] values = new float[3];
-        private int[] directions = new int[3];
+        private int[] directions = new int[3], adjustments = new int[3];
         private float speed;
         private Func<float[]> orientation;
 
         internal PositionMotionService() => worker = Task.Factory.StartNew(Run, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
 
         internal void Configure(Process target, GameMemoryProfile memoryProfile, bool enabled, bool[] axes,
-            bool input, int[] movement, float xyzSpeed, Func<float[]> view)
+            bool input, int[] movement, float xyzSpeed, Func<float[]> view, int[] axisAdjustments)
         {
             lock (sync)
             {
@@ -67,6 +67,7 @@ namespace Crash.Helper.Memory.Position
                 profile = memoryProfile; active = enabled && process != null && profile != null;
                 frozen = loadingReset || fadeWriteDisabled ? new bool[3] : (bool[])axes.Clone(); directions = (int[])movement.Clone();
                 acceptInput = input; speed = xyzSpeed; orientation = view;
+                adjustments = (int[])axisAdjustments.Clone();
             }
             changed.Set();
         }
@@ -118,7 +119,7 @@ namespace Crash.Helper.Memory.Position
             float? fade = FadeMemory.Read(process, profile.Fade, moduleBase);
             if (LoadingMemory.Read(process, profile.Loading, moduleBase))
             {
-                loadingReset = true; frozen = new bool[3]; fadePosition = null; fadeSuspended = false;
+                loadingReset = true; frozen = new bool[3]; adjustments = new int[3]; fadePosition = null; fadeSuspended = false;
                 return true;
             }
             if (fadeWriteDisabled) { fadePosition = null; return true; }
@@ -163,6 +164,29 @@ namespace Crash.Helper.Memory.Position
             LevelLockNative.Check(LevelLockNative.WriteProcessMemory(process.Handle, new IntPtr(Address(profile.Position[axis])), BitConverter.GetBytes(value), (UIntPtr)4, out count) && count.ToUInt64() == 4, "Write player position");
         }
 
+        private float?[] HotkeyDelta(double seconds)
+        {
+            if (!acceptInput || !directions.Any(value => value != 0) || LoadingMemory.Read(process, profile.Camera?.PauseMenu, moduleBase)) return null;
+            if (frozen[0] && frozen[1])
+            {
+                var view = orientation?.Invoke();
+                if (view == null) return null;
+                var input = new int[5]; directions.CopyTo(input, 0);
+                return CameraMovement.Delta(input, speed, 0, seconds, view[0]);
+            }
+
+            // With only one horizontal axis frozen, its own hotkeys move that axis directly.
+            var result = new float?[3];
+            double length = Math.Sqrt(Enumerable.Range(0, 3).Sum(axis => frozen[axis] ? directions[axis] * directions[axis] : 0));
+            if (length > 0)
+            {
+                double distance = speed * Math.Max(0, Math.Min(seconds, 0.05)) / 0.03 / length;
+                for (int axis = 0; axis < 3; axis++)
+                    if (frozen[axis] && directions[axis] != 0) result[axis] = (float)(directions[axis] * distance);
+            }
+            return result;
+        }
+
         private void Run()
         {
             var clock = Stopwatch.StartNew(); double previous = clock.Elapsed.TotalSeconds;
@@ -181,25 +205,25 @@ namespace Crash.Helper.Memory.Position
                         previous = now;
                         try
                         {
-                            wasActive = ticking && !TransitionBlocked() && frozen.Any(value => value);
+                            wasActive = ticking && !TransitionBlocked() && (frozen.Any(value => value) || adjustments.Any(value => value != 0));
                             if (wasActive)
                             {
                                 for (int i = 0; i < 3; i++) if (frozen[i] && capture[i])
                                 {
                                     values[i] = BitConverter.ToSingle(Read(Address(profile.Position[i]), 4), 0); capture[i] = false;
                                 }
-                                var view = acceptInput && !LoadingMemory.Read(process, profile.Camera?.PauseMenu, moduleBase) && directions.Any(value => value != 0) ? orientation?.Invoke() : null;
-                                if (view != null)
+                                var delta = HotkeyDelta(elapsed);
+                                double adjustmentDistance = speed * Math.Max(0, Math.Min(elapsed, 0.05)) / 0.03;
+                                for (int i = 0; i < 3; i++)
                                 {
-                                    var input = new int[5]; directions.CopyTo(input, 0);
-                                    var delta = CameraMovement.Delta(input, speed, 0, elapsed, view[0]);
-                                    for (int i = 0; i < 3; i++) if (frozen[i] && delta[i].HasValue)
-                                    {
-                                        float value = values[i] + delta[i].Value;
-                                        if (!float.IsNaN(value) && !float.IsInfinity(value)) values[i] = value;
-                                    }
+                                    if (!frozen[i] && adjustments[i] == 0) continue;
+                                    // Buttons edit only their numeric axis, including unfrozen axes and pause menus.
+                                    float current = frozen[i] ? values[i] : BitConverter.ToSingle(Read(Address(profile.Position[i]), 4), 0);
+                                    float value = current + (frozen[i] ? delta?[i] ?? 0 : 0) + (float)(adjustments[i] * adjustmentDistance);
+                                    if (float.IsNaN(value) || float.IsInfinity(value)) continue;
+                                    values[i] = value;
+                                    WriteAxis(i, value);
                                 }
-                                for (int i = 0; i < 3; i++) if (frozen[i]) WriteAxis(i, values[i]);
                             }
                         }
                         catch (Exception ex) { wasActive = false; HelperLog.Error("Update player position", ex); }
