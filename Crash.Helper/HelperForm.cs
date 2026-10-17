@@ -74,7 +74,7 @@ namespace Crash.Helper
             hotkeyManager.CameraSpeedBoostChanged += cameraControl.SetSpeedBoost;
             Deactivate += (s, e) => cameraControl.EndEditing();
             processControl = new ProcessControl(memory, this);
-            settingsButton = new Button { Text = "Settings", AutoSize = true };
+            settingsButton = new Button { Text = "Settings", AutoSize = true, UseVisualStyleBackColor = true };
             settingsButton.Click += (s, e) =>
             {
                 using (var window = new SettingsForm(settings, hotkeyManager, memory, () => dataControl.Enabled, processControl.HelperEnabled)) window.ShowDialog(this);
@@ -84,7 +84,7 @@ namespace Crash.Helper
             };
             advancedButton = new CheckBox
             {
-                Text = "Advanced Controls", Appearance = Appearance.Button, AutoSize = true,
+                Text = "Advanced Controls", Appearance = Appearance.Button, AutoSize = true, UseVisualStyleBackColor = true,
                 TextAlign = ContentAlignment.MiddleCenter, Checked = settings.AdvancedControlsEnabled
             };
             flowLayoutPanel.FlowDirection = FlowDirection.LeftToRight;

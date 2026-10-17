@@ -84,7 +84,7 @@ namespace Crash.Helper.Controls
                 editors[i] = editor;
                 Controls.Add(label);
                 Controls.Add(editor);
-                AddMovementButtons(i, i * 26, axes[i]);
+                AddMovementButtons(i, editor, axes[i]);
             }
             freezeXYZ = new CheckBox { Text = "Control XYZ", AutoSize = true, Left = 222, Top = 28 };
             freezeYawPitch = new CheckBox { Text = "Control YawPitch", AutoSize = true, Left = 222, Top = 93 };
@@ -97,7 +97,7 @@ namespace Crash.Helper.Controls
             Controls.Add(followPlayer);
             mouse.Moved += OnMouseMovement;
             mouse.Wheel += OnMouseWheel;
-            saveButton = new Button { Text = "Save", Left = 87, Top = 132, Width = 80 };
+            saveButton = new Button { Text = "Save", Left = 87, Top = 132, Width = 80, UseVisualStyleBackColor = true };
             teleportButton = new HoldButton { Text = "TP", Left = 172, Top = 132, Width = 80, HeldAction = Teleport };
             saveButton.Click += (s, e) => SaveCamera();
             toolTip.SetToolTip(teleportButton, "Restore saved camera values for the enabled Control groups.");
@@ -138,7 +138,7 @@ namespace Crash.Helper.Controls
                 orbitEditors[i] = editor;
                 Controls.Add(label);
                 Controls.Add(editor);
-                AddMovementButtons(i + 5, 164 + i * 26, orbitAxes[i]);
+                AddMovementButtons(i + 5, editor, orbitAxes[i]);
             }
             orbitPlayer = new CheckBox { Text = "Orbit Player", AutoSize = true, Left = 222, Top = 192 };
             orbitPlayer.CheckedChanged += OnOrbitChanged;
@@ -146,16 +146,19 @@ namespace Crash.Helper.Controls
             MouseDown += (s, e) => EndEditing();
             foreach (Control control in Controls)
                 if (control is Label) control.MouseDown += (s, e) => EndEditing();
+            // Keep centered buttons inside the top and bottom edges of the control.
+            foreach (Control control in Controls) control.Top += 2;
+            Height += 4;
             refreshTimer.Tick += async (s, e) => await RefreshAsync();
             UpdateState();
         }
 
-        private void AddMovementButtons(int axis, int top, string name)
+        private void AddMovementButtons(int axis, TextBox editor, string name)
         {
             for (int side = 0; side < 2; side++)
             {
                 int buttonSide = side;
-                var button = HoldButton.Adjustment(top, side == 0 ? -1 : 1,
+                var button = HoldButton.Adjustment(editor, side == 0 ? -1 : 1,
                     "Camera " + name + (side == 0 ? " minus" : " plus"), pressed =>
                     {
                         buttonHeld[axis, buttonSide] = pressed;

@@ -85,7 +85,7 @@ namespace Crash.Helper.Controls
                 for (int side = 0; side < 2; side++)
                 {
                     int buttonSide = side;
-                    var button = HoldButton.Adjustment(i * 26, side == 0 ? -1 : 1,
+                    var button = HoldButton.Adjustment(editor, side == 0 ? -1 : 1,
                         "Position " + axes[i] + (side == 0 ? " minus" : " plus"), pressed =>
                         {
                             buttonHeld[index, buttonSide] = pressed;
@@ -95,11 +95,14 @@ namespace Crash.Helper.Controls
                     Controls.Add(button);
                 }
             }
-            var save = new Button { Text = "Save", Left = 87, Top = 80, Width = 80 };
+            var save = new Button { Text = "Save", Left = 87, Top = 80, Width = 80, UseVisualStyleBackColor = true };
             teleportButton = new HoldButton { Text = "TP", Left = 172, Top = 80, Width = 80, Enabled = false, HeldAction = Teleport };
             save.Click += (s, e) => SavePosition();
             Controls.Add(save);
             Controls.Add(teleportButton);
+            // Keep centered buttons inside the top and bottom edges of the control.
+            foreach (Control control in Controls) control.Top += 2;
+            Height += 4;
             EnabledChanged += (s, e) => UpdateState();
         }
 

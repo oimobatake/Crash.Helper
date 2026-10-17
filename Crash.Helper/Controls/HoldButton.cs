@@ -11,12 +11,16 @@ namespace Crash.Helper.Controls
         internal Action HeldAction { get; set; }
         internal Action<bool> HoldingChanged { get; set; }
 
-        internal HoldButton() => repeat.Tick += (s, e) =>
+        internal HoldButton()
         {
-            if (clickPulse) StopHolding();
-            else if (holding && Enabled && Visible) HeldAction?.Invoke();
-            else StopHolding();
-        };
+            UseVisualStyleBackColor = true;
+            repeat.Tick += (s, e) =>
+            {
+                if (clickPulse) StopHolding();
+                else if (holding && Enabled && Visible) HeldAction?.Invoke();
+                else StopHolding();
+            };
+        }
 
         protected override void OnMouseDown(MouseEventArgs e)
         {
@@ -80,9 +84,9 @@ namespace Crash.Helper.Controls
             if (wasHolding) HoldingChanged?.Invoke(false);
         }
 
-        internal static HoldButton Adjustment(int top, int direction, string name, Action<bool> holdingChanged) => new HoldButton
+        internal static HoldButton Adjustment(TextBox editor, int direction, string name, Action<bool> holdingChanged) => new HoldButton
         {
-            Left = direction < 0 ? 152 : 182, Top = top, Width = 28, Height = 24,
+            Left = direction < 0 ? 152 : 182, Top = editor.Top + (editor.Height - 24) / 2, Width = 28, Height = 24,
             Image = direction < 0 ? Properties.Resources.Subtract : Properties.Resources.Add,
             AccessibleName = name, HoldingChanged = holdingChanged
         };

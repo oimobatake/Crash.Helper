@@ -267,13 +267,13 @@ namespace Crash.Helper.Controls
                 catch { }
             };
 
-            lockButton = new Button { Left = 7, Top = 73, Width = 80, Text = "Level Lock" };
+            lockButton = new Button { Left = 7, Top = 73, Width = 80, Text = "Level Lock", UseVisualStyleBackColor = true };
             lockButton.Click += (s, e) => { SetSelectedLevel(true); };
 
-            stopButton = new Button { Left = 92, Top = 73, Width = 80, Text = "Stop Lock" };
+            stopButton = new Button { Left = 92, Top = 73, Width = 80, Text = "Stop Lock", UseVisualStyleBackColor = true };
             stopButton.Click += (s, e) => { StopLock(); };
 
-            launchButton = new Button { Left = 177, Top = 73, Width = 100, Text = "Launch Game" };
+            launchButton = new Button { Left = 177, Top = 73, Width = 100, Text = "Launch Game", UseVisualStyleBackColor = true };
             launchButton.Click += (s, e) => { LaunchSelectedLevel(); };
 
             levelBox.Controls.Add(combo);
