@@ -57,6 +57,9 @@ namespace Crash.Helper
             var selectCurrentLevel = new CheckBox { Text = "Select current level when freezing", AutoSize = true, Checked = draft.SelectCurrentLevelOnFreeze };
             selectCurrentLevel.CheckedChanged += (s, e) => draft.SelectCurrentLevelOnFreeze = selectCurrentLevel.Checked;
             layout.Controls.Add(selectCurrentLevel);
+            var legacyMasks = new CheckBox { Text = "Legacy Mask Option", AutoSize = true, Checked = draft.LegacyMaskOption };
+            legacyMasks.CheckedChanged += (s, e) => draft.LegacyMaskOption = legacyMasks.Checked;
+            layout.Controls.Add(legacyMasks);
             layout.Controls.Add(new Label { Text = "Startup level", AutoSize = true });
             var startupLevel = new ComboBox { Width = 300, DropDownStyle = ComboBoxStyle.DropDownList };
             startupLevel.Items.AddRange(LevelSelectorControl.GetOrderedLevels());

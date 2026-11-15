@@ -15,6 +15,22 @@ namespace Crash.Helper.Controls
         private bool mapLockActive;
         public event EventHandler<string> CurrentLevelFrozen;
 
+        private async void ClearLevelLockForExitedGame()
+        {
+            if (memory == null || memory.ProcessHooked || (!freezeMapEnabled && !mapLockActive && !freezeLevelCheckbox.Checked)) return;
+            ++levelLockRevision;
+            freezeMapEnabled = false;
+            mapLockActive = false;
+            storedMap = null;
+            showCurrentLevel = true;
+            ShowMapLock("-", false, Color.Black);
+            MapLockChanged?.Invoke(this, null);
+            if (levelLockShutdown != null) return;
+            try { await levelLock.SetAsync(null, null); }
+            catch (OperationCanceledException) { }
+            catch (Exception ex) { HelperLog.Error("Release exited game's level lock", ex); }
+        }
+
         internal void AttachLevelControls(System.Windows.Forms.GroupBox levelBox, System.Windows.Forms.Control levelList)
         {
             levelLabel.Text = "Level:";
@@ -97,7 +113,7 @@ namespace Crash.Helper.Controls
             try
             {
                 await levelLock.SetAsync(startFreeze ? process : null, startFreeze ? mapValue : null);
-                if (revision != levelLockRevision || IsDisposed || levelLockShutdown != null || updateSuspended || !Enabled || !memory.ProcessHooked) return;
+                if (revision != levelLockRevision || IsDisposed || levelLockShutdown != null || updateSuspended || !Enabled || !memory.ProcessHooked || process.HasExited || memory.LoadMap.Process?.Id != process.Id) return;
                 mapLockActive = startFreeze;
                 UpdateSecretLevel();
                 // Apply the selected map once; subsequent writes are intercepted inside the game.
@@ -106,7 +122,11 @@ namespace Crash.Helper.Controls
                 if (startFreeze && currentLevel && !string.IsNullOrEmpty(mapKey)) CurrentLevelFrozen?.Invoke(this, mapKey);
             }
             catch (OperationCanceledException) { }
-            catch (Exception ex) { ReportLevelLockFailure(revision, ex); }
+            catch (Exception ex)
+            {
+                if (process.HasExited) { RefreshGameSession(); return; }
+                ReportLevelLockFailure(revision, ex);
+            }
         }
 
         public async void StopMapLock()
@@ -149,6 +169,7 @@ namespace Crash.Helper.Controls
         {
             System.Diagnostics.Trace.WriteLine("[LevelLock] " + error);
             if (revision != levelLockRevision || IsDisposed || levelLockShutdown != null) return;
+            if (memory == null || !memory.ProcessHooked) { RefreshGameSession(); return; }
             freezeMapEnabled = false;
             mapLockActive = false;
             storedMap = null;

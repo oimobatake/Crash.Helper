@@ -146,6 +146,14 @@
     <Compile Include="Memory\LevelLock\LevelLockNative.cs" />
     <Compile Include="Memory\LevelLock\LevelLockPatch.cs" />
     <Compile Include="Memory\LevelLock\LevelLockService.cs" />
+    <Compile Include="Controls\DataControl.Masks.cs">
+      <DependentUpon>DataControl.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Memory\Masks\MaskMemory.cs" />
+    <Compile Include="Memory\Masks\MaskCommandCode.cs" />
+    <Compile Include="Memory\Masks\MaskCommandPatch.cs" />
+    <Compile Include="Memory\Masks\MaskFreezePolicy.cs" />
+    <Compile Include="Memory\Masks\MaskService.cs" />
     <Compile Include="Input\HotkeyDisplay.cs" />
     <Compile Include="Memory\GameFlag.cs" />
     <Compile Include="Memory\GameMemoryProfile.cs" />

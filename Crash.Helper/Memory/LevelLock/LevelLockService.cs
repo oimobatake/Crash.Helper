@@ -28,7 +28,12 @@ namespace Crash.Helper.Memory.LevelLock
                     await gate.WaitAsync(request.Token).ConfigureAwait(false);
                     entered = true;
                     request.Token.ThrowIfCancellationRequested();
-                    if (process == null || name == null) { patch?.Disable(); return; }
+                    if (process == null || name == null)
+                    {
+                        if (patch?.HasExited == true) { patch.Dispose(); patch = null; }
+                        else patch?.Disable();
+                        return;
+                    }
                     if (patch != null && (patch.HasExited || patch.ProcessId != process.Id)) { patch.Dispose(); patch = null; }
                     if (patch == null) patch = new LevelLockPatch(process);
                     try { patch.Enable(name, request.Token); }

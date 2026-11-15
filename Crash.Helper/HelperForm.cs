@@ -31,6 +31,7 @@ namespace Crash.Helper
         private readonly SteamGameLauncher launcher;
         private bool levelLockCleanupComplete;
         private bool levelLockCleanupPending;
+        private bool gameSessionSeen;
         internal bool UpdateClosePending => levelLockCleanupPending || levelLockCleanupComplete;
 
         public HelperForm() : this(new CrashMemory()) { }
@@ -46,8 +47,9 @@ namespace Crash.Helper
             }
             this.memory = memory ?? throw new ArgumentNullException(nameof(memory));
             dataControl = new DataControl(memory);
+            dataControl.ApplyInitialMaskOption(settings.LegacyMaskOption);
             levelSelector = new LevelSelectorControl(dataControl) { IsGameRunning = () => memory.IsProcessRunning };
-            launchAvailabilityTimer.Tick += (s, e) => { if (!UpdateSuspended) levelSelector.RefreshLaunchAvailability(); };
+            launchAvailabilityTimer.Tick += (s, e) => { if (!UpdateSuspended) { RefreshGameSession(); levelSelector.RefreshLaunchAvailability(); } };
             launchAvailabilityTimer.Start();
             Disposed += (s, e) => launchAvailabilityTimer.Dispose();
             levelSelector.SelectLevel(settings.StartupLevel);
@@ -74,11 +76,13 @@ namespace Crash.Helper
             Deactivate += (s, e) => cameraControl.EndEditing();
             processControl = new ProcessControl(memory, this);
             settingsButton = new Button { Text = "Settings", AutoSize = true, UseVisualStyleBackColor = true };
-            settingsButton.Click += (s, e) =>
+            settingsButton.Click += async (s, e) =>
             {
                 using (var window = new SettingsForm(settings, hotkeyManager, memory, () => dataControl.Enabled, processControl.HelperEnabled)) window.ShowDialog(this);
                 levelSelector.SetLevelImageVisible(settings.LevelImageEnabled);
                 levelSelector.SelectCurrentLevelOnFreeze = settings.SelectCurrentLevelOnFreeze;
+                try { await dataControl.SetLegacyMaskOptionAsync(settings.LegacyMaskOption); }
+                catch (Exception ex) { HelperLog.Error("Switch mask mode", ex); MessageBox.Show(this, "Could not switch mask mode: " + ex.Message, "Settings", MessageBoxButtons.OK, MessageBoxIcon.Error); }
                 hotkeyManager.SetEditing(false);
             };
             advancedButton = new Button
@@ -185,9 +189,21 @@ namespace Crash.Helper
             PerformLayout();
         }
 
+        private void RefreshGameSession()
+        {
+            if (memory.ProcessHooked) { gameSessionSeen = true; return; }
+            dataControl.RefreshGameSession();
+            if (!gameSessionSeen) return;
+            gameSessionSeen = false;
+            positionControl.ResetControls();
+            cameraControl.ResetControls();
+            othersControl.ResetControls();
+        }
+
         public void ApplyAvailability(bool helperEnabled, bool ready)
         {
             if (UpdateSuspended) return;
+            RefreshGameSession();
             bool canConfigure = !levelLockCleanupPending && !levelLockCleanupComplete;
             ready = canConfigure && helperEnabled && ready && memory.IsSupportedVersion;
             dataControl.Enabled = ready;
@@ -242,7 +258,7 @@ namespace Crash.Helper
                 ApplyAvailability(false, false);
                 try
                 {
-                    await System.Threading.Tasks.Task.WhenAll(othersControl.ShutdownAsync(), cameraControl.ShutdownAsync(), positionControl.ShutdownAsync(), dataControl.ShutdownLevelLockAsync());
+                    await System.Threading.Tasks.Task.WhenAll(othersControl.ShutdownAsync(), cameraControl.ShutdownAsync(), positionControl.ShutdownAsync(), dataControl.ShutdownLevelLockAsync(), dataControl.ShutdownMasksAsync());
                     levelLockCleanupComplete = true;
                 }
                 catch (Exception ex)

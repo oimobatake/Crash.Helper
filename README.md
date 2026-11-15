@@ -29,9 +29,11 @@ To start the Steam game at a particular level, select a level and click `Launch 
 | --- | --- |
 | Lives + / - | Changes lives one at a time, from 0 to 999. |
 | Freeze lives | Keeps lives at the stored value. You can still change that value with the helper. |
-| Masks + / - | Changes the stored mask count between 0 and 2. |
+| Masks + / - | Immediately collects or removes one mask through the game's events (0–3). |
 | Freeze masks | Holds the selected mask count. |
-| Maskform when hit | Available while masks are frozen. Maintains the mask state used for mask form on damage, while allowing the game's hit transition. It does not give you a mask when the current count is zero. |
+| Maskform when hit | Available while masks are frozen. Holds two masks, then collects two more when damage reduces the count to one, starting normal timed invincibility. Returns to holding two after invincibility expires. |
+
+Under `Settings` → `CrashHelper`, enable `Legacy Mask Option` to use the previous memory-value controls. 
 
 Keyboard actions can also set lives directly to 0 or 99.
 
@@ -47,7 +49,7 @@ The level list covers all three games. Optional preview images help you identify
 | Launch Game | starts the Steam game with the selected level as its starting map. |
 | Secret level | Can only be used when the level is locked in one of Air Crash, Snow Go, Road to Ruin, Hang'em High, or Future Frenzy, allowing you to start from the secret entrance. Before the game is running, it can also be set for the level selected for `Launch Game`, so the game starts from the secret entrance. While it cannot be changed, the checkbox shows the game's current secret-entrance state. |
 
-Level Lock changes the load destination; it does not instantly teleport you into another level. Trigger a level load in the game to use the locked destination.
+Level Lock changes the load destination; it does not instantly teleport you into another level. Trigger a level load in the game to use the locked destination. The lock and `Freeze current level` checkbox are cleared when the game exits.
 
 Open [Settings] -> [CrashHelper] to change how level selection behaves:
 

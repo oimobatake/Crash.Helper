@@ -48,7 +48,17 @@ namespace Crash.Helper.Controls
         internal void RefreshValues()
         {
             Enabled = canEdit() && memory.ProcessHooked;
-            if (!Enabled) { initialized = false; return; }
+            if (!Enabled)
+            {
+                initialized = false;
+                if (!memory.ProcessHooked)
+                {
+                    refreshing = true;
+                    try { foreach (var checkbox in checkboxes.Values) checkbox.Checked = false; }
+                    finally { refreshing = false; }
+                }
+                return;
+            }
             // Keep the opening snapshot while the user edits; only clicks write values.
             if (initialized) return;
             refreshing = true;

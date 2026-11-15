@@ -44,6 +44,7 @@ namespace Crash.Helper
         [DataMember] public bool HotkeysEnabled { get; set; } = true;
         [DataMember] public bool LevelImageEnabled { get; set; } = true;
         [DataMember] public bool SelectCurrentLevelOnFreeze { get; set; }
+        [DataMember] public bool LegacyMaskOption { get; set; }
         [DataMember] public string StartupLevel { get; set; } = DefaultStartupLevel;
         [DataMember] public bool AdvancedControlsEnabled { get; set; }
         [DataMember] public bool CameraMoveWithPitch { get; set; } = true;
@@ -76,6 +77,7 @@ namespace Crash.Helper
             AdvancedControlsEnabled = source.AdvancedControlsEnabled;
             LevelImageEnabled = source.LevelImageEnabled;
             SelectCurrentLevelOnFreeze = source.SelectCurrentLevelOnFreeze;
+            LegacyMaskOption = source.LegacyMaskOption;
             StartupLevel = source.StartupLevel;
             CameraMoveWithPitch = source.CameraMoveWithPitch;
             CameraMouseControl = source.CameraMouseControl;
@@ -132,6 +134,7 @@ namespace Crash.Helper
             // A file created by the Advanced Controls button can contain only its own setting.
             HotkeysEnabled = true;
             LevelImageEnabled = true;
+            LegacyMaskOption = false;
             StartupLevel = DefaultStartupLevel;
             CameraMoveWithPitch = true;
             PositionXYZSpeed = 0.8f;

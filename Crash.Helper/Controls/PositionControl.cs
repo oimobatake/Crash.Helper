@@ -189,7 +189,8 @@ namespace Crash.Helper.Controls
                 for (int axis = 0; axis < adjustments.Length; axis++)
                     adjustments[axis] = canAdjust ? (buttonHeld[axis, 1] ? 1 : 0) - (buttonHeld[axis, 0] ? 1 : 0) : 0;
                 float speed = settings?.PositionXYZSpeed ?? 0.8f;
-                motion.Configure(memory.PositionX.Process, memory.Profile, !updateSuspended && available && memory.ProcessHooked,
+                bool connected = !updateSuspended && available && memory.ProcessHooked;
+                motion.Configure(connected ? memory.PositionX.Process : null, connected ? memory.Profile : null, connected,
                     freezeCheckboxes.Select(box => box != null && box.Checked).ToArray(), inputEnabled && !movementDisabled,
                     heldDirections, speed * (speedBoost ? 2 : 1), viewOrientation, adjustments);
             }
