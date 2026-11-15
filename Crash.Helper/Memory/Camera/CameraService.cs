@@ -25,6 +25,7 @@ namespace Crash.Helper.Memory.Camera
         private Func<float[]> followSource;
         private float followScale = 1;
         private bool stopping, disposed, shutdownComplete;
+        private bool followMissing;
 
         internal CameraService()
         {
@@ -161,6 +162,8 @@ namespace Crash.Helper.Memory.Camera
                                 try { player = source(); }
                                 catch (Exception ex) { HelperLog.Error("Read player position for camera follow", ex); }
                             }
+                            bool missing = source != null && player == null;
+                            if (missing != followMissing) { follow.Reset(scale); followMissing = missing; }
                             lock (sync)
                             {
                                 apply = !stopping && active && directions.SequenceEqual(input) && followSource == source && followScale == scale;
@@ -280,7 +283,29 @@ namespace Crash.Helper.Memory.Camera
                 try
                 {
                     lock (sync) if (version != generation) return;
-                    if (active) patch.WriteValues(copy, relative, pauseGame);
+                    if (active)
+                    {
+                        patch.WriteValues(copy, relative, pauseGame);
+                        if (followSource != null) follow.Reset(followScale);
+                    }
+                }
+                finally { gate.Release(); }
+            });
+        }
+        internal Task ReturnToPlayerAsync()
+        {
+            return Task.Run(async () =>
+            {
+                await gate.WaitAsync().ConfigureAwait(false);
+                try
+                {
+                    lock (sync)
+                    {
+                        if (stopping || disposed) return;
+                        followSource = null; follow.SetOrbit(false); follow.Reset(followScale);
+                        directions = new int[5]; pendingMouseYaw = pendingMousePitch = 0;
+                    }
+                    if (active && patch != null && !patch.HasExited) patch.ReturnToPlayer();
                 }
                 finally { gate.Release(); }
             });

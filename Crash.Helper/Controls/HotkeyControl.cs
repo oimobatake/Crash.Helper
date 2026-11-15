@@ -70,7 +70,13 @@ namespace Crash.Helper.Controls
                     group.Controls.Add(table);
                     groups.Controls.Add(group, 0, groups.Controls.Count);
                     row = 0;
-                    if (currentGroup == "Position") AddSpeedEditor(table, ref row, "XYZ Speed", nameof(HelperSettings.PositionXYZSpeed));
+                    if (currentGroup == "Position")
+                    {
+                        var resetCamera = new CheckBox { Text = "Reset camera when Position TP", AutoSize = true, Checked = draft.ResetCameraWhenPositionTP };
+                        resetCamera.CheckedChanged += (s, e) => draft.ResetCameraWhenPositionTP = resetCamera.Checked;
+                        table.Controls.Add(resetCamera, 0, row++); table.SetColumnSpan(resetCamera, 4);
+                        AddSpeedEditor(table, ref row, "XYZ Speed", nameof(HelperSettings.PositionXYZSpeed));
+                    }
                     if (currentGroup == "Camera")
                     {
                         var followPitch = new CheckBox { Text = "Move in the pitch direction", AutoSize = true, Checked = draft.CameraMoveWithPitch };
@@ -89,7 +95,6 @@ namespace Crash.Helper.Controls
                         AddSpeedEditor(table, ref row, "Mouse Y sensitivity", nameof(HelperSettings.CameraMouseYSensitivity));
                         AddSpeedEditor(table, ref row, "Orbit Horizontal (degrees)", nameof(HelperSettings.CameraOrbitHorizontalStep));
                         AddSpeedEditor(table, ref row, "Orbit Vertical (degrees)", nameof(HelperSettings.CameraOrbitVerticalStep));
-                        AddSpeedEditor(table, ref row, "Follow scale", nameof(HelperSettings.CameraFollowScale));
                         AddSpeedEditor(table, ref row, "Follow vertical deadzone", nameof(HelperSettings.CameraFollowVerticalDeadzone));
                         AddSpeedEditor(table, ref row, "Follow speed (0 = instant)", nameof(HelperSettings.CameraFollowSpeed));
                     }

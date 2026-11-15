@@ -84,6 +84,7 @@ namespace Crash.Helper.Input
             this.foregroundAllowed = foregroundAllowed ?? (() => true);
             // Preserve assignments when an action is renamed; obsolete actions are removed below.
             string[,] renamed = {
+                { "Freeze XYZ", "Control XYZ" }, { "Freeze YawPitch", "Control YawPitch" },
                 { "Camera Follow player", "Follow Player" }, { "Camera Orbit player", "Orbit Player" },
                 { "Camera Orbit H -5", "Orbit Horizontal -" }, { "Camera Orbit H +5", "Orbit Horizontal +" },
                 { "Camera Orbit V -5", "Orbit Vertical -" }, { "Camera Orbit V +5", "Orbit Vertical +" }

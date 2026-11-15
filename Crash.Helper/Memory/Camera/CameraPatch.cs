@@ -12,6 +12,7 @@ namespace Crash.Helper.Memory.Camera
     {
         private readonly CameraProcessMemory memory;
         private readonly CameraMemoryProfile profile;
+        private readonly OwnedCameraPatch owned;
         private readonly long positionCode, rotationCode;
         private readonly long moduleBase;
         private long injection, cave, pointerStorage;
@@ -26,6 +27,8 @@ namespace Crash.Helper.Memory.Camera
             this.moduleBase = moduleBase;
             this.profile = profile ?? throw new ArgumentNullException(nameof(profile));
             memory = new CameraProcessMemory(process, moduleBase, moduleSize, profile.CapturePattern);
+            if (ReferenceEquals(profile, CameraMemoryProfile.Steam) && moduleSize == GameMemoryProfile.Steam.ModuleSize)
+                owned = new OwnedCameraPatch(new Runtime.RuntimeMemory(process));
             positionCode = moduleBase + profile.PositionCodeOffset;
             rotationCode = moduleBase + profile.RotationCodeOffset;
         }
@@ -35,6 +38,11 @@ namespace Crash.Helper.Memory.Camera
 
         internal void Enable(bool xyz, bool yawPitch, CancellationToken cancellation)
         {
+            if (owned != null)
+            {
+                cancellation.ThrowIfCancellationRequested(); owned.Enable(xyz, yawPitch);
+                installed = true; freezePosition = xyz; freezeRotation = yawPitch; return;
+            }
             if (cave == 0)
             {
                 injection = memory.FindInjection(cancellation);
@@ -134,6 +142,7 @@ namespace Crash.Helper.Memory.Camera
             address = 0;
             snapshot = null;
             if (!installed || HasExited) return null;
+            if (owned != null) return owned.ReadValues();
             try
             {
                 address = BitConverter.ToInt64(memory.Read(pointerStorage, 8), 0);
@@ -172,6 +181,10 @@ namespace Crash.Helper.Memory.Camera
         {
             if (!installed || HasExited) return;
             if (IsPauseMenuOpen()) return;
+            owned?.SetFollowAvailable(follow == null || player != null);
+            if (follow != null && player == null) return;
+            owned?.SetOrbit(follow != null && follow.Orbiting && freezePosition, player, follow?.Scale ?? 1);
+            owned?.SetNativeFollow(null);
             // Freeze removes the game writers. Movement must not suspend the entire game each frame.
             WriteValuesCore(null, true, current =>
             {
@@ -179,7 +192,10 @@ namespace Crash.Helper.Memory.Camera
                     return follow.Orbit(current, directions, xyzSpeed, rotationSpeed, seconds, mouseYaw, mousePitch, player);
                 var delta = CameraMovement.Delta(directions, xyzSpeed, rotationSpeed, seconds,
                     current[3], current[4], followPitch, mouseYaw, mousePitch);
-                return follow == null || !freezePosition ? delta : follow.Apply(current, delta, player, seconds);
+                if (follow == null || !freezePosition) return delta;
+                var update = follow.Apply(current, delta, player, seconds);
+                owned?.SetNativeFollow(follow);
+                return update;
             });
         }
 
@@ -205,6 +221,7 @@ namespace Crash.Helper.Memory.Camera
 
         private void WriteValuesCore(float?[] values, bool relative, Func<float[], float?[]> calculate = null)
         {
+            if (owned != null) { owned.WriteValues(values, relative, calculate); return; }
             if (profile.Loading != null && LoadingMemory.Read(memory.Process, profile.Loading, moduleBase)) return;
             long address;
             byte[] snapshot;
@@ -247,6 +264,7 @@ namespace Crash.Helper.Memory.Camera
 
         internal void Disable()
         {
+            if (owned != null) { owned.Disable(); installed = freezePosition = freezeRotation = false; return; }
             if (HasExited) { installed = freezePosition = freezeRotation = false; return; }
             if (!installed && !freezePosition && !freezeRotation) return;
             memory.WhilePaused(() =>
@@ -275,10 +293,16 @@ namespace Crash.Helper.Memory.Camera
                 if (failures.Count > 0) throw new AggregateException("Could not restore camera instructions.", failures);
             });
         }
+        internal void ReturnToPlayer()
+        {
+            if (owned != null) { owned.ReturnToPlayer(); installed = true; freezePosition = freezeRotation = false; }
+            else Disable();
+        }
 
         public void Dispose()
         {
             Disable();
+            owned?.Dispose();
             memory.Dispose();
             // Reuse published pages on normal off/on cycles. Keep them until process exit
             // when disposing, because an in-flight game thread can still be in the cave.

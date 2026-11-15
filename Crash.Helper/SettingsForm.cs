@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Drawing;
 using System.Windows.Forms;
 using Crash.Helper.Controls;
@@ -51,15 +51,6 @@ namespace Crash.Helper
             pathRow.Controls.Add(path);
             pathRow.Controls.Add(browse);
             layout.Controls.Add(pathRow);
-            var levelImage = new CheckBox { Text = "Level Image", AutoSize = true, Checked = draft.LevelImageEnabled };
-            levelImage.CheckedChanged += (s, e) => draft.LevelImageEnabled = levelImage.Checked;
-            layout.Controls.Add(levelImage);
-            var selectCurrentLevel = new CheckBox { Text = "Select current level when freezing", AutoSize = true, Checked = draft.SelectCurrentLevelOnFreeze };
-            selectCurrentLevel.CheckedChanged += (s, e) => draft.SelectCurrentLevelOnFreeze = selectCurrentLevel.Checked;
-            layout.Controls.Add(selectCurrentLevel);
-            var legacyMasks = new CheckBox { Text = "Legacy Mask Option", AutoSize = true, Checked = draft.LegacyMaskOption };
-            legacyMasks.CheckedChanged += (s, e) => draft.LegacyMaskOption = legacyMasks.Checked;
-            layout.Controls.Add(legacyMasks);
             layout.Controls.Add(new Label { Text = "Startup level", AutoSize = true });
             var startupLevel = new ComboBox { Width = 300, DropDownStyle = ComboBoxStyle.DropDownList };
             startupLevel.Items.AddRange(LevelSelectorControl.GetOrderedLevels());
@@ -70,6 +61,15 @@ namespace Crash.Helper
             startupLevel.Enter += (s, e) => manager.SetEditing(true);
             startupLevel.Leave += (s, e) => manager.SetEditing(false);
             layout.Controls.Add(startupLevel);
+            var levelImage = new CheckBox { Text = "Level Image", AutoSize = true, Checked = draft.LevelImageEnabled };
+            levelImage.CheckedChanged += (s, e) => draft.LevelImageEnabled = levelImage.Checked;
+            layout.Controls.Add(levelImage);
+            var selectCurrentLevel = new CheckBox { Text = "Select current level when freezing", AutoSize = true, Checked = draft.SelectCurrentLevelOnFreeze };
+            selectCurrentLevel.CheckedChanged += (s, e) => draft.SelectCurrentLevelOnFreeze = selectCurrentLevel.Checked;
+            layout.Controls.Add(selectCurrentLevel);
+            var legacyMasks = new CheckBox { Text = "Legacy Mask Option", AutoSize = true, Checked = draft.LegacyMaskOption };
+            legacyMasks.CheckedChanged += (s, e) => draft.LegacyMaskOption = legacyMasks.Checked;
+            layout.Controls.Add(legacyMasks);
             helperPage.Controls.Add(layout);
             var footer = new Panel { Dock = DockStyle.Bottom, Height = 44, Padding = new Padding(8) };
             save = new Button { Text = "Save", Size = new Size(75, 25), Anchor = AnchorStyles.Top | AnchorStyles.Right };

@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.Threading;
 
 namespace Crash.Helper.Memory.Camera
 {
@@ -14,13 +15,14 @@ namespace Crash.Helper.Memory.Camera
 
         private sealed class State
         {
+            private static long nextGeneration;
+            internal readonly long Generation = Interlocked.Increment(ref nextGeneration);
             internal readonly float Scale;
             internal float[] Offset;
             internal float TrackedZ;
-            internal double[] OrbitCenter;
-            internal float? WrittenYaw;
             // Orbit angles use the camera's yaw and pitch convention, in radians.
             internal double OrbitYaw, OrbitPitch, Distance = -1;
+            internal double RenderYaw, RenderPitch, RenderDistance;
             internal State(float scale) { Scale = scale; }
         }
 
@@ -69,6 +71,11 @@ namespace Crash.Helper.Memory.Camera
         }
 
         internal bool Orbiting => orbit;
+        internal float Scale => state.Scale;
+        internal float[] FollowOffset => state.Offset == null ? null : (float[])state.Offset.Clone();
+        internal long Generation => state.Generation;
+        internal float Deadzone => deadzone;
+        internal float Speed => speed;
 
         internal void SetOrbit(bool enabled)
         {
@@ -166,7 +173,9 @@ namespace Crash.Helper.Memory.Camera
                 current.Offset = new float[3];
                 current.TrackedZ = player[2];
             }
-            var target = Target(current, player);
+            // Orbit always aims at the live center, including jumps. Follow's height deadzone
+            // must not leave the orbit aimed at a previous player position.
+            var target = new double[] { player[0] * current.Scale, player[1] * current.Scale, player[2] * current.Scale };
             if (current.Distance < 0)
             {
                 double dx = target[0] - camera[0], dy = target[1] - camera[1], dz = target[2] - camera[2];
@@ -174,6 +183,7 @@ namespace Crash.Helper.Memory.Camera
                 current.Distance = Math.Max(1, Math.Sqrt(flat * flat + dz * dz));
                 current.OrbitYaw = NearAngle(Math.Atan2(dy, dx), camera[3]);
                 current.OrbitPitch = Math.Atan2(-dz, flat);
+                current.RenderYaw = current.OrbitYaw; current.RenderPitch = current.OrbitPitch; current.RenderDistance = current.Distance;
             }
             var movement = motion;
             double now = OrbitMotion.Clock();
@@ -208,24 +218,15 @@ namespace Crash.Helper.Memory.Camera
             orbitAngles = new[] { Wrap(current.OrbitYaw), Wrap(current.OrbitPitch) };
             orbitDistance = (float)(current.Distance / Math.Max(current.Scale, 0.0001f));
 
-            // Carry the previous orbit with the player instead of treating player movement
-            // as a change in orbit angle or distance. Reading the actual camera also honors TP/edits.
-            var center = current.OrbitCenter ?? target;
-            double dxOrbit = center[0] - camera[0], dyOrbit = center[1] - camera[1], dzOrbit = camera[2] - center[2];
-            double horizontal = Math.Sqrt(dxOrbit * dxOrbit + dyOrbit * dyOrbit);
-            double distance = Math.Sqrt(horizontal * horizontal + dzOrbit * dzOrbit);
-            double yaw = horizontal > 0.000001 ? NearAngle(Math.Atan2(dyOrbit, dxOrbit), camera[3]) : camera[3];
-            // Keep complete turns during fast input. Only an external yaw edit/TP should
-            // rebase the target onto the camera's new angle branch.
-            if (current.WrittenYaw.HasValue && Math.Abs(camera[3] - current.WrittenYaw.Value) > 0.01)
-                current.OrbitYaw = NearAngle(current.OrbitYaw, yaw);
-            double pitch = Math.Atan2(dzOrbit, horizontal);
+            // Advance one continuous orbit state rather than feeding a delayed rendered pose
+            // back into the next calculation. Explicit edits and TP reset this state in the service.
+            double yaw = current.RenderYaw, pitch = current.RenderPitch, distance = current.RenderDistance;
             double blend = Blend(seconds);
             yaw += (current.OrbitYaw - yaw) * blend;
             pitch += (current.OrbitPitch - pitch) * blend;
             pitch = Math.Max(-CameraMovement.PitchLimit, Math.Min(CameraMovement.PitchLimit, pitch));
             distance = Math.Max(1, distance + (current.Distance - distance) * blend);
-            current.OrbitCenter = target;
+            current.RenderYaw = yaw; current.RenderPitch = pitch; current.RenderDistance = distance;
 
             // Interpolate on the orbit, not along a chord through its center. Position and
             // orientation come from one pose, keeping the player centered and the radius stable.
@@ -234,7 +235,6 @@ namespace Crash.Helper.Memory.Camera
             result[1] = (float)(target[1] - distance * cp * Math.Sin(yaw) - camera[1]);
             result[2] = (float)(target[2] + distance * Math.Sin(pitch) - camera[2]);
             result[3] = (float)(yaw - camera[3]);
-            current.WrittenYaw = camera[3] + result[3].Value;
             result[4] = (float)(pitch - camera[4]);
             return result;
         }

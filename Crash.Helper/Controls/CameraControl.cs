@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Diagnostics;
 using System.Drawing;
 using System.Globalization;
@@ -20,7 +20,7 @@ namespace Crash.Helper.Controls
         private readonly CheckBox freezeXYZ, freezeYawPitch, followPlayer, orbitPlayer;
         // Orbit H, Orbit V, and Zoom (distance from the player in player units).
         private readonly TextBox[] orbitEditors = new TextBox[3];
-        private const double OrbitStepDistance = 1;
+        private const double OrbitStepDistance = 10;
         private double orbitHorizontalStep = 5, orbitVerticalStep = 5;
         private readonly MouseCameraListener mouse = new MouseCameraListener();
         private readonly Button saveButton, teleportButton;
@@ -31,11 +31,10 @@ namespace Crash.Helper.Controls
         private float[] values, saved;
         private float xyzSpeed = 30.0f, yawPitchSpeed = 0.03f;
         private float mouseXSensitivity = 0.001f, mouseYSensitivity = 0.001f;
-        private float followScale = HelperSettings.DefaultCameraFollowScale;
         private float followDeadzone = HelperSettings.DefaultCameraFollowVerticalDeadzone;
         private float followSpeed = HelperSettings.DefaultCameraFollowSpeed;
         private bool followPitch = true, mouseControl, invertMouseX, invertMouseY, inputEnabled;
-        private bool speedBoost, loading, movementDisabled, teleporting;
+        private bool speedBoost, loading, playerDead, movementDisabled, teleporting;
         internal Func<bool> IsLoading { get; set; } = () => false;
         // Called on the camera worker. Returns null while the player position cannot be read.
         internal Func<float[]> PlayerPosition { get; set; }
@@ -240,7 +239,7 @@ namespace Crash.Helper.Controls
 
         private bool OrbitActive => FollowActive && freezeYawPitch.Checked && orbitPlayer.Checked;
 
-        private bool FollowActive => !updateSuspended && available && ready && !changing && !closing && !loading && freezeXYZ.Checked && followPlayer.Checked;
+        private bool FollowActive => !updateSuspended && available && ready && !changing && !closing && !loading && !playerDead && freezeXYZ.Checked && followPlayer.Checked;
 
         private void UpdateOrbitEditor(int axis)
         {
@@ -290,7 +289,7 @@ namespace Crash.Helper.Controls
             }
         }
 
-        private bool CanWrite(int axis) => !updateSuspended && available && ready && !changing && !closing && !loading && !IsLoading() && !movementDisabled && values != null &&
+        private bool CanWrite(int axis) => !updateSuspended && available && ready && !changing && !closing && !loading && !playerDead && !IsLoading() && !movementDisabled && values != null &&
             (axis < 3 ? freezeXYZ.Checked : freezeYawPitch.Checked);
 
         private void UpdateState()
@@ -300,13 +299,13 @@ namespace Crash.Helper.Controls
                 editors[i].Enabled = CanWrite(i);
                 if (!editors[i].Focused) UpdateEditor(i);
             }
-            freezeXYZ.Enabled = freezeYawPitch.Enabled = followPlayer.Enabled = orbitPlayer.Enabled = available && ready && !changing && !closing && !loading;
+            freezeXYZ.Enabled = freezeYawPitch.Enabled = followPlayer.Enabled = orbitPlayer.Enabled = available && ready && !changing && !closing && !loading && !playerDead;
             for (int i = 0; i < orbitEditors.Length; i++)
             {
                 orbitEditors[i].Enabled = OrbitActive;
                 if (!orbitEditors[i].Focused) UpdateOrbitEditor(i);
             }
-            saveButton.Enabled = available && ready && !changing && values != null && !closing && !loading && !movementDisabled;
+            saveButton.Enabled = available && ready && !changing && values != null && !closing && !loading && !playerDead && !movementDisabled;
             teleportButton.Enabled = saved != null && (CanWrite(0) || CanWrite(3));
             for (int axis = 0; axis < 8; axis++)
                 for (int side = 0; side < 2; side++)
@@ -364,7 +363,7 @@ namespace Crash.Helper.Controls
             if (CanToggleControls) orbitPlayer.Checked = !orbitPlayer.Checked;
         }
 
-        private bool CanToggleControls => !updateSuspended && available && ready && !closing && !loading && !movementDisabled && !IsLoading();
+        private bool CanToggleControls => !updateSuspended && available && ready && !closing && !loading && !playerDead && !movementDisabled && !IsLoading();
 
         internal ISet<Hotkey> HandleCombinedHotkeys(Hotkey[] actions)
         {
@@ -406,12 +405,12 @@ namespace Crash.Helper.Controls
         {
             var checkbox = rotation ? freezeYawPitch : freezeXYZ;
             // Shared hotkeys may toggle both freeze groups before the first async update completes.
-            if (available && ready && !closing && !loading && !movementDisabled && !IsLoading()) checkbox.Checked = !checkbox.Checked;
+            if (available && ready && !closing && !loading && !playerDead && !movementDisabled && !IsLoading()) checkbox.Checked = !checkbox.Checked;
         }
 
         internal async void SaveCamera()
         {
-            if (!available || !ready || changing || values == null || closing || loading || movementDisabled || IsLoading()) return;
+            if (!available || !ready || changing || values == null || closing || loading || playerDead || movementDisabled || IsLoading()) return;
             int version = generation;
             try
             {
@@ -432,6 +431,25 @@ namespace Crash.Helper.Controls
             try { await service.WriteAsync(update, false, false); }
             catch (Exception ex) { HelperLog.Error("Teleport camera", ex); }
             finally { teleporting = false; }
+        }
+        internal async Task ResetForPositionTeleportAsync()
+        {
+            if (!available || closing || freezeXYZ.Checked || freezeYawPitch.Checked) return;
+            int version = ++generation; changing = true; refreshTimer.Stop();
+            suppressChanges = true;
+            freezeXYZ.Checked = freezeYawPitch.Checked = followPlayer.Checked = orbitPlayer.Checked = false;
+            suppressChanges = false;
+            Array.Clear(buttonHeld, 0, buttonHeld.Length); heldDirections = new int[5]; heldOrbitDirections = new int[3];
+            UpdateState();
+            try { await service.ReturnToPlayerAsync(); }
+            finally
+            {
+                if (version == generation && !IsDisposed)
+                {
+                    changing = false; UpdateState();
+                    if (ready && !closing) { refreshTimer.Start(); await RefreshAsync(); }
+                }
+            }
         }
 
         internal void SetMovement(int[] directions)
@@ -474,23 +492,39 @@ namespace Crash.Helper.Controls
             Configure(); InputStateChanged?.Invoke();
         }
 
-        internal bool InputDisabled => movementDisabled || loading;
+        internal void SetPlayerDead(bool value)
+        {
+            if (playerDead == value || closing) return;
+            playerDead = value;
+            if (value)
+            {
+                heldDirections = new int[5]; heldOrbitDirections = new int[3]; Array.Clear(buttonHeld, 0, buttonHeld.Length);
+                suppressChanges = true;
+                freezeXYZ.Checked = freezeYawPitch.Checked = followPlayer.Checked = orbitPlayer.Checked = false;
+                suppressChanges = false;
+            }
+            Configure(); InputStateChanged?.Invoke();
+        }
+
+        internal bool InputDisabled => movementDisabled || loading || playerDead;
         internal event Action InputStateChanged;
 
         internal void ToggleMovement()
         {
-            if (!available || loading || IsLoading()) return;
+            if (!available || loading || playerDead || IsLoading()) return;
             movementDisabled = !movementDisabled; UpdateState(); InputStateChanged?.Invoke();
         }
 
         private void UpdateMovement()
         {
             var directions = new int[5];
-            if (!updateSuspended && available && ready && !changing && !closing && !loading && !movementDisabled)
+            if (!updateSuspended && available && ready && !changing && !closing && !loading && !playerDead && !movementDisabled)
                 for (int i = 0; i < directions.Length; i++)
                     if (i < 3 ? freezeXYZ.Checked && !orbitPlayer.Checked : freezeYawPitch.Checked)
                         directions[i] = Math.Sign((inputEnabled ? heldDirections[i] : 0) + (buttonHeld[i, 1] ? 1 : 0) - (buttonHeld[i, 0] ? 1 : 0));
-            service.SetFollow(FollowActive ? PlayerPosition : null, followScale, followDeadzone, followSpeed);
+            bool legacyUnits = ReferenceEquals(profile, CameraMemoryProfile.Xbox);
+            service.SetFollow(FollowActive ? PlayerPosition : null, legacyUnits ? 1f / 0.0254f : 1f,
+                legacyUnits ? followDeadzone * 0.0254f : followDeadzone, followSpeed);
             service.SetOrbit(OrbitActive);
             var orbitDirections = new int[3];
             if (CanToggleControls && OrbitActive)
@@ -523,7 +557,6 @@ namespace Crash.Helper.Controls
             mouseYSensitivity = settings.CameraMouseYSensitivity;
             orbitHorizontalStep = settings.CameraOrbitHorizontalStep;
             orbitVerticalStep = settings.CameraOrbitVerticalStep;
-            followScale = settings.CameraFollowScale;
             followDeadzone = settings.CameraFollowVerticalDeadzone;
             followSpeed = settings.CameraFollowSpeed;
             UpdateMovement();

@@ -31,11 +31,10 @@ namespace Crash.Helper
     [DataContract]
     public sealed class HelperSettings
     {
-        // Camera units per player position unit. A measured ratio of about 39.4 matches meters
-        // (player) to inches (camera), so it should hold across levels.
-        public const float DefaultCameraFollowScale = 39.3701f;
-        // Player units (meters) of vertical movement ignored before the camera follows.
-        public const float DefaultCameraFollowVerticalDeadzone = 1.5f;
+        // Steam player and camera coordinates use the engine's original units.
+        public const float DefaultPositionXYZSpeed = 30f;
+        public const float DefaultCameraXYZSpeed = 30f;
+        public const float DefaultCameraFollowVerticalDeadzone = 60f;
         // Per-second approach rate toward the follow target. Zero moves the camera instantly.
         public const float DefaultCameraFollowSpeed = 8f;
         public const string DefaultStartupLevel = "Crash 1 - The Wumpa Islands";
@@ -51,14 +50,15 @@ namespace Crash.Helper
         [DataMember] public bool CameraMouseControl { get; set; }
         [DataMember] public bool CameraInvertMouseX { get; set; }
         [DataMember] public bool CameraInvertMouseY { get; set; }
-        [DataMember] public float PositionXYZSpeed { get; set; } = 0.8f;
-        [DataMember] public float CameraXYZSpeed { get; set; } = 30f;
+        [DataMember] public float PositionXYZSpeed { get; set; } = DefaultPositionXYZSpeed;
+        [DataMember] public bool ResetCameraWhenPositionTP { get; set; } = true;
+        [DataMember] private int TransformUnitsVersion = 1;
+        [DataMember] public float CameraXYZSpeed { get; set; } = DefaultCameraXYZSpeed;
         [DataMember] public float CameraYawPitchSpeed { get; set; } = 0.03f;
         [DataMember] public float CameraMouseXSensitivity { get; set; } = 0.001f;
         [DataMember] public float CameraMouseYSensitivity { get; set; } = 0.001f;
         [DataMember] public float CameraOrbitHorizontalStep { get; set; } = 5f;
         [DataMember] public float CameraOrbitVerticalStep { get; set; } = 5f;
-        [DataMember] public float CameraFollowScale { get; set; } = DefaultCameraFollowScale;
         [DataMember] public float CameraFollowVerticalDeadzone { get; set; } = DefaultCameraFollowVerticalDeadzone;
         [DataMember] public float CameraFollowSpeed { get; set; } = DefaultCameraFollowSpeed;
         [DataMember] public Dictionary<string, HotkeyBinding> Hotkeys { get; set; } = new Dictionary<string, HotkeyBinding>();
@@ -84,17 +84,18 @@ namespace Crash.Helper
             CameraInvertMouseX = source.CameraInvertMouseX;
             CameraInvertMouseY = source.CameraInvertMouseY;
             PositionXYZSpeed = source.PositionXYZSpeed;
+            ResetCameraWhenPositionTP = source.ResetCameraWhenPositionTP;
+            TransformUnitsVersion = source.TransformUnitsVersion;
             CameraXYZSpeed = source.CameraXYZSpeed;
             CameraYawPitchSpeed = source.CameraYawPitchSpeed;
             CameraMouseXSensitivity = source.CameraMouseXSensitivity;
             CameraMouseYSensitivity = source.CameraMouseYSensitivity;
             CameraOrbitHorizontalStep = source.CameraOrbitHorizontalStep;
             CameraOrbitVerticalStep = source.CameraOrbitVerticalStep;
-            CameraFollowScale = source.CameraFollowScale;
             CameraFollowVerticalDeadzone = source.CameraFollowVerticalDeadzone;
             CameraFollowSpeed = source.CameraFollowSpeed;
             Hotkeys = new Dictionary<string, HotkeyBinding>();
-            foreach (var entry in source.Hotkeys)
+            foreach (var entry in source.Hotkeys ?? new Dictionary<string, HotkeyBinding>())
                 Hotkeys[entry.Key] = entry.Value?.Clone() ?? new HotkeyBinding();
         }
 
@@ -108,14 +109,13 @@ namespace Crash.Helper
                 if (settings.Hotkeys == null) settings.Hotkeys = new Dictionary<string, HotkeyBinding>();
                 if (!Controls.LevelSelectorControl.Levels.ContainsKey(settings.StartupLevel ?? string.Empty))
                     settings.StartupLevel = DefaultStartupLevel;
-                if (!IsMovementValueValid(settings.CameraXYZSpeed)) settings.CameraXYZSpeed = 30f;
-                if (!IsMovementValueValid(settings.PositionXYZSpeed)) settings.PositionXYZSpeed = 0.8f;
+                if (!IsMovementValueValid(settings.CameraXYZSpeed)) settings.CameraXYZSpeed = DefaultCameraXYZSpeed;
+                if (!IsMovementValueValid(settings.PositionXYZSpeed)) settings.PositionXYZSpeed = DefaultPositionXYZSpeed;
                 if (!IsMovementValueValid(settings.CameraYawPitchSpeed)) settings.CameraYawPitchSpeed = 0.03f;
                 if (!IsMovementValueValid(settings.CameraMouseXSensitivity)) settings.CameraMouseXSensitivity = 0.001f;
                 if (!IsMovementValueValid(settings.CameraMouseYSensitivity)) settings.CameraMouseYSensitivity = 0.001f;
                 if (!IsMovementValueValid(settings.CameraOrbitHorizontalStep)) settings.CameraOrbitHorizontalStep = 5f;
                 if (!IsMovementValueValid(settings.CameraOrbitVerticalStep)) settings.CameraOrbitVerticalStep = 5f;
-                if (!IsMovementValueValid(settings.CameraFollowScale)) settings.CameraFollowScale = DefaultCameraFollowScale;
                 if (!IsMovementValueValid(settings.CameraFollowVerticalDeadzone)) settings.CameraFollowVerticalDeadzone = DefaultCameraFollowVerticalDeadzone;
                 if (!IsMovementValueValid(settings.CameraFollowSpeed)) settings.CameraFollowSpeed = DefaultCameraFollowSpeed;
                 if (string.IsNullOrWhiteSpace(settings.SteamPath)) settings.SteamPath = new HelperSettings().SteamPath;
@@ -137,14 +137,27 @@ namespace Crash.Helper
             LegacyMaskOption = false;
             StartupLevel = DefaultStartupLevel;
             CameraMoveWithPitch = true;
-            PositionXYZSpeed = 0.8f;
-            CameraXYZSpeed = 30f;
+            TransformUnitsVersion = 0;
+            PositionXYZSpeed = float.NaN;
+            ResetCameraWhenPositionTP = true;
+            CameraXYZSpeed = DefaultCameraXYZSpeed;
             CameraYawPitchSpeed = 0.03f;
             CameraMouseXSensitivity = CameraMouseYSensitivity = 0.001f;
             CameraOrbitHorizontalStep = CameraOrbitVerticalStep = 5f;
-            CameraFollowScale = DefaultCameraFollowScale;
-            CameraFollowVerticalDeadzone = DefaultCameraFollowVerticalDeadzone;
+            CameraFollowVerticalDeadzone = float.NaN;
             CameraFollowSpeed = DefaultCameraFollowSpeed;
+        }
+
+        [OnDeserialized]
+        private void UpgradeTransformUnits(StreamingContext context)
+        {
+            bool legacy = TransformUnitsVersion < 1;
+            PositionXYZSpeed = !IsMovementValueValid(PositionXYZSpeed) ? DefaultPositionXYZSpeed : legacy ? Math.Min(1000, PositionXYZSpeed / 0.0254f) : PositionXYZSpeed;
+            CameraFollowVerticalDeadzone = !IsMovementValueValid(CameraFollowVerticalDeadzone) ? DefaultCameraFollowVerticalDeadzone : legacy ? Math.Min(1000, CameraFollowVerticalDeadzone / 0.0254f) : CameraFollowVerticalDeadzone;
+            // Update the previous defaults, while preserving customized values.
+            if (Math.Abs(PositionXYZSpeed - 0.8f / 0.0254f) < 0.00001f) PositionXYZSpeed = DefaultPositionXYZSpeed;
+            if (Math.Abs(CameraFollowVerticalDeadzone - 1.5f / 0.0254f) < 0.00001f) CameraFollowVerticalDeadzone = DefaultCameraFollowVerticalDeadzone;
+            TransformUnitsVersion = 1;
         }
 
         public static void SaveAdvancedControls(bool enabled)
@@ -159,7 +172,7 @@ namespace Crash.Helper
             if (!IsMovementValueValid(value)) throw new ArgumentOutOfRangeException(nameof(value));
             if (name != nameof(CameraXYZSpeed) && name != nameof(CameraYawPitchSpeed) &&
                 name != nameof(CameraMouseXSensitivity) && name != nameof(CameraMouseYSensitivity) && name != nameof(PositionXYZSpeed) &&
-                name != nameof(CameraFollowScale) && name != nameof(CameraFollowVerticalDeadzone) && name != nameof(CameraFollowSpeed) &&
+                name != nameof(CameraFollowVerticalDeadzone) && name != nameof(CameraFollowSpeed) &&
                 name != nameof(CameraOrbitHorizontalStep) && name != nameof(CameraOrbitVerticalStep))
                 throw new ArgumentException("Unknown movement setting.", nameof(name));
             SaveSingleSetting(name, "number", value.ToString("R", CultureInfo.InvariantCulture));
@@ -173,7 +186,6 @@ namespace Crash.Helper
                 case nameof(CameraOrbitHorizontalStep): CameraOrbitHorizontalStep = value; break;
                 case nameof(CameraOrbitVerticalStep): CameraOrbitVerticalStep = value; break;
                 case nameof(PositionXYZSpeed): PositionXYZSpeed = value; break;
-                case nameof(CameraFollowScale): CameraFollowScale = value; break;
                 case nameof(CameraFollowVerticalDeadzone): CameraFollowVerticalDeadzone = value; break;
                 case nameof(CameraFollowSpeed): CameraFollowSpeed = value; break;
             }
@@ -187,8 +199,25 @@ namespace Crash.Helper
                 using (var reader = JsonReaderWriterFactory.CreateJsonReader(File.ReadAllBytes(FilePath), XmlDictionaryReaderQuotas.Max))
                     document = XDocument.Load(reader);
                 if (document.Root?.Attribute("type")?.Value != "object") throw new InvalidDataException("Settings must be a JSON object.");
+                if (document.Root.Element(nameof(TransformUnitsVersion))?.Value != "1")
+                {
+                    // Upgrade related values together, even when saving just one setting.
+                    // Keep unknown JSON members and existing shortcut bindings intact.
+                    var upgraded = Load();
+                    foreach (var entry in new Dictionary<string, float>
+                    {
+                        [nameof(PositionXYZSpeed)] = upgraded.PositionXYZSpeed,
+                        [nameof(CameraFollowVerticalDeadzone)] = upgraded.CameraFollowVerticalDeadzone,
+                        [nameof(TransformUnitsVersion)] = 1
+                    })
+                    {
+                        document.Root.Element(entry.Key)?.Remove();
+                        document.Root.Add(new XElement(entry.Key, new XAttribute("type", "number"), entry.Value.ToString("R", CultureInfo.InvariantCulture)));
+                    }
+                }
             }
             else document = new XDocument(new XElement("root", new XAttribute("type", "object")));
+            document.Root.Element("CameraFollowScale")?.Remove();
             var setting = new XElement(name, new XAttribute("type", type), value);
             var previous = document.Root.Element(name);
             if (previous == null) document.Root.Add(setting);

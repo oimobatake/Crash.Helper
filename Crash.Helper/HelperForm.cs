@@ -59,6 +59,7 @@ namespace Crash.Helper
             levelSelector.LaunchRequested += LaunchGame;
             positionControl = new PositionControl(memory) { Enabled = false };
             cameraControl = new CameraControl { IsLoading = () => memory.IsLoading, PlayerPosition = positionControl.ReadPlayerPosition };
+            positionControl.ResetCameraAfterTeleport = cameraControl.ResetForPositionTeleportAsync;
             othersControl = new OthersControl();
             othersControl.FadeWriteDisabledChanged += positionControl.SetFadeWriteDisabled;
             hotkeyManager = new HotkeyManager(HelperHotkeyActions.Create(memory, dataControl, levelSelector, positionControl, cameraControl, othersControl), settings,
@@ -159,6 +160,7 @@ namespace Crash.Helper
             positionControl.SetLoading(loading);
             positionControl.SetFadeBlocked(FadeMemory.SuspendPositionFreeze(memory.PositionX.Process, memory.Profile));
             cameraControl.SetLoading(loading);
+            cameraControl.SetPlayerDead(memory.IsDead);
         }
 
         private void ToggleAdvancedControls()

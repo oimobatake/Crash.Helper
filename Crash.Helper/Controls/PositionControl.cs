@@ -33,12 +33,20 @@ namespace Crash.Helper.Controls
         private bool loading, movementDisabled, fadeBlocked, fadeWriteDisabled;
         private bool available;
         private bool updateSuspended;
-        internal bool InputDisabled => movementDisabled || loading || fadeBlocked || fadeWriteDisabled;
+        private bool runtimeAvailable;
+        private bool teleporting;
+        private long lastTeleportTime, lastTeleportVersion;
+        private float[] lastTeleportTarget;
+        internal Func<Task> ResetCameraAfterTeleport { get; set; }
+        private float[] displayedPosition;
+        private long bindingVersion;
+        private bool UsesEngine => ReferenceEquals(memory.Profile, GameMemoryProfile.Steam);
+        internal bool InputDisabled => movementDisabled || (UsesEngine ? !runtimeAvailable : loading || fadeBlocked || fadeWriteDisabled);
         internal event Action InputStateChanged;
 
         internal void SetAvailability(bool value) { available = value; UpdateState(); }
         internal bool CanAdjustSpeed => CanEdit && freezeCheckboxes.Any(box => box.Checked);
-        private bool CanEdit => !updateSuspended && available && memory.ProcessHooked && !closing && !InputDisabled && !FadeMemory.SuspendPositionFreeze(memory.PositionX.Process, memory.Profile);
+        private bool CanEdit => !updateSuspended && available && memory.ProcessHooked && !closing && !InputDisabled && (UsesEngine || !FadeMemory.SuspendPositionFreeze(memory.PositionX.Process, memory.Profile));
         internal event Action<bool> EditingChanged;
 
         public PositionControl(CrashMemory memory)
@@ -119,17 +127,29 @@ namespace Crash.Helper.Controls
 
         private void UpdateEditor(int index)
         {
+            if (UsesEngine) { editors[index].Text = displayedPosition == null ? "-" : FormatCoordinate(displayedPosition[index]); return; }
             if (loading) return;
             editors[index].Text = available && memory.ProcessHooked ? FormatCoordinate(pointers[index].Read()) : "-";
         }
 
         public void RefreshValues()
         {
+            bool previous = runtimeAvailable;
+            displayedPosition = UsesEngine ? ReadPlayerPosition() : null;
+            runtimeAvailable = displayedPosition != null && motion.CanWrite;
+            long currentVersion = motion.BindingVersion;
+            if (UsesEngine && (!runtimeAvailable || currentVersion != bindingVersion))
+            {
+                Array.Clear(buttonHeld, 0, buttonHeld.Length);
+                foreach (var box in freezeCheckboxes) if (box.Checked) box.Checked = false;
+            }
+            bindingVersion = currentVersion;
             UpdateState();
             for (int i = 0; i < editors.Length; i++) if (!editors[i].Focused) UpdateEditor(i);
+            if (previous != runtimeAvailable) InputStateChanged?.Invoke();
         }
 
-        // Thread-safe read for other workers. Returns null during loading, fades, or when unavailable.
+        // Engine transforms depend on actor lifetime, including when the screen is fading.
         internal float[] ReadPlayerPosition()
         {
             if (closing) return null;
@@ -151,11 +171,23 @@ namespace Crash.Helper.Controls
             catch (Exception ex) { HelperLog.Error("Save player position", ex); }
         }
 
-        internal void Teleport()
+        internal async void Teleport()
         {
-            if (!CanEdit || savedPosition == null) return;
-            WritePosition(savedPosition.Select(value => (float?)value).ToArray());
-            RefreshValues();
+            if (!CanEdit || savedPosition == null || teleporting) return;
+            long now = Stopwatch.GetTimestamp();
+            bool repeated = lastTeleportTarget != null && lastTeleportTarget.SequenceEqual(savedPosition) && lastTeleportVersion == motion.BindingVersion &&
+                (now - lastTeleportTime) / (double)Stopwatch.Frequency < 0.25;
+            lastTeleportTime = now; lastTeleportVersion = motion.BindingVersion; lastTeleportTarget = (float[])savedPosition.Clone();
+            teleporting = true;
+            try
+            {
+                bool applied = await motion.TeleportAsync((float[])savedPosition.Clone());
+                if (applied && !repeated && !closing && settings?.ResetCameraWhenPositionTP != false && ResetCameraAfterTeleport != null)
+                    await ResetCameraAfterTeleport();
+                if (!closing) RefreshValues();
+            }
+            catch (Exception ex) { HelperLog.Error("Teleport player", ex); }
+            finally { teleporting = false; }
         }
         internal void ToggleFreeze(int axis)
         {
@@ -165,7 +197,7 @@ namespace Crash.Helper.Controls
         private void UpdateState()
         {
             bool connected = !updateSuspended && available && memory.ProcessHooked && !closing;
-            bool writable = connected && !loading && !fadeBlocked && !fadeWriteDisabled && !memory.IsLoading;
+            bool writable = connected && (UsesEngine ? runtimeAvailable : !loading && !fadeBlocked && !fadeWriteDisabled && !memory.IsLoading);
             foreach (var editor in editors) if (editor != null) editor.Enabled = CanEdit;
             foreach (var checkbox in freezeCheckboxes) if (checkbox != null) checkbox.Enabled = writable;
             foreach (var button in Controls.OfType<Button>())
@@ -176,7 +208,7 @@ namespace Crash.Helper.Controls
                     movementButtons[axis, side].Enabled = CanEdit;
             PublishMotion();
             UpdatePatch(connected ? memory.PositionX.Process : null, connected ? memory.Profile?.PositionCodeOffset ?? 0 : 0,
-                writable && freezeCheckboxes.All(box => box != null && box.Checked));
+                !UsesEngine && writable && freezeCheckboxes.All(box => box != null && box.Checked));
         }
 
         private void PublishMotion()
@@ -188,7 +220,8 @@ namespace Crash.Helper.Controls
                 bool canAdjust = CanEdit;
                 for (int axis = 0; axis < adjustments.Length; axis++)
                     adjustments[axis] = canAdjust ? (buttonHeld[axis, 1] ? 1 : 0) - (buttonHeld[axis, 0] ? 1 : 0) : 0;
-                float speed = settings?.PositionXYZSpeed ?? 0.8f;
+                float speed = settings?.PositionXYZSpeed ?? HelperSettings.DefaultPositionXYZSpeed;
+                if (!UsesEngine) speed *= 0.0254f;
                 bool connected = !updateSuspended && available && memory.ProcessHooked;
                 motion.Configure(connected ? memory.PositionX.Process : null, connected ? memory.Profile : null, connected,
                     freezeCheckboxes.Select(box => box != null && box.Checked).ToArray(), inputEnabled && !movementDisabled,
@@ -219,7 +252,7 @@ namespace Crash.Helper.Controls
             fadeWriteDisabled = value;
             motion.SetFadeWriteDisabled(value);
             patchService.SetFadeWriteDisabled(value);
-            if (value) foreach (var box in freezeCheckboxes) box.Checked = false;
+            if (value && !UsesEngine) foreach (var box in freezeCheckboxes) box.Checked = false;
             UpdateState(); InputStateChanged?.Invoke();
         }
 
@@ -240,7 +273,7 @@ namespace Crash.Helper.Controls
 
         internal void ToggleMovement()
         {
-            if (!available || loading || fadeBlocked || fadeWriteDisabled || memory.IsLoading) return;
+            if (!available || (UsesEngine ? !runtimeAvailable : loading || fadeBlocked || fadeWriteDisabled || memory.IsLoading)) return;
             movementDisabled = !movementDisabled; UpdateState(); InputStateChanged?.Invoke();
         }
 

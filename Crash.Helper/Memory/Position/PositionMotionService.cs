@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Crash.Helper.Memory.Camera;
 using Crash.Helper.Memory.LevelLock;
+using Crash.Helper.Memory.Runtime;
 
 namespace Crash.Helper.Memory.Position
 {
@@ -21,10 +22,35 @@ namespace Crash.Helper.Memory.Position
         private bool active, acceptInput, stopping, disposed, contiguousPosition;
         private bool fadeWriteDisabled, fadeSuspended, loadingReset;
         private float[] fadePosition;
+        private RuntimeMemory engineMemory;
+        private PlayerPositionPatch enginePatch;
+        private PlayerBinding engineBinding;
+        private float[] enginePosition;
+        private float?[] engineManual = new float?[3];
+        private double engineElapsed;
+        private long bindingVersion;
+        private TaskCompletionSource<bool> teleportCompletion;
+        private long teleportCommand;
+        internal long BindingVersion { get { lock (sync) return bindingVersion; } }
+        internal bool CanWrite { get { lock (sync) return !UsesEngine || (engineBinding != null && engineBinding.Writable); } }
+        private bool UsesEngine => ReferenceEquals(profile, GameMemoryProfile.Steam);
+
+        private void ReleaseEngine()
+        {
+            CompleteTeleport(false);
+            enginePatch?.Dispose(); enginePatch = null;
+            engineMemory?.Dispose(); engineMemory = null;
+            engineBinding = null; enginePosition = null; engineManual = new float?[3]; engineElapsed = 0;
+        }
 
         internal void ResetForLoading()
         {
-            lock (sync) { loadingReset = true; frozen = new bool[3]; adjustments = new int[3]; fadePosition = null; fadeSuspended = false; }
+            lock (sync)
+            {
+                CompleteTeleport(false);
+                loadingReset = true; frozen = new bool[3]; adjustments = new int[3]; fadePosition = null; fadeSuspended = false;
+                enginePatch?.Cancel(); engineManual = new float?[3]; engineBinding = null; enginePosition = null; engineElapsed = 0;
+            }
             changed.Set();
         }
 
@@ -33,7 +59,7 @@ namespace Crash.Helper.Memory.Position
             lock (sync)
             {
                 fadeWriteDisabled = value;
-                if (value) { fadePosition = null; frozen = new bool[3]; loadingReset = true; }
+                if (value && !UsesEngine) { fadePosition = null; frozen = new bool[3]; loadingReset = true; }
             }
             changed.Set();
         }
@@ -59,15 +85,16 @@ namespace Crash.Helper.Memory.Position
                 }
                 if (replaced || profile != memoryProfile)
                 {
+                    ReleaseEngine();
                     capture = (bool[])axes.Clone(); fadePosition = null; fadeSuspended = false; loadingReset = false;
                     contiguousPosition = HasContiguousPosition(memoryProfile?.Position);
                 }
                 if (!axes.Any(value => value)) loadingReset = false;
                 for (int i = 0; i < 3; i++) if (axes[i] && !frozen[i]) capture[i] = true;
                 profile = memoryProfile; active = enabled && process != null && profile != null;
-                frozen = loadingReset || fadeWriteDisabled ? new bool[3] : (bool[])axes.Clone(); directions = (int[])movement.Clone();
+                frozen = loadingReset || (!UsesEngine && fadeWriteDisabled) ? new bool[3] : (bool[])axes.Clone(); directions = (int[])movement.Clone();
                 acceptInput = input; speed = xyzSpeed; orientation = view;
-                adjustments = (int[])axisAdjustments.Clone();
+                adjustments = loadingReset ? new int[3] : (int[])axisAdjustments.Clone();
             }
             changed.Set();
         }
@@ -76,6 +103,17 @@ namespace Crash.Helper.Memory.Position
         {
             lock (sync)
             {
+                CompleteTeleport(false);
+                if (UsesEngine)
+                {
+                    if (!active || stopping || loadingReset) return;
+                    for (int i = 0; i < 3; i++) if (update[i].HasValue)
+                    {
+                        if (!RuntimeMemory.Finite(update[i].Value)) throw new ArgumentOutOfRangeException(nameof(update));
+                        engineManual[i] = update[i]; values[i] = update[i].Value; capture[i] = false;
+                    }
+                    TickEngine(0); changed.Set(); return;
+                }
                 if (!active || stopping || TransitionBlocked()) return;
                 for (int i = 0; i < 3; i++) if (update[i].HasValue)
                 {
@@ -85,11 +123,37 @@ namespace Crash.Helper.Memory.Position
                 }
             }
         }
+        internal Task<bool> TeleportAsync(float[] target)
+        {
+            lock (sync)
+            {
+                if (!UsesEngine) { Write(target.Select(value => (float?)value).ToArray()); return Task.FromResult(true); }
+                if (!active || stopping || loadingReset || engineBinding == null || !engineBinding.Writable) return Task.FromResult(false);
+                if (target.Length != 3 || !target.All(RuntimeMemory.Finite)) throw new ArgumentOutOfRangeException(nameof(target));
+                CompleteTeleport(false);
+                var completion = teleportCompletion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+                for (int i = 0; i < 3; i++) { engineManual[i] = target[i]; values[i] = target[i]; capture[i] = false; }
+                TickEngine(0); changed.Set(); return completion.Task;
+            }
+        }
+        private void CompleteTeleport(bool success)
+        {
+            var completion = teleportCompletion; teleportCompletion = null; teleportCommand = 0;
+            completion?.TrySetResult(success);
+        }
 
         internal float[] ReadValues()
         {
             lock (sync)
             {
+                if (UsesEngine)
+                {
+                    if (!active || stopping || engineMemory == null) return null;
+                    var subject = engineMemory.PositionSubject(); if (subject == null) return null;
+                    var position = enginePatch.Read(subject);
+                    if (position == null && !enginePatch.Pending) enginePatch.Submit(subject, null);
+                    return position;
+                }
                 if (!active || stopping || TransitionBlocked()) return null;
                 var paths = profile.Position;
                 if (contiguousPosition)
@@ -138,6 +202,74 @@ namespace Crash.Helper.Memory.Position
                 fadePosition = null;
             }
             return false;
+        }
+
+        private bool TickEngine(double seconds)
+        {
+            if (engineMemory == null)
+            {
+                engineMemory = new RuntimeMemory(process);
+                try { enginePatch = new PlayerPositionPatch(engineMemory); }
+                catch { engineMemory.Dispose(); engineMemory = null; throw; }
+            }
+            var currentBinding = engineMemory.Player();
+            if (currentBinding == null)
+            {
+                CompleteTeleport(false);
+                if (engineBinding != null) bindingVersion++;
+                enginePatch.Cancel(); engineBinding = null; enginePosition = null;
+                engineManual = new float?[3]; engineElapsed = 0; frozen = new bool[3]; adjustments = new int[3];
+                loadingReset = true; capture = new bool[3]; return false;
+            }
+            if (!currentBinding.Same(engineBinding))
+            {
+                enginePatch.Cancel();
+                if (engineBinding != null)
+                {
+                    CompleteTeleport(false);
+                    engineManual = new float?[3]; frozen = new bool[3]; adjustments = new int[3];
+                    directions = new int[3]; loadingReset = true;
+                }
+                bindingVersion++;
+                capture = (bool[])frozen.Clone(); engineElapsed = 0;
+            }
+            // Pooled actors can keep the same address and ID while their ownership guards change.
+            engineBinding = currentBinding;
+            enginePosition = enginePatch.Read(engineBinding);
+            if (teleportCommand != 0 && enginePatch.CompletedCommand >= teleportCommand)
+                CompleteTeleport(enginePatch.CompletedCommand == teleportCommand && enginePatch.CommandSucceeded);
+            if (enginePosition == null)
+            { if (!enginePatch.Pending) enginePatch.Submit(engineBinding, null); return false; }
+            if (!engineBinding.Writable)
+            {
+                CompleteTeleport(false);
+                enginePatch.Cancel(); engineManual = new float?[3]; frozen = new bool[3]; adjustments = new int[3];
+                loadingReset = true; engineElapsed = 0; return false;
+            }
+            bool moving = frozen.Any(value => value) || adjustments.Any(value => value != 0) || engineManual.Any(value => value.HasValue);
+            engineElapsed = moving ? Math.Min(0.05, engineElapsed + Math.Max(0, seconds)) : 0;
+            enginePatch.ConfigureFreeze(engineBinding, frozen);
+            if (enginePatch.Pending) return moving;
+            for (int axis = 0; axis < 3; axis++) if (frozen[axis] && capture[axis])
+            { values[axis] = enginePosition[axis]; capture[axis] = false; }
+            var update = new float?[3]; var delta = HotkeyDelta(engineElapsed);
+            double distance = speed * engineElapsed / 0.03;
+            for (int axis = 0; axis < 3; axis++)
+            {
+                if (engineManual[axis].HasValue) values[axis] = engineManual[axis].Value;
+                else if (frozen[axis] || adjustments[axis] != 0)
+                    values[axis] = (frozen[axis] ? values[axis] : enginePosition[axis]) + (frozen[axis] ? delta?[axis] ?? 0 : 0) + (float)(adjustments[axis] * distance);
+                else continue;
+                if (RuntimeMemory.Finite(values[axis])) update[axis] = values[axis];
+            }
+            bool writes = update.Any(value => value.HasValue);
+            bool manual = engineManual.Any(value => value.HasValue);
+            if ((writes || engineMemory.Number(engineBinding.Actor + 0x10) != 0) && enginePatch.Submit(engineBinding, writes ? update : null))
+            {
+                if (manual && teleportCompletion != null && teleportCommand == 0) teleportCommand = enginePatch.SubmittedCommand;
+                engineManual = new float?[3]; engineElapsed = 0;
+            }
+            return writes;
         }
 
         private long Address(int[] offsets)
@@ -205,9 +337,12 @@ namespace Crash.Helper.Memory.Position
                         previous = now;
                         try
                         {
-                            wasActive = ticking && !TransitionBlocked() && (frozen.Any(value => value) || adjustments.Any(value => value != 0));
-                            if (wasActive)
+                            if (ticking && UsesEngine) wasActive = TickEngine(elapsed);
+                            else
                             {
+                              wasActive = ticking && !TransitionBlocked() && (frozen.Any(value => value) || adjustments.Any(value => value != 0));
+                              if (wasActive)
+                              {
                                 for (int i = 0; i < 3; i++) if (frozen[i] && capture[i])
                                 {
                                     values[i] = BitConverter.ToSingle(Read(Address(profile.Position[i]), 4), 0); capture[i] = false;
@@ -224,21 +359,22 @@ namespace Crash.Helper.Memory.Position
                                     values[i] = value;
                                     WriteAxis(i, value);
                                 }
+                              }
                             }
                         }
-                        catch (Exception ex) { wasActive = false; HelperLog.Error("Update player position", ex); }
+                        catch (Exception ex) { CompleteTeleport(false); wasActive = false; HelperLog.Error("Update player position", ex); }
                     }
                     if (ticking && !precise) precise = timeBeginPeriod(1) == 0;
                     else if (!ticking && precise) { timeEndPeriod(1); precise = false; }
                     changed.WaitOne(ticking ? 8 : Timeout.Infinite);
                 }
             }
-            finally { if (precise) timeEndPeriod(1); }
+            finally { lock (sync) ReleaseEngine(); if (precise) timeEndPeriod(1); }
         }
 
         internal Task ShutdownAsync()
         {
-            lock (sync) stopping = true;
+            lock (sync) { stopping = true; CompleteTeleport(false); }
             changed.Set(); return worker;
         }
 

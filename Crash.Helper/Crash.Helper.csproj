@@ -164,6 +164,11 @@
     <Compile Include="Input\KeyIdentity.cs" />
     <Compile Include="HelperLog.cs" />
     <Compile Include="Memory\Camera\CameraProcessMemory.cs" />
+    <Compile Include="Memory\Camera\CameraFrameCode.cs" />
+    <Compile Include="Memory\Camera\CameraFollowCode.cs" />
+    <Compile Include="Memory\Camera\CameraSelection.cs" />
+    <Compile Include="Memory\Camera\CameraPathReader.cs" />
+    <Compile Include="Memory\Camera\OwnedCameraPatch.cs" />
     <Compile Include="Memory\Camera\CameraPatch.cs" />
     <Compile Include="Memory\Camera\CameraService.cs" />
     <Compile Include="Controls\CameraControl.cs">
@@ -177,6 +182,10 @@
     </Compile>
     <Compile Include="Memory\Position\PositionPatch.cs" />
     <Compile Include="Memory\Position\PositionPatchService.cs" />
+    <Compile Include="Memory\Runtime\RuntimeMemory.cs" />
+    <Compile Include="Memory\Runtime\RuntimeCode.cs" />
+    <Compile Include="Memory\Position\PlayerPositionPatch.cs" />
+    <Compile Include="Memory\Position\PositionWriteFilter.cs" />
     <Compile Include="Memory\Position\PositionMotionService.cs" />
     <Compile Include="Memory\LoadingMemory.cs" />
     <Compile Include="Memory\FadePatch.cs" />

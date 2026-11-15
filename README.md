@@ -1,4 +1,4 @@
-# Crash.Helper
+﻿# Crash.Helper
 
 CrashHelper is a speedrun practice tool for Crash Bandicoot N. Sane Trilogy.  
 It lets you adjust lives and masks, repeat levels, return to saved positions, and control the camera while the game is running.  
@@ -53,9 +53,9 @@ Level Lock changes the load destination; it does not instantly teleport you into
 
 Open [Settings] -> [CrashHelper] to change how level selection behaves:
 
+- `Startup level` chooses which level is selected when CrashHelper starts.
 - `Level Image` shows or hides the preview image of the selected level.
 - `Select current level when freezing` also selects the current level in the level list when you turn on `Freeze current level`.
-- `Startup level` chooses which level is selected when CrashHelper starts.
 
 ### Save and change the player's position
 
@@ -77,7 +77,6 @@ The Camera panel lets you arrange a view independently of the game's normal came
 - `Control YawPitch` gives you control over its horizontal and vertical viewing angles.
 - `Follow player` keeps the camera at its current offset from the player and turns on `Control XYZ`. Movement shortcuts adjust the offset while following.
 - `Orbit player` circles the camera around the player while always facing them, and turns on `Follow player`, `Control XYZ`, and `Control YawPitch`. Edit `Orbit H` (horizontal angle), `Orbit V` (vertical angle), and `Zoom` (distance from the player) and press Enter, or use the orbit and zoom shortcuts. The vertical angle stops just short of straight up or down.
-- In Settings, `Follow scale` converts player movement into camera movement, `Follow vertical deadzone` ignores small vertical player movement such as jumps, and `Follow speed` sets how quickly the camera catches up (0 moves it instantly). `Orbit Horizontal` and `Orbit Vertical` set how many degrees each orbit shortcut press turns the camera.
 - Edit values and press Enter, or use assigned movement and rotation shortcuts.
 - Enable `Mouse control` in Settings to look around with the mouse. Separate X/Y sensitivity and inverted X/Y options are available. Pitch stops just short of straight up or down so the view never flips.
 - Choose whether camera movement follows its pitch, and adjust movement and rotation speeds.
@@ -97,7 +96,7 @@ These checkboxes apply changes to the running game immediately.
 
 ### Control fade behavior
 
-Under [Advanced Controls] -> [Others], `Disable fade write` stops the game from updating its fade value. While this option is enabled, player-position editing and movement are disabled and position freezes are cleared.
+Under [Advanced Controls] -> [Others], `Disable fade write` stops the game from updating its fade value. On Steam, position editing and movement remain available during a fade, and with this option enabled, while the current player entity is valid. Writes stop when the player despawns or cannot be resolved. Xbox PC keeps the earlier safety behavior: enabling this option disables position editing and clears position freezes.
 
 ## Keyboard shortcuts and settings
 
