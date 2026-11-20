@@ -169,7 +169,7 @@ namespace Crash.Helper.Memory.Camera
             var current = state;
             if (current.Offset == null)
             {
-                // The player and camera share an origin, so the player in camera units is the orbit center.
+                // Convert the caller's orbit center to camera units.
                 current.Offset = new float[3];
                 current.TrackedZ = player[2];
             }

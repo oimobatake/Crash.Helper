@@ -41,6 +41,7 @@ namespace Crash.Helper
         public static string FilePath => Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "CrashHelper_Settings.json");
         [DataMember] public string SteamPath { get; set; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "Steam", "steam.exe");
         [DataMember] public bool HotkeysEnabled { get; set; } = true;
+        [DataMember] public bool AutoUpdate { get; set; } = true;
         [DataMember] public bool LevelImageEnabled { get; set; } = true;
         [DataMember] public bool SelectCurrentLevelOnFreeze { get; set; }
         [DataMember] public bool LegacyMaskOption { get; set; }
@@ -75,6 +76,7 @@ namespace Crash.Helper
             SteamPath = source.SteamPath;
             HotkeysEnabled = source.HotkeysEnabled;
             AdvancedControlsEnabled = source.AdvancedControlsEnabled;
+            AutoUpdate = source.AutoUpdate;
             LevelImageEnabled = source.LevelImageEnabled;
             SelectCurrentLevelOnFreeze = source.SelectCurrentLevelOnFreeze;
             LegacyMaskOption = source.LegacyMaskOption;
@@ -133,6 +135,7 @@ namespace Crash.Helper
         {
             // A file created by the Advanced Controls button can contain only its own setting.
             HotkeysEnabled = true;
+            AutoUpdate = true;
             LevelImageEnabled = true;
             LegacyMaskOption = false;
             StartupLevel = DefaultStartupLevel;

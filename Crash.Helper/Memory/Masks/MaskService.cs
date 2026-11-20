@@ -176,6 +176,7 @@ namespace Crash.Helper.Memory.Masks
                             // Read the post-event state before selecting the next command.
                             state = memory.Snapshot(); Publish(state);
                         }
+                        patch?.RestoreWhenIdle();
                         if (state.Paused && state.CanConfigure)
                         {
                             // Keep the selection and freeze policy; the native dispatcher still guards pause == 0.
@@ -222,6 +223,7 @@ namespace Crash.Helper.Memory.Masks
                             else patch.Send(state, direction);
                             if (!manual && !explicitTarget) nextAutomatic = Stopwatch.GetTimestamp() + Stopwatch.Frequency / 30;
                         }
+                        patch?.RestoreWhenIdle();
                         lastError = null;
                     }
                     catch (Exception ex)
@@ -233,7 +235,7 @@ namespace Crash.Helper.Memory.Masks
                         // Keep an in-flight dispatcher owned until it has completed or been cancelled.
                         if (patch != null)
                         {
-                            try { patch.Cancel(); }
+                            try { patch.Cancel(); patch.RestoreWhenIdle(); }
                             catch (Exception cancelError) { HelperLog.Error("Cancel mask event", cancelError); }
                         }
                         if (id == 0 || quit) { CompleteStop(ex); if (quit) break; }

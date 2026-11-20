@@ -3,9 +3,9 @@ using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Crash.Helper.Memory
+namespace Crash.Helper.Memory.Fade
 {
-    internal sealed class FadePatchService : IDisposable
+    internal sealed class FadeService : IDisposable
     {
         private readonly SemaphoreSlim gate = new SemaphoreSlim(1, 1);
         private FadePatch patch;

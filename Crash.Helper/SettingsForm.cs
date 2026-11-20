@@ -70,6 +70,9 @@ namespace Crash.Helper
             var legacyMasks = new CheckBox { Text = "Legacy Mask Option", AutoSize = true, Checked = draft.LegacyMaskOption };
             legacyMasks.CheckedChanged += (s, e) => draft.LegacyMaskOption = legacyMasks.Checked;
             layout.Controls.Add(legacyMasks);
+            var autoUpdate = new CheckBox { Text = "Auto Update", AutoSize = true, Checked = draft.AutoUpdate };
+            autoUpdate.CheckedChanged += (s, e) => draft.AutoUpdate = autoUpdate.Checked;
+            layout.Controls.Add(autoUpdate);
             helperPage.Controls.Add(layout);
             var footer = new Panel { Dock = DockStyle.Bottom, Height = 44, Padding = new Padding(8) };
             save = new Button { Text = "Save", Size = new Size(75, 25), Anchor = AnchorStyles.Top | AnchorStyles.Right };

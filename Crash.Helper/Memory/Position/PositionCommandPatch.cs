@@ -6,7 +6,7 @@ using Crash.Helper.Memory.Runtime;
 namespace Crash.Helper.Memory.Position
 {
     // Execute the actor's own teleport on the game thread, after checking its complete ownership chain.
-    internal sealed class PlayerPositionPatch : IDisposable
+    internal sealed class PositionCommandPatch : IDisposable
     {
         private readonly RuntimeMemory memory;
         private readonly long hook, cave, data;
@@ -23,7 +23,7 @@ namespace Crash.Helper.Memory.Position
         internal long CompletedCommand { get; private set; }
         internal bool CommandSucceeded { get; private set; }
 
-        internal PlayerPositionPatch(RuntimeMemory memory)
+        internal PositionCommandPatch(RuntimeMemory memory)
         {
             this.memory = memory; hook = memory.Base + 0xC003B0;
             memory.Require(hook, Original);
@@ -31,6 +31,10 @@ namespace Crash.Helper.Memory.Position
             thread = memory.Process.Threads.Cast<ProcessThread>().OrderBy(t => t.StartTime).First().Id;
             cave = memory.Allocate(hook, 12288); data = cave + 4096; jump = RuntimeCode.Jump(hook, cave);
             memory.Write(cave, Build(cave, data, memory.Base, thread)); memory.Protect(cave);
+        }
+        private void Install()
+        {
+            if (installed) return;
             memory.WhilePaused(() =>
             {
                 memory.Require(hook, Original);
@@ -97,13 +101,19 @@ namespace Crash.Helper.Memory.Position
                 mask |= 1 << i; BitConverter.GetBytes(value).CopyTo(bytes, 32 + i * 4);
             }
             BitConverter.GetBytes(mask).CopyTo(bytes, 8); BitConverter.GetBytes(binding.Actor).CopyTo(bytes, 16); BitConverter.GetBytes(binding.Driver).CopyTo(bytes, 24);
-            RuntimeCode.PackGuards(bytes, binding.Guards); memory.Require(hook, jump); memory.Write(data, bytes);
+            RuntimeCode.PackGuards(bytes, binding.Guards);
+            Install(); memory.Require(hook, jump); memory.Write(data, bytes);
             submitted = binding; SubmittedCommand++; pending = true; memory.Write(data, BitConverter.GetBytes(1)); return true;
         }
         internal bool Cancel()
         {
-            writeFilter?.Clear();
-            Poll(); lastBinding = null; lastPosition = null;
+            writeFilter?.Dispose();
+            lastBinding = null; lastPosition = null;
+            return CancelQueued();
+        }
+        internal bool CancelQueued()
+        {
+            Poll();
             if (!pending) return true;
             memory.WhilePaused(() => { if (memory.Number(data, 4) == 1) { memory.Write(data, BitConverter.GetBytes(0)); pending = false; } });
             Poll(); return !pending;
@@ -114,13 +124,19 @@ namespace Crash.Helper.Memory.Position
                 writeFilter = new PositionWriteFilter(memory, data, thread);
             writeFilter?.Configure(binding, axes);
         }
+        internal void RestoreWhenIdle()
+        {
+            if (!installed || pending || memory.Process.HasExited) return;
+            memory.WhilePaused(() => { memory.Require(hook, jump); memory.WriteCode(hook, Original); installed = false; });
+            // Reuse the code for later commands. An in-flight epilogue can still execute here.
+        }
         public void Dispose()
         {
-            if (!installed || memory.Process.HasExited) return;
-            Cancel();
-            writeFilter?.Dispose(); writeFilter = null;
-            memory.WhilePaused(() => { memory.Require(hook, jump); memory.WriteCode(hook, Original); installed = false; });
-            // Keep this immutable code page until process exit: a thread may still be in its epilogue.
+            if (memory.Process.HasExited) return;
+            Cancel(); writeFilter = null;
+            // A claimed command already owns its immutable packet and can finish through the original getter.
+            if (installed)
+                memory.WhilePaused(() => { memory.Require(hook, jump); memory.WriteCode(hook, Original); installed = false; });
         }
     }
 }

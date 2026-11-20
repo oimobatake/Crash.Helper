@@ -1,8 +1,7 @@
 using System;
 using System.Diagnostics;
-using Crash.Helper.Memory.LevelLock;
 
-namespace Crash.Helper.Memory
+namespace Crash.Helper.Memory.Fade
 {
     internal static class FadeMemory
     {
@@ -18,7 +17,7 @@ namespace Crash.Helper.Memory
                     bool last = i == offsets.Length - 1;
                     int size = last ? 4 : 8;
                     var bytes = new byte[size]; UIntPtr count;
-                    if (!LevelLockNative.ReadProcessMemory(process.Handle, new IntPtr(address + offsets[i]), bytes, (UIntPtr)size, out count) || count.ToUInt64() != (ulong)size) return null;
+                    if (!ProcessNative.ReadProcessMemory(process.Handle, new IntPtr(address + offsets[i]), bytes, (UIntPtr)size, out count) || count.ToUInt64() != (ulong)size) return null;
                     if (last)
                     {
                         float value = BitConverter.ToSingle(bytes, 0);

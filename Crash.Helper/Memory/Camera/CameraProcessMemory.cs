@@ -4,7 +4,6 @@ using System.Diagnostics;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading;
-using Crash.Helper.Memory.LevelLock;
 
 namespace Crash.Helper.Memory.Camera
 {
@@ -27,43 +26,43 @@ namespace Crash.Helper.Memory.Camera
             this.moduleBase = moduleBase;
             moduleEnd = checked(moduleBase + moduleSize);
             this.pattern = (byte?[])pattern.Clone();
-            handle = LevelLockNative.OpenProcess(0x0838 | 0x0400, false, process.Id);
-            try { LevelLockNative.Check(handle != IntPtr.Zero, "Open game memory for camera control"); }
+            handle = ProcessNative.OpenProcess(0x0838 | 0x0400, false, process.Id);
+            try { ProcessNative.Check(handle != IntPtr.Zero, "Open game memory for camera control"); }
             catch { Process.Dispose(); throw; }
         }
 
-        internal void WhilePaused(Action action) => LevelLockNative.WhilePaused(handle, Process, action);
+        internal void WhilePaused(Action action) => ProcessNative.WhilePaused(handle, Process, action);
 
         internal void ProtectCode(long address)
         {
             uint previous;
-            LevelLockNative.Check(LevelLockNative.VirtualProtectEx(handle, new IntPtr(address), (UIntPtr)4096, 0x20, out previous), "Protect camera trampoline");
-            LevelLockNative.Check(LevelLockNative.FlushInstructionCache(handle, new IntPtr(address), (UIntPtr)4096), "Flush camera trampoline");
+            ProcessNative.Check(ProcessNative.VirtualProtectEx(handle, new IntPtr(address), (UIntPtr)4096, 0x20, out previous), "Protect camera trampoline");
+            ProcessNative.Check(ProcessNative.FlushInstructionCache(handle, new IntPtr(address), (UIntPtr)4096), "Flush camera trampoline");
         }
 
         public void Dispose()
         {
-            LevelLockNative.CloseHandle(handle);
+            ProcessNative.CloseHandle(handle);
             Process.Dispose();
         }
         internal byte[] Read(long address, int size)
         {
             var bytes = new byte[size];
             UIntPtr count;
-            LevelLockNative.Check(LevelLockNative.ReadProcessMemory(handle, new IntPtr(address), bytes, (UIntPtr)size, out count) && count.ToUInt64() == (ulong)size, "Read camera hook memory");
+            ProcessNative.Check(ProcessNative.ReadProcessMemory(handle, new IntPtr(address), bytes, (UIntPtr)size, out count) && count.ToUInt64() == (ulong)size, "Read camera hook memory");
             return bytes;
         }
 
         internal void Write(long address, byte[] bytes)
         {
             UIntPtr count;
-            LevelLockNative.Check(LevelLockNative.WriteProcessMemory(handle, new IntPtr(address), bytes, (UIntPtr)bytes.Length, out count) && count.ToUInt64() == (ulong)bytes.Length, "Write camera hook memory");
+            ProcessNative.Check(ProcessNative.WriteProcessMemory(handle, new IntPtr(address), bytes, (UIntPtr)bytes.Length, out count) && count.ToUInt64() == (ulong)bytes.Length, "Write camera hook memory");
         }
 
-        private LevelLockNative.Region Query(long address)
+        private ProcessNative.Region Query(long address)
         {
-            LevelLockNative.Region region;
-            LevelLockNative.Check(LevelLockNative.VirtualQueryEx(handle, new IntPtr(address), out region, (UIntPtr)Marshal.SizeOf(typeof(LevelLockNative.Region))) != UIntPtr.Zero, "Query camera hook memory");
+            ProcessNative.Region region;
+            ProcessNative.Check(ProcessNative.VirtualQueryEx(handle, new IntPtr(address), out region, (UIntPtr)Marshal.SizeOf(typeof(ProcessNative.Region))) != UIntPtr.Zero, "Query camera hook memory");
             if (region.RegionSize.ToUInt64() == 0) throw new InvalidOperationException("The game returned an empty memory region.");
             return region;
         }
@@ -128,12 +127,12 @@ namespace Crash.Helper.Memory.Camera
                 if (entry[0] != 0xE9 || entry[5] != 0x90 || entry[6] != 0x90) return false;
                 cave = address + 5 + BitConverter.ToInt32(entry, 1);
                 // Accept only our exact trampoline, data layout, and return address.
-                if (!Read(cave, 19).SequenceEqual(CameraCode.Build(cave, cave + 4096, address + 7))) return false;
+                if (!Read(cave, 19).SequenceEqual(CameraCaptureCode.Build(cave, cave + 4096, address + 7))) return false;
                 owner = Read(cave + 4096 + 16, 48);
             }
             catch (System.ComponentModel.Win32Exception) { return false; }
             catch (OverflowException) { return false; }
-            if (owner.Take(CameraCode.OwnerMarker.Length).SequenceEqual(CameraCode.OwnerMarker))
+            if (owner.Take(CameraCaptureCode.OwnerMarker.Length).SequenceEqual(CameraCaptureCode.OwnerMarker))
             {
                 int pid = BitConverter.ToInt32(owner, 24);
                 long started = BitConverter.ToInt64(owner, 32);
@@ -186,27 +185,14 @@ namespace Crash.Helper.Memory.Camera
             foreach (long address in candidates.OrderBy(value => Math.Abs(value - target)))
             {
                 cancellation.ThrowIfCancellationRequested();
-                IntPtr allocated = LevelLockNative.VirtualAllocEx(handle, new IntPtr(address), (UIntPtr)8192, 0x3000, 0x04);
+                IntPtr allocated = ProcessNative.VirtualAllocEx(handle, new IntPtr(address), (UIntPtr)8192, 0x3000, 0x04);
                 if (allocated != IntPtr.Zero) return allocated.ToInt64();
             }
             throw new InvalidOperationException("Could not allocate a trampoline near the camera hook.");
         }
 
         internal void WriteCode(long address, byte[] bytes)
-        {
-            uint previous;
-            LevelLockNative.Check(LevelLockNative.VirtualProtectEx(handle, new IntPtr(address), (UIntPtr)bytes.Length, 0x40, out previous), "Make camera hook writable");
-            try
-            {
-                Write(address, bytes);
-                LevelLockNative.Check(LevelLockNative.FlushInstructionCache(handle, new IntPtr(address), (UIntPtr)bytes.Length), "Flush camera hook instructions");
-            }
-            finally
-            {
-                uint ignored;
-                LevelLockNative.Check(LevelLockNative.VirtualProtectEx(handle, new IntPtr(address), (UIntPtr)bytes.Length, previous, out ignored), "Restore camera hook protection");
-            }
-        }
+            => ProcessNative.WriteCode(handle, address, bytes, "camera hook");
 
     }
 }

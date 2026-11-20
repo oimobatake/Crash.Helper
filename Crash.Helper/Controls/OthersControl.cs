@@ -4,13 +4,14 @@ using System.Drawing;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using Crash.Helper.Memory;
+using Crash.Helper.Memory.Fade;
 
 namespace Crash.Helper.Controls
 {
     internal sealed class OthersControl : GroupBox
     {
         private readonly CheckBox disableFade = new CheckBox { Text = "Disable fade write", AutoSize = true, Location = new Point(12, 22) };
-        private readonly FadePatchService service = new FadePatchService();
+        private readonly FadeService service = new FadeService();
         private Process process;
         private GameMemoryProfile profile;
         private bool closing;

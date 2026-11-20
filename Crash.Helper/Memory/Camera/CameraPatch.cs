@@ -4,7 +4,6 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Linq;
 using System.Threading;
-using Crash.Helper.Memory.LevelLock;
 
 namespace Crash.Helper.Memory.Camera
 {
@@ -12,7 +11,7 @@ namespace Crash.Helper.Memory.Camera
     {
         private readonly CameraProcessMemory memory;
         private readonly CameraMemoryProfile profile;
-        private readonly OwnedCameraPatch owned;
+        private readonly CameraFramePatch owned;
         private readonly long positionCode, rotationCode;
         private readonly long moduleBase;
         private long injection, cave, pointerStorage;
@@ -28,7 +27,7 @@ namespace Crash.Helper.Memory.Camera
             this.profile = profile ?? throw new ArgumentNullException(nameof(profile));
             memory = new CameraProcessMemory(process, moduleBase, moduleSize, profile.CapturePattern);
             if (ReferenceEquals(profile, CameraMemoryProfile.Steam) && moduleSize == GameMemoryProfile.Steam.ModuleSize)
-                owned = new OwnedCameraPatch(new Runtime.RuntimeMemory(process));
+                owned = new CameraFramePatch(new Runtime.RuntimeMemory(process));
             positionCode = moduleBase + profile.PositionCodeOffset;
             rotationCode = moduleBase + profile.RotationCodeOffset;
         }
@@ -66,9 +65,9 @@ namespace Crash.Helper.Memory.Camera
                 {
                     long allocated = memory.AllocateNear(injection, cancellation);
                     pointerStorage = allocated + 4096;
-                    memory.Write(allocated, CameraCode.Build(allocated, pointerStorage, injection + 7));
+                    memory.Write(allocated, CameraCaptureCode.Build(allocated, pointerStorage, injection + 7));
                     memory.ProtectCode(allocated);
-                    capturePatch = CameraCode.Jump(injection, allocated, 7);
+                    capturePatch = CameraCaptureCode.Jump(injection, allocated, 7);
                     cave = allocated;
                 }
             }
@@ -78,17 +77,17 @@ namespace Crash.Helper.Memory.Camera
                 cancellation.ThrowIfCancellationRequested();
                 if (!installed)
                 {
-                    RequireBytes(injection, CameraCode.CaptureOriginal);
-                    RequireBytes(positionCode, CameraCode.PositionOriginal);
-                    RequireBytes(rotationCode, CameraCode.RotationOriginal);
+                    RequireBytes(injection, CameraCaptureCode.CaptureOriginal);
+                    RequireBytes(positionCode, CameraCaptureCode.PositionOriginal);
+                    RequireBytes(rotationCode, CameraCaptureCode.RotationOriginal);
                     RelocateCapture(true);
                     memory.Write(pointerStorage, new byte[8]);
                     WriteOwner();
                     installed = true;
                     memory.WriteCode(injection, capturePatch);
                 }
-                SetFreeze(positionCode, CameraCode.PositionOriginal, xyz, ref freezePosition);
-                SetFreeze(rotationCode, CameraCode.RotationOriginal, yawPitch, ref freezeRotation);
+                SetFreeze(positionCode, CameraCaptureCode.PositionOriginal, xyz, ref freezePosition);
+                SetFreeze(rotationCode, CameraCaptureCode.RotationOriginal, yawPitch, ref freezeRotation);
             });
         }
 
@@ -101,7 +100,7 @@ namespace Crash.Helper.Memory.Camera
 
         private void RelocateCapture(bool installing)
         {
-            LevelLockNative.RelocateThreads(memory.Process, rip =>
+            ProcessNative.RelocateThreads(memory.Process, rip =>
             {
                 if (installing && rip == injection + 3) return cave + 3;
                 if (!installing && (rip == injection + 5 || rip == injection + 6)) return injection + 7;
@@ -119,7 +118,7 @@ namespace Crash.Helper.Memory.Camera
             if (!enabled && current.SequenceEqual(original)) { applied = false; return; }
             if (!current.SequenceEqual(enabled ? original : nops))
                 throw new InvalidOperationException("Camera instructions were changed by another tool. No code was overwritten.");
-            LevelLockNative.RelocateThreads(memory.Process, rip =>
+            ProcessNative.RelocateThreads(memory.Process, rip =>
             {
                 if (rip <= address || rip >= address + original.Length) return rip;
                 if (!enabled) return address + original.Length;
@@ -167,7 +166,7 @@ namespace Crash.Helper.Memory.Camera
         private void WriteOwner()
         {
             var owner = new byte[48];
-            CameraCode.OwnerMarker.CopyTo(owner, 0);
+            CameraCaptureCode.OwnerMarker.CopyTo(owner, 0);
             using (var helper = Process.GetCurrentProcess())
             {
                 BitConverter.GetBytes(helper.Id).CopyTo(owner, 24);
@@ -183,13 +182,17 @@ namespace Crash.Helper.Memory.Camera
             if (IsPauseMenuOpen()) return;
             owned?.SetFollowAvailable(follow == null || player != null);
             if (follow != null && player == null) return;
-            owned?.SetOrbit(follow != null && follow.Orbiting && freezePosition, player, follow?.Scale ?? 1);
+            bool orbiting = follow != null && follow.Orbiting && freezePosition;
+            owned?.SetOrbit(orbiting, player, follow?.Scale ?? 1);
             owned?.SetNativeFollow(null);
             // Freeze removes the game writers. Movement must not suspend the entire game each frame.
             WriteValuesCore(null, true, current =>
             {
-                if (follow != null && follow.Orbiting && freezePosition)
-                    return follow.Orbit(current, directions, xyzSpeed, rotationSpeed, seconds, mouseYaw, mousePitch, player);
+                if (orbiting)
+                {
+                    var center = owned?.OrbitCenter(player) ?? player;
+                    return follow.Orbit(current, directions, xyzSpeed, rotationSpeed, seconds, mouseYaw, mousePitch, center);
+                }
                 var delta = CameraMovement.Delta(directions, xyzSpeed, rotationSpeed, seconds,
                     current[3], current[4], followPitch, mouseYaw, mousePitch);
                 if (follow == null || !freezePosition) return delta;
@@ -271,23 +274,23 @@ namespace Crash.Helper.Memory.Camera
             {
                 // Restore independent patches even if another tool changed one of them.
                 var failures = new List<Exception>();
-                try { SetFreeze(positionCode, CameraCode.PositionOriginal, false, ref freezePosition); }
+                try { SetFreeze(positionCode, CameraCaptureCode.PositionOriginal, false, ref freezePosition); }
                 catch (Exception ex) { failures.Add(ex); }
-                try { SetFreeze(rotationCode, CameraCode.RotationOriginal, false, ref freezeRotation); }
+                try { SetFreeze(rotationCode, CameraCaptureCode.RotationOriginal, false, ref freezeRotation); }
                 catch (Exception ex) { failures.Add(ex); }
                 try
                 {
                     if (installed)
                     {
-                        if (!memory.Read(injection, 7).SequenceEqual(CameraCode.CaptureOriginal))
+                        if (!memory.Read(injection, 7).SequenceEqual(CameraCaptureCode.CaptureOriginal))
                         {
                             RequireBytes(injection, capturePatch);
                             RelocateCapture(false);
-                            memory.WriteCode(injection, CameraCode.CaptureOriginal);
+                            memory.WriteCode(injection, CameraCaptureCode.CaptureOriginal);
                         }
                         installed = false;
                     }
-                    RequireBytes(injection, CameraCode.CaptureOriginal);
+                    RequireBytes(injection, CameraCaptureCode.CaptureOriginal);
                 }
                 catch (Exception ex) { failures.Add(ex); }
                 if (failures.Count > 0) throw new AggregateException("Could not restore camera instructions.", failures);

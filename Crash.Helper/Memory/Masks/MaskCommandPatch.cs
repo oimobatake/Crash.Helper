@@ -1,7 +1,6 @@
 using System;
 using System.Diagnostics;
 using System.Linq;
-using Crash.Helper.Memory.LevelLock;
 
 namespace Crash.Helper.Memory.Masks
 {
@@ -30,16 +29,21 @@ namespace Crash.Helper.Memory.Masks
             for (long distance = 65536; cave == 0 && distance < 0x10000000; distance += 65536)
                 foreach (long hint in new[] { anchor + distance, anchor - distance })
                 {
-                    cave = LevelLockNative.VirtualAllocEx(memory.Handle, new IntPtr(hint), (UIntPtr)8192, 0x3000, 4).ToInt64();
+                    cave = ProcessNative.VirtualAllocEx(memory.Handle, new IntPtr(hint), (UIntPtr)8192, 0x3000, 4).ToInt64();
                     if (cave != 0) break;
                 }
             if (cave == 0) throw new InvalidOperationException("Could not allocate the mask dispatcher.");
             data = cave + 4096; jump = MaskCommandCode.Jump(hook, cave);
             Write(cave, MaskCommandCode.Build(cave, data, memory.Base, thread));
             uint previous;
-            LevelLockNative.Check(LevelLockNative.VirtualProtectEx(memory.Handle, new IntPtr(cave), (UIntPtr)4096, 0x20, out previous), "Protect mask dispatcher");
-            LevelLockNative.Check(LevelLockNative.FlushInstructionCache(memory.Handle, new IntPtr(cave), (UIntPtr)4096), "Flush mask dispatcher");
-            LevelLockNative.WhilePaused(memory.Handle, memory.Process, () =>
+            ProcessNative.Check(ProcessNative.VirtualProtectEx(memory.Handle, new IntPtr(cave), (UIntPtr)4096, 0x20, out previous), "Protect mask dispatcher");
+            ProcessNative.Check(ProcessNative.FlushInstructionCache(memory.Handle, new IntPtr(cave), (UIntPtr)4096), "Flush mask dispatcher");
+        }
+
+        private void Install()
+        {
+            if (installed) return;
+            ProcessNative.WhilePaused(memory.Handle, memory.Process, () =>
             {
                 memory.Require(hook, MaskCommandCode.Original);
                 // A five-byte MOV is replaced as a single instruction; no partial original boundary exists.
@@ -51,15 +55,10 @@ namespace Crash.Helper.Memory.Masks
         private void Write(long address, byte[] bytes)
         {
             UIntPtr written;
-            LevelLockNative.Check(LevelLockNative.WriteProcessMemory(memory.Handle, new IntPtr(address), bytes, (UIntPtr)bytes.Length, out written) && written.ToUInt64() == (ulong)bytes.Length, "Write mask dispatcher");
+            ProcessNative.Check(ProcessNative.WriteProcessMemory(memory.Handle, new IntPtr(address), bytes, (UIntPtr)bytes.Length, out written) && written.ToUInt64() == (ulong)bytes.Length, "Write mask dispatcher");
         }
         private void WriteCode(long address, byte[] bytes)
-        {
-            uint previous;
-            LevelLockNative.Check(LevelLockNative.VirtualProtectEx(memory.Handle, new IntPtr(address), (UIntPtr)bytes.Length, 0x40, out previous), "Protect mask instructions");
-            try { Write(address, bytes); LevelLockNative.Check(LevelLockNative.FlushInstructionCache(memory.Handle, new IntPtr(address), (UIntPtr)bytes.Length), "Flush mask instructions"); }
-            finally { uint ignored; LevelLockNative.Check(LevelLockNative.VirtualProtectEx(memory.Handle, new IntPtr(address), (UIntPtr)bytes.Length, previous, out ignored), "Restore mask protection"); }
-        }
+            => ProcessNative.WriteCode(memory.Handle, address, bytes, "mask");
         internal void Send(MaskSnapshot snapshot, int direction)
         {
             Submit(snapshot, direction > 0 ? 0 : 1, direction);
@@ -107,6 +106,7 @@ namespace Crash.Helper.Memory.Masks
                 BitConverter.GetBytes(guards[i].Value).CopyTo(bytes, offset + 8);
                 BitConverter.GetBytes(guards[i].Size).CopyTo(bytes, offset + 16);
             }
+            Install();
             memory.Require(hook, jump); Write(data, bytes);
             sentAt = Stopwatch.GetTimestamp(); Pending = true;
             Write(data, BitConverter.GetBytes(1));
@@ -126,7 +126,7 @@ namespace Crash.Helper.Memory.Masks
             if (memory.Process.HasExited) { Pending = false; return 2; }
             int completion = 0;
             // Serialize cancellation with the game thread's atomic claim.
-            LevelLockNative.WhilePaused(memory.Handle, memory.Process, () =>
+            ProcessNative.WhilePaused(memory.Handle, memory.Process, () =>
             {
                 if (memory.Number(data, 4) != 0) { Write(data, BitConverter.GetBytes(0)); Pending = false; completion = 2; }
                 else
@@ -137,13 +137,17 @@ namespace Crash.Helper.Memory.Masks
             });
             return completion;
         }
+        internal void RestoreWhenIdle()
+        {
+            if (!installed || Pending || memory.Process.HasExited) return;
+            ProcessNative.WhilePaused(memory.Handle, memory.Process, () => { memory.Require(hook, jump); WriteCode(hook, MaskCommandCode.Original); installed = false; });
+            // Reuse the block on the next event. An in-flight epilogue can still use its code.
+        }
         public void Dispose()
         {
-            if (!installed || memory.Process.HasExited) return;
             Cancel();
             if (Pending) throw new InvalidOperationException("Wait for the active mask event to finish before removing its dispatcher.");
-            LevelLockNative.WhilePaused(memory.Handle, memory.Process, () => { memory.Require(hook, jump); WriteCode(hook, MaskCommandCode.Original); installed = false; });
-            // Keep this single 8 KiB block until process exit: a thread can still return through its epilogue.
+            RestoreWhenIdle();
         }
     }
 }

@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -28,6 +27,8 @@ namespace Crash.Helper
                 }
                 return;
             }
+            string pendingCleanup = args.Length == 2 && args[0] == UpdateInstaller.CleanupSwitch ? args[1] : null;
+            Task.Run(() => UpdateInstaller.CleanupCompleted(UpdateInstaller.StagingRoot, pendingCleanup));
             if (args.Contains(UpdateInstaller.RecoverySwitch))
             {
                 // A failed installation must not restart into another automatic update loop.

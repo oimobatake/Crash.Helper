@@ -4,6 +4,7 @@ namespace Crash.Helper
 {
     public partial class HelperForm
     {
+        internal bool AutoUpdateEnabled => settings.AutoUpdate;
         internal bool UpdateSuspended { get; private set; }
         private bool updateLoadingSeen;
 

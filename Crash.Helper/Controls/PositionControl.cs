@@ -6,6 +6,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using Crash.Helper.Memory;
+using Crash.Helper.Memory.Fade;
 using Crash.Helper.Memory.Position;
 
 namespace Crash.Helper.Controls
@@ -19,8 +20,8 @@ namespace Crash.Helper.Controls
         private readonly Button teleportButton;
         private float[] savedPosition;
         private readonly CheckBox[] freezeCheckboxes = new CheckBox[3];
-        private readonly PositionMotionService motion = new PositionMotionService();
-        private readonly PositionPatchService patchService = new PositionPatchService();
+        private readonly PositionService motion = new PositionService();
+        private readonly LegacyPositionService patchService = new LegacyPositionService();
         private HelperSettings settings;
         private Func<float[]> viewOrientation;
         private int[] heldDirections = new int[3];
@@ -30,7 +31,7 @@ namespace Crash.Helper.Controls
         private bool speedBoost;
         private Process patchProcess;
         private int patchOffset;
-        private bool loading, movementDisabled, fadeBlocked, fadeWriteDisabled;
+        private bool loading, fadeBlocked, fadeWriteDisabled;
         private bool available;
         private bool updateSuspended;
         private bool runtimeAvailable;
@@ -41,7 +42,8 @@ namespace Crash.Helper.Controls
         private float[] displayedPosition;
         private long bindingVersion;
         private bool UsesEngine => ReferenceEquals(memory.Profile, GameMemoryProfile.Steam);
-        internal bool InputDisabled => movementDisabled || (UsesEngine ? !runtimeAvailable : loading || fadeBlocked || fadeWriteDisabled);
+        internal bool GroupEnabled { get; private set; } = true;
+        internal bool InputDisabled => !GroupEnabled || (UsesEngine ? !runtimeAvailable : loading || fadeBlocked || fadeWriteDisabled);
         internal event Action InputStateChanged;
 
         internal void SetAvailability(bool value) { available = value; UpdateState(); }
@@ -175,9 +177,12 @@ namespace Crash.Helper.Controls
         {
             if (!CanEdit || savedPosition == null || teleporting) return;
             long now = Stopwatch.GetTimestamp();
-            bool repeated = lastTeleportTarget != null && lastTeleportTarget.SequenceEqual(savedPosition) && lastTeleportVersion == motion.BindingVersion &&
-                (now - lastTeleportTime) / (double)Stopwatch.Frequency < 0.25;
-            lastTeleportTime = now; lastTeleportVersion = motion.BindingVersion; lastTeleportTarget = (float[])savedPosition.Clone();
+            long version = motion.BindingVersion;
+            bool repeated = lastTeleportTarget != null && lastTeleportTarget.SequenceEqual(savedPosition) &&
+                lastTeleportVersion == version && (now - lastTeleportTime) / (double)Stopwatch.Frequency < 0.25;
+            lastTeleportTime = now;
+            lastTeleportVersion = version;
+            lastTeleportTarget = (float[])savedPosition.Clone();
             teleporting = true;
             try
             {
@@ -199,7 +204,7 @@ namespace Crash.Helper.Controls
             bool connected = !updateSuspended && available && memory.ProcessHooked && !closing;
             bool writable = connected && (UsesEngine ? runtimeAvailable : !loading && !fadeBlocked && !fadeWriteDisabled && !memory.IsLoading);
             foreach (var editor in editors) if (editor != null) editor.Enabled = CanEdit;
-            foreach (var checkbox in freezeCheckboxes) if (checkbox != null) checkbox.Enabled = writable;
+            foreach (var checkbox in freezeCheckboxes) if (checkbox != null) checkbox.Enabled = writable && GroupEnabled;
             foreach (var button in Controls.OfType<Button>())
                 if (!(button is HoldButton) || button == teleportButton)
                     button.Enabled = CanEdit && (button != teleportButton || savedPosition != null);
@@ -224,7 +229,7 @@ namespace Crash.Helper.Controls
                 if (!UsesEngine) speed *= 0.0254f;
                 bool connected = !updateSuspended && available && memory.ProcessHooked;
                 motion.Configure(connected ? memory.PositionX.Process : null, connected ? memory.Profile : null, connected,
-                    freezeCheckboxes.Select(box => box != null && box.Checked).ToArray(), inputEnabled && !movementDisabled,
+                    freezeCheckboxes.Select(box => box != null && box.Checked).ToArray(), inputEnabled && GroupEnabled,
                     heldDirections, speed * (speedBoost ? 2 : 1), viewOrientation, adjustments);
             }
             catch (Exception ex) { HelperLog.Error("Configure player movement", ex); }
@@ -240,7 +245,6 @@ namespace Crash.Helper.Controls
         internal void ResetControls()
         {
             motion.ResetForLoading();
-            movementDisabled = false;
             heldDirections = new int[3];
             speedBoost = false;
             foreach (var box in freezeCheckboxes) box.Checked = false;
@@ -273,8 +277,21 @@ namespace Crash.Helper.Controls
 
         internal void ToggleMovement()
         {
-            if (!available || (UsesEngine ? !runtimeAvailable : loading || fadeBlocked || fadeWriteDisabled || memory.IsLoading)) return;
-            movementDisabled = !movementDisabled; UpdateState(); InputStateChanged?.Invoke();
+            if (available && !updateSuspended && !closing) SetGroupEnabled(!GroupEnabled);
+        }
+
+        internal void SetGroupEnabled(bool value)
+        {
+            if (GroupEnabled == value) return;
+            GroupEnabled = value;
+            if (!value)
+            {
+                heldDirections = new int[3];
+                Array.Clear(buttonHeld, 0, buttonHeld.Length);
+                speedBoost = false;
+            }
+            UpdateState();
+            InputStateChanged?.Invoke();
         }
 
         private async void UpdatePatch(Process target, int offset, bool enabled)

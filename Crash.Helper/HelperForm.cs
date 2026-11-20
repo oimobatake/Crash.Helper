@@ -5,6 +5,7 @@ using Crash.Helper.Launcher;
 using System.Windows.Forms;
 using Crash.Helper.Controls;
 using Crash.Helper.Memory;
+using Crash.Helper.Memory.Fade;
 
 namespace Crash.Helper
 {
@@ -14,11 +15,12 @@ namespace Crash.Helper
         private readonly DataControl dataControl;
         private readonly LevelSelectorControl levelSelector;
         private readonly PositionControl positionControl;
-        private readonly GroupBox positionBox;
+        private readonly CheckableGroupBox positionBox;
         private readonly OthersControl othersControl;
         private bool advancedAvailable;
+        private bool helperActive;
         private readonly CameraControl cameraControl;
-        private readonly GroupBox cameraBox;
+        private readonly CheckableGroupBox cameraBox;
         private readonly ProcessControl processControl;
         private readonly Timer refreshTimer;
         private readonly Timer loadingTimer = new Timer { Interval = 33 };
@@ -100,15 +102,21 @@ namespace Crash.Helper
             leftColumn.Controls.Add(processControl);
             leftColumn.Controls.Add(dataControl);
             leftColumn.Controls.Add(levelSelector);
-            positionBox = new GroupBox { Text = "Position", Size = new Size(positionControl.Width + 15, positionControl.Height + 26), Margin = Padding.Empty, Enabled = false };
             positionControl.Location = new Point(7, 19);
             positionControl.Margin = Padding.Empty;
-            positionBox.Controls.Add(positionControl);
+            positionBox = new CheckableGroupBox("Position", positionControl)
+            {
+                Size = new Size(positionControl.Width + 15, positionControl.Height + 26), Margin = Padding.Empty
+            };
+            positionBox.CheckedChanged += positionControl.SetGroupEnabled;
             rightColumn.Controls.Add(positionBox);
-            cameraBox = new GroupBox { Text = "Camera", Size = new Size(cameraControl.Width + 15, 250), Margin = new Padding(0, 5, 0, 0), Enabled = false };
             cameraControl.Location = new Point(7, 19);
             cameraControl.Margin = Padding.Empty;
-            cameraBox.Controls.Add(cameraControl);
+            cameraBox = new CheckableGroupBox("Camera", cameraControl)
+            {
+                Width = cameraControl.Width + 15, Margin = new Padding(0, 5, 0, 0)
+            };
+            cameraBox.CheckedChanged += cameraControl.SetGroupEnabled;
             cameraControl.SizeChanged += (s, e) => cameraBox.Height = cameraControl.Height + 26;
             cameraBox.Height = cameraControl.Height + 26;
             rightColumn.Controls.Add(cameraBox);
@@ -149,8 +157,11 @@ namespace Crash.Helper
 
         private void RefreshAdvancedGroups()
         {
-            positionBox.Enabled = advancedAvailable && !positionControl.InputDisabled;
-            cameraBox.Enabled = advancedAvailable && memory.Profile?.Camera != null && !cameraControl.InputDisabled;
+            positionBox.SetState(helperActive && positionControl.GroupEnabled, advancedAvailable,
+                advancedAvailable && !positionControl.InputDisabled);
+            bool cameraAvailable = advancedAvailable && memory.Profile?.Camera != null;
+            cameraBox.SetState(helperActive && cameraControl.GroupEnabled, cameraAvailable,
+                cameraAvailable && !cameraControl.InputDisabled);
         }
 
         private void RefreshLoading()
@@ -214,11 +225,16 @@ namespace Crash.Helper
             else loadingTimer.Stop();
             advancedAvailable = advancedReady;
             positionControl.SetAvailability(advancedReady);
-            positionControl.Enabled = advancedReady;
+            cameraControl.SetAvailability(advancedReady ? memory.LoadMap.Process : null, advancedReady ? memory.Profile?.Camera : null);
+            if (helperActive != helperEnabled)
+            {
+                helperActive = helperEnabled;
+                positionControl.SetGroupEnabled(helperEnabled);
+                cameraControl.SetGroupEnabled(helperEnabled);
+            }
             positionControl.RefreshValues();
             RefreshAdvancedGroups();
             othersControl.SetAvailability(advancedReady ? memory.LoadMap.Process : null, advancedReady ? memory.Profile : null);
-            cameraControl.SetAvailability(advancedReady ? memory.LoadMap.Process : null, advancedReady ? memory.Profile?.Camera : null);
             levelSelector.ApplyAvailability(canConfigure, ready);
             dataControl.SetSecretLaunchAvailability(canConfigure && helperEnabled && !memory.ProcessHooked);
             settingsButton.Enabled = canConfigure;

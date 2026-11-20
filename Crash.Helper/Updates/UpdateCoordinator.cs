@@ -1,5 +1,4 @@
 using System;
-using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Threading;
@@ -19,7 +18,7 @@ namespace Crash.Helper.Updates
         {
             this.helper = helper;
             this.client = client ?? ReleaseUpdater.CreateClient();
-            this.stagingRoot = stagingRoot ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CrashHelper", "Updates");
+            this.stagingRoot = stagingRoot ?? UpdateInstaller.StagingRoot;
             helper.Shown += CheckOnStartup;
             helper.FormClosed += OnClosed;
         }
@@ -29,6 +28,7 @@ namespace Crash.Helper.Updates
         private async void CheckOnStartup(object sender, EventArgs e)
         {
             helper.Shown -= CheckOnStartup;
+            if (!helper.AutoUpdateEnabled) return;
             bool suspended = false;
             try
             {
@@ -37,13 +37,14 @@ namespace Crash.Helper.Updates
                 var release = await updater.CheckAsync(executable, lifetime.Token);
                 if (release == null) return;
                 // Do not discard edits in an open Settings dialog or interrupt an existing close.
-                while (!helper.IsDisposed && (helper.OwnedForms.Any(form => form.Visible) || helper.UpdateClosePending))
+                while (!helper.IsDisposed && helper.AutoUpdateEnabled && (helper.OwnedForms.Any(form => form.Visible) || helper.UpdateClosePending))
                     await Task.Delay(500, lifetime.Token);
                 lifetime.Token.ThrowIfCancellationRequested();
-                if (helper.IsDisposed) return;
+                if (helper.IsDisposed || !helper.AutoUpdateEnabled) return;
                 suspended = true;
                 await helper.SuspendForUpdateAsync();
                 lifetime.Token.ThrowIfCancellationRequested();
+                if (!helper.AutoUpdateEnabled) return;
                 using (var dialog = new UpdateDialog(async () =>
                 {
                     var package = await updater.DownloadAsync(release, executable, stagingRoot, lifetime.Token);

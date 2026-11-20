@@ -5,13 +5,13 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Crash.Helper.Memory.Camera;
-using Crash.Helper.Memory.LevelLock;
 using Crash.Helper.Memory.Runtime;
+using Crash.Helper.Memory.Fade;
 
 namespace Crash.Helper.Memory.Position
 {
     // The motion clock and memory writes must not depend on WinForms message traffic.
-    internal sealed class PositionMotionService : IDisposable
+    internal sealed class PositionService : IDisposable
     {
         private readonly object sync = new object();
         private readonly AutoResetEvent changed = new AutoResetEvent(false);
@@ -23,7 +23,7 @@ namespace Crash.Helper.Memory.Position
         private bool fadeWriteDisabled, fadeSuspended, loadingReset;
         private float[] fadePosition;
         private RuntimeMemory engineMemory;
-        private PlayerPositionPatch enginePatch;
+        private PositionCommandPatch enginePatch;
         private PlayerBinding engineBinding;
         private float[] enginePosition;
         private float?[] engineManual = new float?[3];
@@ -31,6 +31,10 @@ namespace Crash.Helper.Memory.Position
         private long bindingVersion;
         private TaskCompletionSource<bool> teleportCompletion;
         private long teleportCommand;
+        private const float FreezeCorrectionTolerance = 0.01f;
+        private bool pendingFreezeUpdate, cancelFreezeUpdate;
+        private int releaseAxes, submittedReleaseAxes;
+        private long releaseCommand;
         internal long BindingVersion { get { lock (sync) return bindingVersion; } }
         internal bool CanWrite { get { lock (sync) return !UsesEngine || (engineBinding != null && engineBinding.Writable); } }
         private bool UsesEngine => ReferenceEquals(profile, GameMemoryProfile.Steam);
@@ -38,6 +42,7 @@ namespace Crash.Helper.Memory.Position
         private void ReleaseEngine()
         {
             CompleteTeleport(false);
+            ClearFreezeRelease();
             enginePatch?.Dispose(); enginePatch = null;
             engineMemory?.Dispose(); engineMemory = null;
             engineBinding = null; enginePosition = null; engineManual = new float?[3]; engineElapsed = 0;
@@ -48,6 +53,7 @@ namespace Crash.Helper.Memory.Position
             lock (sync)
             {
                 CompleteTeleport(false);
+                ClearFreezeRelease();
                 loadingReset = true; frozen = new bool[3]; adjustments = new int[3]; fadePosition = null; fadeSuspended = false;
                 enginePatch?.Cancel(); engineManual = new float?[3]; engineBinding = null; enginePosition = null; engineElapsed = 0;
             }
@@ -69,7 +75,7 @@ namespace Crash.Helper.Memory.Position
         private float speed;
         private Func<float[]> orientation;
 
-        internal PositionMotionService() => worker = Task.Factory.StartNew(Run, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+        internal PositionService() => worker = Task.Factory.StartNew(Run, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
 
         internal void Configure(Process target, GameMemoryProfile memoryProfile, bool enabled, bool[] axes,
             bool input, int[] movement, float xyzSpeed, Func<float[]> view, int[] axisAdjustments)
@@ -92,7 +98,21 @@ namespace Crash.Helper.Memory.Position
                 if (!axes.Any(value => value)) loadingReset = false;
                 for (int i = 0; i < 3; i++) if (axes[i] && !frozen[i]) capture[i] = true;
                 profile = memoryProfile; active = enabled && process != null && profile != null;
-                frozen = loadingReset || (!UsesEngine && fadeWriteDisabled) ? new bool[3] : (bool[])axes.Clone(); directions = (int[])movement.Clone();
+                var nextFrozen = loadingReset || (!UsesEngine && fadeWriteDisabled) ? new bool[3] : (bool[])axes.Clone();
+                if (UsesEngine && active && engineBinding?.Writable == true)
+                {
+                    for (int axis = 0; axis < 3; axis++)
+                    {
+                        int bit = 1 << axis;
+                        if (nextFrozen[axis]) releaseAxes &= ~bit;
+                        else if (frozen[axis])
+                        {
+                            releaseAxes |= bit;
+                            if (pendingFreezeUpdate) cancelFreezeUpdate = true;
+                        }
+                    }
+                }
+                frozen = nextFrozen; directions = (int[])movement.Clone();
                 acceptInput = input; speed = xyzSpeed; orientation = view;
                 adjustments = loadingReset ? new int[3] : (int[])axisAdjustments.Clone();
             }
@@ -140,6 +160,13 @@ namespace Crash.Helper.Memory.Position
         {
             var completion = teleportCompletion; teleportCompletion = null; teleportCommand = 0;
             completion?.TrySetResult(success);
+        }
+
+        private void ClearFreezeRelease()
+        {
+            releaseAxes = submittedReleaseAxes = 0;
+            releaseCommand = 0;
+            pendingFreezeUpdate = cancelFreezeUpdate = false;
         }
 
         internal float[] ReadValues()
@@ -209,15 +236,21 @@ namespace Crash.Helper.Memory.Position
             if (engineMemory == null)
             {
                 engineMemory = new RuntimeMemory(process);
-                try { enginePatch = new PlayerPositionPatch(engineMemory); }
+                try { enginePatch = new PositionCommandPatch(engineMemory); }
                 catch { engineMemory.Dispose(); engineMemory = null; throw; }
+            }
+            if (cancelFreezeUpdate)
+            {
+                enginePatch.CancelQueued();
+                cancelFreezeUpdate = false;
             }
             var currentBinding = engineMemory.Player();
             if (currentBinding == null)
             {
                 CompleteTeleport(false);
+                ClearFreezeRelease();
                 if (engineBinding != null) bindingVersion++;
-                enginePatch.Cancel(); engineBinding = null; enginePosition = null;
+                enginePatch.Cancel(); enginePatch.RestoreWhenIdle(); engineBinding = null; enginePosition = null;
                 engineManual = new float?[3]; engineElapsed = 0; frozen = new bool[3]; adjustments = new int[3];
                 loadingReset = true; capture = new bool[3]; return false;
             }
@@ -227,6 +260,7 @@ namespace Crash.Helper.Memory.Position
                 if (engineBinding != null)
                 {
                     CompleteTeleport(false);
+                    ClearFreezeRelease();
                     engineManual = new float?[3]; frozen = new bool[3]; adjustments = new int[3];
                     directions = new int[3]; loadingReset = true;
                 }
@@ -236,6 +270,13 @@ namespace Crash.Helper.Memory.Position
             // Pooled actors can keep the same address and ID while their ownership guards change.
             engineBinding = currentBinding;
             enginePosition = enginePatch.Read(engineBinding);
+            if (releaseCommand != 0 && enginePatch.CompletedCommand >= releaseCommand)
+            {
+                if (enginePatch.CompletedCommand == releaseCommand && enginePatch.CommandSucceeded)
+                    releaseAxes &= ~submittedReleaseAxes;
+                releaseCommand = 0;
+                submittedReleaseAxes = 0;
+            }
             if (teleportCommand != 0 && enginePatch.CompletedCommand >= teleportCommand)
                 CompleteTeleport(enginePatch.CompletedCommand == teleportCommand && enginePatch.CommandSucceeded);
             if (enginePosition == null)
@@ -243,13 +284,32 @@ namespace Crash.Helper.Memory.Position
             if (!engineBinding.Writable)
             {
                 CompleteTeleport(false);
-                enginePatch.Cancel(); engineManual = new float?[3]; frozen = new bool[3]; adjustments = new int[3];
+                ClearFreezeRelease();
+                enginePatch.Cancel(); enginePatch.RestoreWhenIdle(); engineManual = new float?[3]; frozen = new bool[3]; adjustments = new int[3];
                 loadingReset = true; engineElapsed = 0; return false;
             }
             bool moving = frozen.Any(value => value) || adjustments.Any(value => value != 0) || engineManual.Any(value => value.HasValue);
             engineElapsed = moving ? Math.Min(0.05, engineElapsed + Math.Max(0, seconds)) : 0;
-            enginePatch.ConfigureFreeze(engineBinding, frozen);
-            if (enginePatch.Pending) return moving;
+            var protectedAxes = releaseAxes == 0 ? frozen :
+                frozen.Select((value, axis) => value || (releaseAxes & (1 << axis)) != 0).ToArray();
+            enginePatch.ConfigureFreeze(engineBinding, protectedAxes);
+            if (enginePatch.Pending) return moving || releaseAxes != 0;
+            if (releaseAxes != 0)
+            {
+                // The physics controller can advance while its entity stores are filtered.
+                // Synchronize it to the visible position before those stores are allowed again.
+                var releasePosition = new float?[3];
+                for (int axis = 0; axis < 3; axis++)
+                    if ((releaseAxes & (1 << axis)) != 0) releasePosition[axis] = enginePosition[axis];
+                if (enginePatch.Submit(engineBinding, releasePosition))
+                {
+                    releaseCommand = enginePatch.SubmittedCommand;
+                    submittedReleaseAxes = releaseAxes;
+                    pendingFreezeUpdate = false;
+                }
+                engineElapsed = 0;
+                return true;
+            }
             for (int axis = 0; axis < 3; axis++) if (frozen[axis] && capture[axis])
             { values[axis] = enginePosition[axis]; capture[axis] = false; }
             var update = new float?[3]; var delta = HotkeyDelta(engineElapsed);
@@ -260,16 +320,25 @@ namespace Crash.Helper.Memory.Position
                 else if (frozen[axis] || adjustments[axis] != 0)
                     values[axis] = (frozen[axis] ? values[axis] : enginePosition[axis]) + (frozen[axis] ? delta?[axis] ?? 0 : 0) + (float)(adjustments[axis] * distance);
                 else continue;
-                if (RuntimeMemory.Finite(values[axis])) update[axis] = values[axis];
+                // The game store filter already holds stationary axes. Repeating the
+                // actor teleport at the same position would reset movement during a jump.
+                if (RuntimeMemory.Finite(values[axis]) &&
+                    (engineManual[axis].HasValue || Math.Abs(values[axis] - enginePosition[axis]) > FreezeCorrectionTolerance))
+                    update[axis] = values[axis];
             }
             bool writes = update.Any(value => value.HasValue);
             bool manual = engineManual.Any(value => value.HasValue);
-            if ((writes || engineMemory.Number(engineBinding.Actor + 0x10) != 0) && enginePatch.Submit(engineBinding, writes ? update : null))
+            bool attached = engineMemory.Number(engineBinding.Actor + 0x10) != 0;
+            if ((writes || attached) && enginePatch.Submit(engineBinding, writes ? update : null))
             {
                 if (manual && teleportCompletion != null && teleportCommand == 0) teleportCommand = enginePatch.SubmittedCommand;
+                pendingFreezeUpdate = writes && !manual && frozen.Any(value => value);
                 engineManual = new float?[3]; engineElapsed = 0;
             }
-            return writes;
+            if (!writes && !attached) enginePatch.RestoreWhenIdle();
+            if (delta == null && !adjustments.Any(value => value != 0)) engineElapsed = 0;
+            // Keep measuring input time even when the first tick does not need a write.
+            return moving;
         }
 
         private long Address(int[] offsets)
@@ -286,14 +355,14 @@ namespace Crash.Helper.Memory.Position
         private byte[] Read(long address, int length)
         {
             var bytes = new byte[length]; UIntPtr count;
-            LevelLockNative.Check(LevelLockNative.ReadProcessMemory(process.Handle, new IntPtr(address), bytes, (UIntPtr)length, out count) && count.ToUInt64() == (ulong)length, "Read player position");
+            ProcessNative.Check(ProcessNative.ReadProcessMemory(process.Handle, new IntPtr(address), bytes, (UIntPtr)length, out count) && count.ToUInt64() == (ulong)length, "Read player position");
             return bytes;
         }
 
         private void WriteAxis(int axis, float value)
         {
             UIntPtr count;
-            LevelLockNative.Check(LevelLockNative.WriteProcessMemory(process.Handle, new IntPtr(Address(profile.Position[axis])), BitConverter.GetBytes(value), (UIntPtr)4, out count) && count.ToUInt64() == 4, "Write player position");
+            ProcessNative.Check(ProcessNative.WriteProcessMemory(process.Handle, new IntPtr(Address(profile.Position[axis])), BitConverter.GetBytes(value), (UIntPtr)4, out count) && count.ToUInt64() == 4, "Write player position");
         }
 
         private float?[] HotkeyDelta(double seconds)

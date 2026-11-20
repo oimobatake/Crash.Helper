@@ -1,14 +1,14 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Linq;
 using Crash.Helper.Memory.Runtime;
-using Crash.Helper.Memory.LevelLock;
 
 namespace Crash.Helper.Memory.Camera
 {
     // Every frame claims one immutable command slot. The host never edits an in-flight pose.
-    internal sealed class OwnedCameraPatch : IDisposable
+    internal sealed class CameraFramePatch : IDisposable
     {
         private readonly RuntimeMemory memory;
         private readonly long hook;
@@ -16,32 +16,44 @@ namespace Crash.Helper.Memory.Camera
         private int groups;
         private bool installed, followSuspended, orbit, returnPending;
         private float scale = 1;
+        private const float DefaultPlayerCameraHeight = 45f;
         private float[] desired, orbitPlayer;
+        private long orbitHeightEpoch = -1;
+        private float orbitHeight;
         private float[] followOffset;
         private float followDeadzone, followSpeed;
         private long followGeneration;
-        private long returnBox, returnCamera;
+        private long returnBox, returnCamera, returnDeadline;
+        private bool returnThroughBox;
+        private long monitoredCamera, nextRailCheck, returnFromCamera;
         private List<RuntimeGuard> returnGuards;
         private byte[] jump;
         private List<RuntimeGuard> binding;
-        internal OwnedCameraPatch(RuntimeMemory memory) { this.memory = memory; hook = memory.Base + CameraFrameCode.Hook; }
+        internal CameraFramePatch(RuntimeMemory memory) { this.memory = memory; hook = memory.Base + CameraFrameCode.Hook; }
 
         internal void Enable(bool xyz, bool rotation)
         {
             int next = (xyz ? 1 : 0) | (rotation ? 2 : 0);
-            if (next != 0) EnsureInstalled();
             var current = ReadValues();
             if (groups == next) return;
             bool released = (groups & ~next) != 0;
+            if ((next & ~groups) != 0)
+            {
+                returnPending = false;
+                monitoredCamera = 0;
+            }
             groups = next; orbit = false;
             if (next == 0) desired = null;
             else if (desired != null && current != null) desired = current;
-            if (installed) Publish(released && !LoadingMemory.Read(memory.Process, GameMemoryProfile.Steam.Loading, memory.Base));
+            if (next != 0) EnsureInstalled();
+            if (installed) Publish(released && actor != 0 && !LoadingMemory.Read(memory.Process, GameMemoryProfile.Steam.Loading, memory.Base));
+            RestoreWhenIdle();
         }
         internal void ReturnToPlayer()
         {
-            EnsureInstalled(); groups = 0; desired = null; orbit = false; followOffset = null; followSuspended = false;
-            if (ReadValues() != null) Publish(true);
+            if (groups != 0 || ReadValues() == null || actor == 0) return;
+            EnsureInstalled();
+            Publish(true);
         }
         private void EnsureInstalled()
         {
@@ -58,7 +70,7 @@ namespace Crash.Helper.Memory.Camera
             memory.WhilePaused(() =>
             {
                 memory.Require(hook, CameraFrameCode.Original);
-                LevelLockNative.RelocateThreads(memory.Process, rip =>
+                ProcessNative.RelocateThreads(memory.Process, rip =>
                 {
                     if (rip == hook + 3) return cave + 0xF00;
                     if (rip > hook && rip < hook + 8) throw new InvalidOperationException("Unexpected camera commit instruction boundary.");
@@ -80,6 +92,16 @@ namespace Crash.Helper.Memory.Camera
             orbit = enabled && player != null && player.All(RuntimeMemory.Finite) && followScale > 0 && RuntimeMemory.Finite(followScale);
             orbitPlayer = orbit ? (float[])player.Clone() : null; scale = followScale;
         }
+        internal float[] OrbitCenter(float[] player)
+        {
+            if (orbitHeightEpoch != epoch)
+            {
+                orbitHeight = memory.PlayerCameraHeight(model - 0x80, actor) ?? DefaultPlayerCameraHeight;
+                orbitHeightEpoch = epoch;
+            }
+            return new[] { player[0], player[1], player[2] + orbitHeight };
+        }
+
         internal void SetNativeFollow(CameraFollow follow)
         {
             followOffset = follow?.FollowOffset;
@@ -100,13 +122,22 @@ namespace Crash.Helper.Memory.Camera
                 {
                     model = address; actor = subject; binding = guards; desired = null; orbit = false; epoch++;
                     returnPending = false;
+                    monitoredCamera = 0;
                     if (installed) Publish(false);
                 }
                 if (returnPending)
                 {
-                    if (memory.Number(header + CameraFrameCode.ReturnAcknowledgement) == returnRequest) { returnPending = false; Publish(false); }
-                    else Publish(false);
+                    if (memory.Number(header + CameraFrameCode.ReturnAcknowledgement) == returnRequest)
+                    {
+                        returnPending = false;
+                        monitoredCamera = returnCamera;
+                        nextRailCheck = Stopwatch.GetTimestamp() + Stopwatch.Frequency / 4;
+                    }
+                    else if (ReturnExpired()) returnPending = false;
+                    if (returnPending || groups != 0) Publish(false);
                 }
+                if (groups == 0 && !returnPending && actor != 0) CheckCameraRail();
+                RestoreWhenIdle();
                 if (actor == 0 || followSuspended) return values;
                 if (desired == null && groups != 0)
                 {
@@ -142,14 +173,68 @@ namespace Crash.Helper.Memory.Camera
         {
             model = actor = 0; binding = null; desired = null; orbit = false; epoch++;
             returnPending = false;
+            monitoredCamera = 0;
             if (installed && !memory.Process.HasExited) memory.Write(header, new byte[8]);
+            RestoreWhenIdle();
+        }
+        private bool ReturnExpired()
+        {
+            if (LoadingMemory.Read(memory.Process, GameMemoryProfile.Steam.Camera.PauseMenu, memory.Base))
+            {
+                returnDeadline = 0;
+                return false;
+            }
+            long now = Stopwatch.GetTimestamp();
+            if (returnDeadline == 0) returnDeadline = now + Stopwatch.Frequency;
+            return now >= returnDeadline;
+        }
+        private void RestoreWhenIdle()
+        {
+            if (groups == 0 && !returnPending) Uninstall();
         }
         internal static int SelectSlot(long first, long current, long inUse)
             => RuntimeCode.SelectSlot(first, current, inUse);
+        private void CheckCameraRail()
+        {
+            long now = Stopwatch.GetTimestamp();
+            if (monitoredCamera == 0 || now < nextRailCheck) return;
+            nextRailCheck = now + Stopwatch.Frequency / 4;
+            long instance = model - 0x80;
+            long current = memory.CurrentCamera(instance);
+            if (current == 0) return;
+            if (current != monitoredCamera) { monitoredCamera = 0; return; } // The game already changed cameras.
+            if (LoadingMemory.Read(memory.Process, GameMemoryProfile.Steam.Camera.PauseMenu, memory.Base)) return;
+
+            var guards = new List<RuntimeGuard>(binding);
+            long box;
+            long camera;
+            try { box = memory.CameraBeyondRail(instance, actor, current, guards, out camera); }
+            catch (Win32Exception) { return; }
+            catch (InvalidOperationException) { return; }
+            if (camera == 0) return;
+
+            EnsureInstalled();
+            returnFromCamera = current;
+            returnBox = box;
+            returnCamera = camera;
+            returnThroughBox = false;
+            returnGuards = guards;
+            returnRequest++;
+            returnPending = true;
+            returnDeadline = 0;
+            Publish(false);
+        }
         private void Publish(bool returnToPlayer)
         {
             if (!installed || binding == null) return;
-            if (returnToPlayer) { returnRequest++; returnPending = true; returnGuards = null; }
+            if (returnToPlayer)
+            {
+                returnFromCamera = 0;
+                returnRequest++;
+                returnPending = true;
+                returnGuards = null;
+                returnDeadline = 0;
+            }
             if (returnPending && memory.Number(header + CameraFrameCode.ReturnAcknowledgement) == returnRequest) returnPending = false;
             var guards = new List<RuntimeGuard>(binding); long nearest = 0, camera = 0;
             if (returnPending && actor != 0)
@@ -158,13 +243,28 @@ namespace Crash.Helper.Memory.Camera
                 {
                     if (returnGuards == null || !memory.Matches(returnGuards))
                     {
-                        returnBox = memory.NearestCamera(model - 0x80, actor, guards, out returnCamera);
-                        returnGuards = returnBox == 0 ? null : new List<RuntimeGuard>(guards);
+                        returnBox = returnFromCamera == 0
+                            ? memory.NearestCamera(model - 0x80, actor, guards, out returnCamera)
+                            : memory.CameraBeyondRail(model - 0x80, actor, returnFromCamera, guards, out returnCamera);
+                        returnThroughBox = false;
+                        if (returnCamera == 0) returnGuards = null;
+                        else
+                        {
+                            if (returnBox != 0 && returnFromCamera == 0)
+                            {
+                                long previous = memory.Capture(guards, returnBox + 0x138);
+                                long allowed = memory.Capture(guards, returnBox + 0x140);
+                                // A transition may require a different branch to be active first.
+                                returnThroughBox = previous == 0 &&
+                                    (allowed == 0 || memory.Capture(guards, allowed + 0x10, 4) == 0);
+                            }
+                            returnGuards = new List<RuntimeGuard>(guards);
+                        }
                     }
                     if (returnGuards != null) { guards = new List<RuntimeGuard>(returnGuards); nearest = returnBox; camera = returnCamera; }
                 }
-                catch (Win32Exception) { nearest = 0; guards = new List<RuntimeGuard>(binding); }
-                catch (InvalidOperationException) { nearest = 0; guards = new List<RuntimeGuard>(binding); }
+                catch (Win32Exception) { camera = nearest = 0; guards = new List<RuntimeGuard>(binding); }
+                catch (InvalidOperationException) { camera = nearest = 0; guards = new List<RuntimeGuard>(binding); }
             }
             if (!memory.Matches(guards)) return;
             long first = header + 4096;
@@ -178,11 +278,14 @@ namespace Crash.Helper.Memory.Camera
             if (desired != null)
             {
                 var payload = (float[])desired.Clone();
+                // The offset includes the orbit center height. Native code applies it
+                // to the actor's same-frame origin, so the center stays with the player.
                 if (nativeOrbit) for (int i = 0; i < 3; i++) payload[i] -= orbitPlayer[i] * scale;
                 PackPose(bytes, 32, payload);
             }
-            BitConverter.GetBytes(scale).CopyTo(bytes, 56); BitConverter.GetBytes(nearest != 0 ? 1 : 0).CopyTo(bytes, 60);
-            BitConverter.GetBytes(nearest).CopyTo(bytes, 128); BitConverter.GetBytes(model - 0x80).CopyTo(bytes, 136);
+            BitConverter.GetBytes(scale).CopyTo(bytes, 56); BitConverter.GetBytes(camera != 0 ? 1 : 0).CopyTo(bytes, 60);
+            BitConverter.GetBytes(returnThroughBox ? nearest : 0L).CopyTo(bytes, 128);
+            BitConverter.GetBytes(model - 0x80).CopyTo(bytes, 136);
             BitConverter.GetBytes(returnRequest).CopyTo(bytes, CameraFrameCode.ReturnRequest);
             BitConverter.GetBytes(camera).CopyTo(bytes, 232);
             if (nativeFollow)
@@ -231,13 +334,19 @@ namespace Crash.Helper.Memory.Camera
         {
             groups = 0; model = actor = 0; binding = null; desired = null; orbit = false;
             returnPending = false;
+            monitoredCamera = 0;
+            Uninstall();
+        }
+        private void Uninstall()
+        {
             if (!installed || memory.Process.HasExited) { installed = false; return; }
             memory.WhilePaused(() =>
             {
                 memory.Write(header, new byte[8]); memory.Require(hook, jump);
-                LevelLockNative.RelocateThreads(memory.Process, rip => rip >= hook + 5 && rip < hook + 8 ? hook + 8 : rip);
+                ProcessNative.RelocateThreads(memory.Process, rip => rip >= hook + 5 && rip < hook + 8 ? hook + 8 : rip);
                 memory.WriteCode(hook, CameraFrameCode.Original); installed = false;
             });
+            epoch++;
         }
         public void Dispose() { Disable(); memory.Dispose(); }
     }

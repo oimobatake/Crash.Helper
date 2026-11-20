@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Text;
-using Crash.Helper.Memory.LevelLock;
 
 namespace Crash.Helper.Memory.Masks
 {
@@ -69,14 +68,14 @@ namespace Crash.Helper.Memory.Masks
             if (Process.MainModule.ModuleMemorySize != GameMemoryProfile.Steam.ModuleSize)
             { Process.Dispose(); throw new NotSupportedException("Mask events are supported by the inspected Steam build only."); }
             Base = Process.MainModule.BaseAddress.ToInt64();
-            Handle = LevelLockNative.OpenProcess(0xC38, false, Process.Id);
-            if (Handle == IntPtr.Zero) { Process.Dispose(); LevelLockNative.Check(false, "Open mask memory"); }
+            Handle = ProcessNative.OpenProcess(0xC38, false, Process.Id);
+            if (Handle == IntPtr.Zero) { Process.Dispose(); ProcessNative.Check(false, "Open mask memory"); }
         }
 
         internal byte[] Read(long address, int size)
         {
             var data = new byte[size]; UIntPtr count;
-            LevelLockNative.Check(LevelLockNative.ReadProcessMemory(Handle, new IntPtr(address), data, (UIntPtr)size, out count) && count.ToUInt64() == (ulong)size, "Read mask memory");
+            ProcessNative.Check(ProcessNative.ReadProcessMemory(Handle, new IntPtr(address), data, (UIntPtr)size, out count) && count.ToUInt64() == (ulong)size, "Read mask memory");
             return data;
         }
         internal long Number(long address, int size = 8)
@@ -310,6 +309,6 @@ namespace Crash.Helper.Memory.Masks
         internal IEnumerable<MaskGuard> CommandGuards(MaskSnapshot state) => state.Binding.Guards.Concat(variableGuards)
             .Concat(new[] { new MaskGuard(state.CountAddress, state.Count, 4), new MaskGuard(deadAddress, 0, 1),
                 new MaskGuard(state.DamagedInvulnerableAddress, state.DamagedInvulnerable ? 1 : 0, 1) });
-        public void Dispose() { LevelLockNative.CloseHandle(Handle); Process.Dispose(); }
+        public void Dispose() { ProcessNative.CloseHandle(Handle); Process.Dispose(); }
     }
 }

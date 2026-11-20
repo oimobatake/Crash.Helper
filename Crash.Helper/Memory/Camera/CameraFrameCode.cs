@@ -22,13 +22,14 @@ namespace Crash.Helper.Memory.Camera
             c.Data(ReturnRequest, 0x48, 0x8B, 0x05); c.Emit(0x48, 0x85, 0xC0); c.Branch("return", 0x0F, 0x84);
             c.Rip(data + ReturnAcknowledgement, 0x48, 0x3B, 0x05); c.Branch("capture", 0x0F, 0x84);
             c.Label("return");
-            // A box can retain a scripted active-camera override from a distant part of the level.
-            // Restore its own camera through the engine setter, then reset the complete instance:
-            // activation chain, spline reset flags, targeting, zoom, update caches and final model.
-            c.Data(128, 0x48, 0x8B, 0x0D); c.Data(232, 0x48, 0x8B, 0x15); c.Emit(0x48, 0x85, 0xD2); c.Branch("returnCamera", 0x0F, 0x85);
-            c.Emit(0x48, 0x8B, 0x91, 0x58, 1, 0, 0);
-            c.Label("returnCamera"); c.Call(module + 0x36DA30);
-            c.Data(136, 0x48, 0x8B, 0x0D); c.Data(128, 0x48, 0x8B, 0x15); c.Call(module + 0x36B7B0);
+            // Ordinary boxes retain their authored reset behavior. For a transition
+            // that requires a previous view, seed the gameplay box with the view itself.
+            c.Data(232, 0x48, 0x8B, 0x15);
+            c.Emit(0x48, 0x85, 0xD2); c.Branch("capture", 0x0F, 0x84);
+            c.Data(128, 0x48, 0x8B, 0x0D); c.Emit(0x48, 0x85, 0xC9); c.Branch("resetCamera", 0x0F, 0x84);
+            c.Call(module + 0x36DA30);
+            c.Data(128, 0x48, 0x8B, 0x15);
+            c.Label("resetCamera"); c.Data(136, 0x48, 0x8B, 0x0D); c.Call(module + 0x36B7B0);
             c.Data(ReturnRequest, 0x48, 0x8B, 0x05); c.Rip(data + ReturnAcknowledgement, 0x48, 0x89, 0x05);
             c.Label("capture");
             c.Rip(data + 16, 0xFF, 0x05);

@@ -3,9 +3,9 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 
-namespace Crash.Helper.Memory.LevelLock
+namespace Crash.Helper.Memory
 {
-    internal static class LevelLockNative
+    internal static class ProcessNative
     {
         [StructLayout(LayoutKind.Sequential)]
         internal struct Region
@@ -32,6 +32,23 @@ namespace Crash.Helper.Memory.LevelLock
         [DllImport("kernel32.dll", SetLastError = true)] internal static extern bool SetThreadContext(IntPtr thread, IntPtr context);
         [DllImport("ntdll.dll")] private static extern int NtSuspendProcess(IntPtr process);
         [DllImport("ntdll.dll")] private static extern int NtResumeProcess(IntPtr process);
+
+        internal static void WriteCode(IntPtr handle, long address, byte[] bytes, string target)
+        {
+            var location = new IntPtr(address);
+            var size = (UIntPtr)bytes.Length;
+            Check(VirtualProtectEx(handle, location, size, 0x40, out uint previous), "Protect " + target + " instructions");
+            try
+            {
+                Check(WriteProcessMemory(handle, location, bytes, size, out UIntPtr written) &&
+                    written.ToUInt64() == (ulong)bytes.Length, "Write " + target + " instructions");
+                Check(FlushInstructionCache(handle, location, size), "Flush " + target + " instructions");
+            }
+            finally
+            {
+                Check(VirtualProtectEx(handle, location, size, previous, out _), "Restore " + target + " protection");
+            }
+        }
 
         internal static void WhilePaused(IntPtr handle, Process process, Action action)
         {

@@ -117,6 +117,7 @@ namespace Crash.Helper.Memory.Camera
                 while (true)
                 {
                     int[] input;
+                    int version;
                     float xyz, rotation;
                     bool pitch, moving, hasMouse;
                     Func<float[]> source;
@@ -124,6 +125,7 @@ namespace Crash.Helper.Memory.Camera
                     lock (sync)
                     {
                         if (stopping) return;
+                        version = generation;
                         input = (int[])directions.Clone();
                         xyz = xyzSpeed;
                         rotation = rotationSpeed;
@@ -166,7 +168,7 @@ namespace Crash.Helper.Memory.Camera
                             if (missing != followMissing) { follow.Reset(scale); followMissing = missing; }
                             lock (sync)
                             {
-                                apply = !stopping && active && directions.SequenceEqual(input) && followSource == source && followScale == scale;
+                                apply = !stopping && active && version == generation && directions.SequenceEqual(input) && followSource == source && followScale == scale;
                                 if (apply)
                                 {
                                     mouseYaw = pendingMouseYaw; mousePitch = pendingMousePitch;
@@ -294,6 +296,8 @@ namespace Crash.Helper.Memory.Camera
         }
         internal Task ReturnToPlayerAsync()
         {
+            int version;
+            lock (sync) version = generation;
             return Task.Run(async () =>
             {
                 await gate.WaitAsync().ConfigureAwait(false);
@@ -301,7 +305,7 @@ namespace Crash.Helper.Memory.Camera
                 {
                     lock (sync)
                     {
-                        if (stopping || disposed) return;
+                        if (stopping || disposed || version != generation) return;
                         followSource = null; follow.SetOrbit(false); follow.Reset(followScale);
                         directions = new int[5]; pendingMouseYaw = pendingMousePitch = 0;
                     }

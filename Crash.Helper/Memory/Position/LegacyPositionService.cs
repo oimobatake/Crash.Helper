@@ -2,13 +2,14 @@ using System;
 using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
+using Crash.Helper.Memory.Fade;
 
 namespace Crash.Helper.Memory.Position
 {
-    internal sealed class PositionPatchService : IDisposable
+    internal sealed class LegacyPositionService : IDisposable
     {
         private readonly SemaphoreSlim gate = new SemaphoreSlim(1, 1);
-        private PositionPatch patch;
+        private LegacyPositionPatch patch;
         private int generation, offset;
         private volatile bool fadeWriteDisabled;
         internal void SetFadeWriteDisabled(bool value) => fadeWriteDisabled = value;
@@ -29,7 +30,7 @@ namespace Crash.Helper.Memory.Position
                     if (!enabled || process == null) { patch?.SetEnabled(false); return; }
                     if (patch == null)
                     {
-                        patch = new PositionPatch(process, process.MainModule.BaseAddress.ToInt64() + codeOffset);
+                        patch = new LegacyPositionPatch(process, process.MainModule.BaseAddress.ToInt64() + codeOffset);
                         offset = codeOffset;
                     }
                     patch.SetEnabled(!fadeWriteDisabled && (profile == null || !FadeMemory.SuspendPositionFreeze(process, profile)));

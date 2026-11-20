@@ -4,7 +4,7 @@ using System.Text;
 
 namespace Crash.Helper.Memory.Camera
 {
-    internal static class CameraCode
+    internal static class CameraCaptureCode
     {
         internal static readonly byte[] CaptureOriginal = { 0x89, 0x41, 0x18, 0x0F, 0x10, 0x42, 0x1C };
         internal static readonly byte[] PositionOriginal = { 0x0F, 0x11, 0x01 };

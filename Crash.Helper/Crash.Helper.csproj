@@ -143,11 +143,12 @@
       <SubType>UserControl</SubType>
     </Compile>
     <Compile Include="Memory\LevelLock\LevelLockCode.cs" />
-    <Compile Include="Memory\LevelLock\LevelLockNative.cs" />
+    <Compile Include="Memory\ProcessNative.cs" />
     <Compile Include="Memory\LevelLock\LevelLockPatch.cs" />
     <Compile Include="Memory\LevelLock\LevelLockService.cs" />
     <Compile Include="Controls\DataControl.Masks.cs">
       <DependentUpon>DataControl.cs</DependentUpon>
+      <SubType>UserControl</SubType>
     </Compile>
     <Compile Include="Memory\Masks\MaskMemory.cs" />
     <Compile Include="Memory\Masks\MaskCommandCode.cs" />
@@ -158,7 +159,7 @@
     <Compile Include="Memory\GameFlag.cs" />
     <Compile Include="Memory\GameMemoryProfile.cs" />
     <Compile Include="Memory\Camera\CameraMemoryProfile.cs" />
-    <Compile Include="Memory\Camera\CameraCode.cs" />
+    <Compile Include="Memory\Camera\CameraCaptureCode.cs" />
     <Compile Include="Memory\Camera\CameraFollow.cs" />
     <Compile Include="Memory\Camera\CameraMovement.cs" />
     <Compile Include="Input\KeyIdentity.cs" />
@@ -168,9 +169,12 @@
     <Compile Include="Memory\Camera\CameraFollowCode.cs" />
     <Compile Include="Memory\Camera\CameraSelection.cs" />
     <Compile Include="Memory\Camera\CameraPathReader.cs" />
-    <Compile Include="Memory\Camera\OwnedCameraPatch.cs" />
+    <Compile Include="Memory\Camera\CameraFramePatch.cs" />
     <Compile Include="Memory\Camera\CameraPatch.cs" />
     <Compile Include="Memory\Camera\CameraService.cs" />
+    <Compile Include="Controls\CheckableGroupBox.cs">
+      <SubType>Component</SubType>
+    </Compile>
     <Compile Include="Controls\CameraControl.cs">
       <SubType>UserControl</SubType>
     </Compile>
@@ -180,17 +184,21 @@
     <Compile Include="Controls\HoldButton.cs">
       <SubType>Component</SubType>
     </Compile>
-    <Compile Include="Memory\Position\PositionPatch.cs" />
-    <Compile Include="Memory\Position\PositionPatchService.cs" />
+    <Compile Include="Memory\Position\LegacyPositionPatch.cs" />
+    <Compile Include="Memory\Position\LegacyPositionService.cs" />
     <Compile Include="Memory\Runtime\RuntimeMemory.cs" />
+    <Compile Include="Memory\Runtime\RuntimeMemory.Player.cs" />
+    <Compile Include="Memory\Runtime\RuntimeMemory.Camera.cs" />
+    <Compile Include="Memory\Runtime\RuntimeMemory.StageCameras.cs" />
+    <Compile Include="Memory\Runtime\PlayerBinding.cs" />
     <Compile Include="Memory\Runtime\RuntimeCode.cs" />
-    <Compile Include="Memory\Position\PlayerPositionPatch.cs" />
+    <Compile Include="Memory\Position\PositionCommandPatch.cs" />
     <Compile Include="Memory\Position\PositionWriteFilter.cs" />
-    <Compile Include="Memory\Position\PositionMotionService.cs" />
+    <Compile Include="Memory\Position\PositionService.cs" />
     <Compile Include="Memory\LoadingMemory.cs" />
-    <Compile Include="Memory\FadePatch.cs" />
-    <Compile Include="Memory\FadeMemory.cs" />
-    <Compile Include="Memory\FadePatchService.cs" />
+    <Compile Include="Memory\Fade\FadePatch.cs" />
+    <Compile Include="Memory\Fade\FadeMemory.cs" />
+    <Compile Include="Memory\Fade\FadeService.cs" />
     <Compile Include="Controls\OthersControl.cs">
       <SubType>Component</SubType>
     </Compile>

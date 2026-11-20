@@ -20,7 +20,7 @@ namespace Crash.Helper.Controls
         private readonly CheckBox freezeXYZ, freezeYawPitch, followPlayer, orbitPlayer;
         // Orbit H, Orbit V, and Zoom (distance from the player in player units).
         private readonly TextBox[] orbitEditors = new TextBox[3];
-        private const double OrbitStepDistance = 10;
+        private const double OrbitStepDistance = 20;
         private double orbitHorizontalStep = 5, orbitVerticalStep = 5;
         private readonly MouseCameraListener mouse = new MouseCameraListener();
         private readonly Button saveButton, teleportButton;
@@ -34,7 +34,7 @@ namespace Crash.Helper.Controls
         private float followDeadzone = HelperSettings.DefaultCameraFollowVerticalDeadzone;
         private float followSpeed = HelperSettings.DefaultCameraFollowSpeed;
         private bool followPitch = true, mouseControl, invertMouseX, invertMouseY, inputEnabled;
-        private bool speedBoost, loading, playerDead, movementDisabled, teleporting;
+        private bool speedBoost, loading, playerDead, teleporting;
         internal Func<bool> IsLoading { get; set; } = () => false;
         // Called on the camera worker. Returns null while the player position cannot be read.
         internal Func<float[]> PlayerPosition { get; set; }
@@ -115,7 +115,7 @@ namespace Crash.Helper.Controls
                 {
                     if (e.KeyCode != Keys.Enter) { EditingChanged?.Invoke(true); return; }
                     e.SuppressKeyPress = true;
-                    if (!OrbitActive) return;
+                    if (!GroupEnabled || !OrbitActive) return;
                     double value;
                     if (!double.TryParse(editor.Text.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out value) || double.IsNaN(value) || double.IsInfinity(value))
                     {
@@ -262,7 +262,8 @@ namespace Crash.Helper.Controls
             UpdateState();
             try
             {
-                await service.ConfigureAsync(available ? process : null, available ? profile : null, freezeXYZ.Checked && !loading, freezeYawPitch.Checked && !loading);
+                await service.ConfigureAsync(available ? process : null, available ? profile : null,
+                    freezeXYZ.Checked && !loading, freezeYawPitch.Checked && !loading);
                 if (version != generation || IsDisposed) return;
                 ready = available;
             }
@@ -289,7 +290,7 @@ namespace Crash.Helper.Controls
             }
         }
 
-        private bool CanWrite(int axis) => !updateSuspended && available && ready && !changing && !closing && !loading && !playerDead && !IsLoading() && !movementDisabled && values != null &&
+        private bool CanWrite(int axis) => !updateSuspended && available && ready && !changing && !closing && !loading && !playerDead && !IsLoading() && GroupEnabled && values != null &&
             (axis < 3 ? freezeXYZ.Checked : freezeYawPitch.Checked);
 
         private void UpdateState()
@@ -302,10 +303,10 @@ namespace Crash.Helper.Controls
             freezeXYZ.Enabled = freezeYawPitch.Enabled = followPlayer.Enabled = orbitPlayer.Enabled = available && ready && !changing && !closing && !loading && !playerDead;
             for (int i = 0; i < orbitEditors.Length; i++)
             {
-                orbitEditors[i].Enabled = OrbitActive;
+                orbitEditors[i].Enabled = GroupEnabled && OrbitActive;
                 if (!orbitEditors[i].Focused) UpdateOrbitEditor(i);
             }
-            saveButton.Enabled = available && ready && !changing && values != null && !closing && !loading && !playerDead && !movementDisabled;
+            saveButton.Enabled = available && ready && !changing && values != null && !closing && !loading && !playerDead && GroupEnabled;
             teleportButton.Enabled = saved != null && (CanWrite(0) || CanWrite(3));
             for (int axis = 0; axis < 8; axis++)
                 for (int side = 0; side < 2; side++)
@@ -363,7 +364,7 @@ namespace Crash.Helper.Controls
             if (CanToggleControls) orbitPlayer.Checked = !orbitPlayer.Checked;
         }
 
-        private bool CanToggleControls => !updateSuspended && available && ready && !closing && !loading && !playerDead && !movementDisabled && !IsLoading();
+        private bool CanToggleControls => !updateSuspended && available && ready && !closing && !loading && !playerDead && GroupEnabled && !IsLoading();
 
         internal ISet<Hotkey> HandleCombinedHotkeys(Hotkey[] actions)
         {
@@ -405,12 +406,12 @@ namespace Crash.Helper.Controls
         {
             var checkbox = rotation ? freezeYawPitch : freezeXYZ;
             // Shared hotkeys may toggle both freeze groups before the first async update completes.
-            if (available && ready && !closing && !loading && !playerDead && !movementDisabled && !IsLoading()) checkbox.Checked = !checkbox.Checked;
+            if (available && ready && !closing && !loading && !playerDead && GroupEnabled && !IsLoading()) checkbox.Checked = !checkbox.Checked;
         }
 
         internal async void SaveCamera()
         {
-            if (!available || !ready || changing || values == null || closing || loading || playerDead || movementDisabled || IsLoading()) return;
+            if (!available || !ready || changing || values == null || closing || loading || playerDead || !GroupEnabled || IsLoading()) return;
             int version = generation;
             try
             {
@@ -472,7 +473,6 @@ namespace Crash.Helper.Controls
 
         internal void ResetControls()
         {
-            movementDisabled = false;
             heldDirections = new int[5];
             heldOrbitDirections = new int[3];
             speedBoost = false;
@@ -506,19 +506,34 @@ namespace Crash.Helper.Controls
             Configure(); InputStateChanged?.Invoke();
         }
 
-        internal bool InputDisabled => movementDisabled || loading || playerDead;
+        internal bool GroupEnabled { get; private set; } = true;
+        internal bool InputDisabled => !GroupEnabled || loading || playerDead;
         internal event Action InputStateChanged;
 
         internal void ToggleMovement()
         {
-            if (!available || loading || playerDead || IsLoading()) return;
-            movementDisabled = !movementDisabled; UpdateState(); InputStateChanged?.Invoke();
+            if (available && !updateSuspended && !closing) SetGroupEnabled(!GroupEnabled);
+        }
+
+        internal void SetGroupEnabled(bool value)
+        {
+            if (GroupEnabled == value) return;
+            GroupEnabled = value;
+            if (!value)
+            {
+                heldDirections = new int[5];
+                heldOrbitDirections = new int[3];
+                Array.Clear(buttonHeld, 0, buttonHeld.Length);
+                speedBoost = false;
+            }
+            UpdateState();
+            InputStateChanged?.Invoke();
         }
 
         private void UpdateMovement()
         {
             var directions = new int[5];
-            if (!updateSuspended && available && ready && !changing && !closing && !loading && !playerDead && !movementDisabled)
+            if (!updateSuspended && available && ready && !changing && !closing && !loading && !playerDead && GroupEnabled)
                 for (int i = 0; i < directions.Length; i++)
                     if (i < 3 ? freezeXYZ.Checked && !orbitPlayer.Checked : freezeYawPitch.Checked)
                         directions[i] = Math.Sign((inputEnabled ? heldDirections[i] : 0) + (buttonHeld[i, 1] ? 1 : 0) - (buttonHeld[i, 0] ? 1 : 0));
@@ -537,7 +552,7 @@ namespace Crash.Helper.Controls
             try
             {
                 // Orbit zoom uses the wheel even when mouse look is off.
-                if (useMouse || (inputEnabled && !movementDisabled && OrbitActive)) mouse.Start(process.Id);
+                if (useMouse || (inputEnabled && GroupEnabled && OrbitActive)) mouse.Start(process.Id);
                 else mouse.Stop();
             }
             catch (Exception ex) { useMouse = false; HelperLog.Error("Configure mouse input", ex); }
@@ -577,7 +592,7 @@ namespace Crash.Helper.Controls
         private void OnMouseWheel(double notches)
         {
             // Wheel forward zooms in, matching common orbit cameras.
-            if (!inputEnabled || movementDisabled || !OrbitActive || IsLoading() || !mouse.IsTargetForeground) return;
+            if (!inputEnabled || !GroupEnabled || !OrbitActive || IsLoading() || !mouse.IsTargetForeground) return;
             service.StepOrbitDistance(-notches * OrbitStepDistance);
         }
 

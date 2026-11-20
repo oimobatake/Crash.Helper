@@ -36,8 +36,8 @@ namespace Crash.Helper.Memory.LevelLock
             moduleEnd = checked(moduleBase + moduleSize);
             this.mapRoot = mapRoot;
             this.pattern = (byte?[])pattern.Clone();
-            handle = LevelLockNative.OpenProcess(0x0838 | 0x0400, false, process.Id);
-            try { LevelLockNative.Check(handle != IntPtr.Zero, "Open game memory for level lock"); }
+            handle = ProcessNative.OpenProcess(0x0838 | 0x0400, false, process.Id);
+            try { ProcessNative.Check(handle != IntPtr.Zero, "Open game memory for level lock"); }
             catch { this.process.Dispose(); throw; }
         }
 
@@ -48,20 +48,20 @@ namespace Crash.Helper.Memory.LevelLock
         {
             var bytes = new byte[size];
             UIntPtr count;
-            LevelLockNative.Check(LevelLockNative.ReadProcessMemory(handle, new IntPtr(address), bytes, (UIntPtr)size, out count) && count.ToUInt64() == (ulong)size, "Read level hook memory");
+            ProcessNative.Check(ProcessNative.ReadProcessMemory(handle, new IntPtr(address), bytes, (UIntPtr)size, out count) && count.ToUInt64() == (ulong)size, "Read level hook memory");
             return bytes;
         }
 
         private void Write(long address, byte[] bytes)
         {
             UIntPtr count;
-            LevelLockNative.Check(LevelLockNative.WriteProcessMemory(handle, new IntPtr(address), bytes, (UIntPtr)bytes.Length, out count) && count.ToUInt64() == (ulong)bytes.Length, "Write level hook memory");
+            ProcessNative.Check(ProcessNative.WriteProcessMemory(handle, new IntPtr(address), bytes, (UIntPtr)bytes.Length, out count) && count.ToUInt64() == (ulong)bytes.Length, "Write level hook memory");
         }
 
-        private LevelLockNative.Region Query(long address)
+        private ProcessNative.Region Query(long address)
         {
-            LevelLockNative.Region region;
-            LevelLockNative.Check(LevelLockNative.VirtualQueryEx(handle, new IntPtr(address), out region, (UIntPtr)Marshal.SizeOf(typeof(LevelLockNative.Region))) != UIntPtr.Zero, "Query level hook memory");
+            ProcessNative.Region region;
+            ProcessNative.Check(ProcessNative.VirtualQueryEx(handle, new IntPtr(address), out region, (UIntPtr)Marshal.SizeOf(typeof(ProcessNative.Region))) != UIntPtr.Zero, "Query level hook memory");
             if (region.RegionSize.ToUInt64() == 0) throw new InvalidOperationException("The game returned an empty memory region.");
             return region;
         }
@@ -131,7 +131,7 @@ namespace Crash.Helper.Memory.LevelLock
             foreach (long address in candidates.OrderBy(value => Math.Abs(value - target)))
             {
                 cancellation.ThrowIfCancellationRequested();
-                IntPtr allocated = LevelLockNative.VirtualAllocEx(handle, new IntPtr(address), (UIntPtr)4096, 0x3000, 0x04);
+                IntPtr allocated = ProcessNative.VirtualAllocEx(handle, new IntPtr(address), (UIntPtr)4096, 0x3000, 0x04);
                 if (allocated != IntPtr.Zero) return allocated.ToInt64();
             }
             throw new InvalidOperationException("Could not allocate a trampoline near the level hook.");
@@ -139,8 +139,8 @@ namespace Crash.Helper.Memory.LevelLock
 
         private long AllocateData()
         {
-            IntPtr allocation = LevelLockNative.VirtualAllocEx(handle, IntPtr.Zero, (UIntPtr)4096, 0x3000, 0x04);
-            LevelLockNative.Check(allocation != IntPtr.Zero, "Allocate level name storage");
+            IntPtr allocation = ProcessNative.VirtualAllocEx(handle, IntPtr.Zero, (UIntPtr)4096, 0x3000, 0x04);
+            ProcessNative.Check(allocation != IntPtr.Zero, "Allocate level name storage");
             dataPage = allocation.ToInt64();
             dataOffset = 0;
             return dataPage;
@@ -156,20 +156,7 @@ namespace Crash.Helper.Memory.LevelLock
         }
 
         private void WriteCode(long address, byte[] bytes)
-        {
-            uint previous;
-            LevelLockNative.Check(LevelLockNative.VirtualProtectEx(handle, new IntPtr(address), (UIntPtr)bytes.Length, 0x40, out previous), "Make level hook writable");
-            try
-            {
-                Write(address, bytes);
-                LevelLockNative.Check(LevelLockNative.FlushInstructionCache(handle, new IntPtr(address), (UIntPtr)bytes.Length), "Flush level hook instructions");
-            }
-            finally
-            {
-                uint ignored;
-                LevelLockNative.Check(LevelLockNative.VirtualProtectEx(handle, new IntPtr(address), (UIntPtr)bytes.Length, previous, out ignored), "Restore level hook protection");
-            }
-        }
+            => ProcessNative.WriteCode(handle, address, bytes, "level hook");
 
         internal void Enable(string name, CancellationToken cancellation)
         {
@@ -184,20 +171,20 @@ namespace Crash.Helper.Memory.LevelLock
                 var code = LevelLockCode.Build(allocated, mapRoot, control, injection + 6, out originalOffset);
                 Write(allocated, code);
                 uint ignored;
-                LevelLockNative.Check(LevelLockNative.VirtualProtectEx(handle, new IntPtr(allocated), (UIntPtr)4096, 0x20, out ignored), "Protect level trampoline");
-                LevelLockNative.Check(LevelLockNative.FlushInstructionCache(handle, new IntPtr(allocated), (UIntPtr)code.Length), "Flush level trampoline");
+                ProcessNative.Check(ProcessNative.VirtualProtectEx(handle, new IntPtr(allocated), (UIntPtr)4096, 0x20, out ignored), "Protect level trampoline");
+                ProcessNative.Check(ProcessNative.FlushInstructionCache(handle, new IntPtr(allocated), (UIntPtr)code.Length), "Flush level trampoline");
                 patch = LevelLockCode.Jump(injection, allocated, true);
                 cave = allocated;
             }
             // Each name is immutable, so a thread already in the trampoline cannot see a torn update.
             long nameAddress = StoreName(bytes);
             cancellation.ThrowIfCancellationRequested();
-            LevelLockNative.WhilePaused(handle, process, () =>
+            ProcessNative.WhilePaused(handle, process, () =>
             {
                 cancellation.ThrowIfCancellationRequested();
                 var expected = installed ? patch : LevelLockCode.Original;
                 if (!Read(injection, 6).SequenceEqual(expected)) throw new InvalidOperationException("The level hook was changed by another tool. No code was overwritten.");
-                if (!installed) LevelLockNative.RelocateThreads(process, injection, cave + originalOffset + 3, true);
+                if (!installed) ProcessNative.RelocateThreads(process, injection, cave + originalOffset + 3, true);
                 Write(control + 8, BitConverter.GetBytes(nameAddress));
                 Write(control, new byte[] { 1 });
                 if (!installed)
@@ -219,14 +206,14 @@ namespace Crash.Helper.Memory.LevelLock
         internal void Disable()
         {
             if (cave == 0 || process.HasExited) { installed = false; return; }
-            LevelLockNative.WhilePaused(handle, process, () =>
+            ProcessNative.WhilePaused(handle, process, () =>
             {
                 Write(control, new byte[] { 0 });
                 if (!installed) return;
                 byte[] current = Read(injection, 6);
                 if (current.SequenceEqual(LevelLockCode.Original)) { installed = false; return; }
                 if (!current.SequenceEqual(patch)) throw new InvalidOperationException("The level hook was changed by another tool. Its bytes were not overwritten.");
-                LevelLockNative.RelocateThreads(process, injection, cave + originalOffset + 3, false);
+                ProcessNative.RelocateThreads(process, injection, cave + originalOffset + 3, false);
                 WriteCode(injection, LevelLockCode.Original);
                 installed = false;
             });
@@ -235,7 +222,7 @@ namespace Crash.Helper.Memory.LevelLock
         public void Dispose()
         {
             Disable();
-            LevelLockNative.CloseHandle(handle);
+            ProcessNative.CloseHandle(handle);
             process.Dispose();
             // Keep published code/data until the game exits: a paused thread may still be inside it.
             // Normal off/on cycles reuse this trampoline; Windows frees its pages with the game.
